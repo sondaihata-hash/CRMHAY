@@ -293,6 +293,27 @@ def resolve_page_access_tokens(system_token, page_data, fetcher=None):
     return resolved
 
 
+def resolve_facebook_pages(token, fetcher=None):
+    fetcher = fetcher or fetch_facebook_json
+    try:
+        me_payload = fetcher('me', token, {'fields': 'id,name'})
+    except (HTTPError, URLError, ValueError, KeyError):
+        return []
+
+    if not me_payload:
+        return []
+
+    page_id = me_payload.get('id') or me_payload.get('page_id')
+    page_name = me_payload.get('name') or 'Facebook Page'
+    if not page_id:
+        return []
+    return [{
+        'id': page_id,
+        'name': page_name,
+        'access_token': token,
+    }]
+
+
 def fetch_managed_facebook_messages():
     token = (
         os.environ.get('FACEBOOK_PAGE_ACCESS_TOKEN')
@@ -308,8 +329,11 @@ def fetch_managed_facebook_messages():
             accounts_payload = fetch_facebook_json('me/accounts', token, {'fields': 'id,name,access_token'})
             if accounts_payload.get('data'):
                 page_data = resolve_page_access_tokens(token, accounts_payload.get('data'))
-        except ValueError:
+        except (HTTPError, URLError, ValueError, KeyError):
             page_data = []
+
+        if not page_data:
+            page_data = resolve_facebook_pages(token)
 
         if not page_data:
             page_id = os.environ.get('FACEBOOK_PAGE_ID')
@@ -320,7 +344,7 @@ def fetch_managed_facebook_messages():
                     'access_token': token,
                 }]
             else:
-                raise ValueError('Không lấy được danh sách Page từ Facebook. Hãy dùng token quản lý page hợp lệ hoặc cấp quyền page inbox cho token này.')
+                raise ValueError('Không lấy được danh sách Page từ Facebook. Hãy dùng token doanh nghiệp/page hợp lệ và chắc chắn nó thuộc quyền quản lý page với quyền inbox.')
 
         facebook_messages = []
         request_delay_seconds = 1.5

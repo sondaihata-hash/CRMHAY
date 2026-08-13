@@ -1,40 +1,93 @@
 {% extends 'base.html' %}
 {% block content %}
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Khách hàng</h1>
-    <a class="btn btn-primary" href="/customers/add">Thêm khách hàng</a>
-  </div>
-  <form class="mb-3" method="get">
-    <div class="input-group">
-      <input class="form-control" name="q" placeholder="Tìm theo tên" value="{{q}}">
-      <button class="btn btn-outline-secondary">Tìm</button>
+  <div class="section-header">
+    <div>
+      <p class="kpi-label mb-2">Tổng quan CRM</p>
+      <h1 class="page-title">Khách hàng</h1>
     </div>
-  </form>
-  <table class="table table-striped">
-    <thead>
-      <tr><th>#</th><th>Tên</th><th>Facebook ID</th><th>Email</th><th>Phone</th><th>Thao tác</th></tr>
-    </thead>
-    <tbody>
-      {% for c in customers %}
-      <tr>
-        <td>{{c.id}}</td>
-        <td><a href="/customers/{{c.id}}">{{c.name}}</a></td>
-        <td>{{c.facebook_id or ''}}</td>
-        <td>{{c.email or ''}}</td>
-        <td>{{c.phone or ''}}</td>
-        <td>
-          <a class="btn btn-sm btn-outline-secondary" href="/customers/{{c.id}}/edit">Sửa</a>
-          <form action="/customers/{{c.id}}/delete" method="post" style="display:inline" onsubmit="return confirm('Xóa khách hàng?')">
-            <button class="btn btn-sm btn-danger">Xóa</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6">Không có khách hàng</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <div class="toolbar">
+      <a class="btn primary-btn" href="/customers/add">Thêm khách hàng</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Tổng khách hàng</div>
+        <div class="kpi-value">{{ customers|length }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Nguồn Facebook</div>
+        <div class="kpi-value">{{ customers | selectattr('source', 'equalto', 'facebook') | list | length }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Trạng thái</div>
+        <div class="kpi-value">Hoạt động</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel p-3 p-md-4 mb-4">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-10">
+        <input class="form-control" name="q" placeholder="Tìm theo tên khách hàng, số điện thoại hoặc Facebook ID" value="{{ q }}">
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn secondary-btn">Tìm kiếm</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel table-card">
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tên</th>
+            <th>Facebook ID</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in customers %}
+          <tr>
+            <td>{{ c.id }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge-soft">FB</span>
+                <a href="/customers/{{ c.id }}" class="btn-link-like text-decoration-none fw-semibold text-primary">{{ c.name }}</a>
+              </div>
+            </td>
+            <td>{{ c.facebook_id or '—' }}</td>
+            <td>{{ c.email or '—' }}</td>
+            <td>{{ c.phone or '—' }}</td>
+            <td>
+              <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-secondary action-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
+                <form action="/customers/{{ c.id }}/delete" method="post" onsubmit="return confirm('Xóa khách hàng này?')">
+                  <button class="btn btn-sm btn-danger action-btn">Xóa</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">Không có khách hàng nào.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="mt-4">
-    <a href="/customers/sync-facebook" class="btn btn-outline-info">Đồng bộ dữ liệu Facebook</a>
+    <a href="/customers/sync-facebook" class="btn success-btn">Đồng bộ dữ liệu Facebook</a>
   </div>
 {% endblock %}

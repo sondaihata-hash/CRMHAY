@@ -1,33 +1,41 @@
 {% extends 'base.html' %}
 {% block content %}
-  {% if action == 'add' %}
-    <h1>Thêm khách hàng</h1>
+  <div class="section-header">
+    <div>
+      <p class="kpi-label mb-2">Quản lý khách hàng</p>
+      <h1 class="page-title">{% if action == 'add' %}Thêm khách hàng{% else %}Sửa khách hàng{% endif %}</h1>
+    </div>
+  </div>
+
+  <div class="panel p-4">
     <form method="post">
-  {% else %}
-    <h1>Sửa khách hàng</h1>
-    <form method="post">
-  {% endif %}
-    <div class="mb-3">
-      <label class="form-label">Tên</label>
-      <input class="form-control" name="name" value="{{c.name if c else ''}}" required>
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Facebook ID</label>
-      <input class="form-control" name="facebook_id" value="{{c.facebook_id if c else ''}}">
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Email</label>
-      <input class="form-control" name="email" value="{{c.email if c else ''}}">
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Phone</label>
-      <input class="form-control" name="phone" value="{{c.phone if c else ''}}">
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Ghi chú</label>
-      <textarea class="form-control" name="notes">{{c.notes if c else ''}}</textarea>
-    </div>
-    <button class="btn btn-primary">Lưu</button>
-    <a class="btn btn-outline-secondary" href="/customers">Hủy</a>
-  </form>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Tên</label>
+          <input class="form-control" name="name" value="{{ c.name if c else '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Facebook ID</label>
+          <input class="form-control" name="facebook_id" value="{{ c.facebook_id if c else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Email</label>
+          <input class="form-control" name="email" value="{{ c.email if c else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Phone</label>
+          <input class="form-control" name="phone" value="{{ c.phone if c else '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Ghi chú</label>
+          <textarea class="form-control" name="notes" rows="5">{{ c.notes if c else '' }}</textarea>
+        </div>
+      </div>
+
+      <div class="mt-4 d-flex gap-2">
+        <button class="btn primary-btn">Lưu</button>
+        <a class="btn secondary-btn" href="/customers">Hủy</a>
+      </div>
+    </form>
+  </div>
 {% endblock %}

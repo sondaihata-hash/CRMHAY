@@ -1,4 +1,4 @@
-from app import build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens
+from app import build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages
 
 
 def test_extract_phone_numbers_from_message():
@@ -47,3 +47,18 @@ def test_resolve_page_access_tokens_falls_back_to_page_lookup_without_page_id():
 
     assert resolved[0]["access_token"] == "page_token_101"
     assert resolved[1]["access_token"] == "page_token_202"
+
+
+def test_resolve_facebook_pages_accepts_page_access_token_without_me_accounts():
+    calls = []
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        calls.append((endpoint, token, extra_params))
+        if endpoint == "me":
+            return {"id": "page_999", "name": "Page Demo"}
+        raise AssertionError(f"Unexpected endpoint: {endpoint}")
+
+    resolved = resolve_facebook_pages("page_token_only", fake_fetch)
+
+    assert resolved == [{"id": "page_999", "name": "Page Demo", "access_token": "page_token_only"}]
+    assert calls[0][0] == "me"

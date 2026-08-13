@@ -1,13 +1,51 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h1>Khách hàng: {{c.name}}</h1>
-  <dl class="row">
-    <dt class="col-sm-3">Facebook ID</dt><dd class="col-sm-9">{{c.facebook_id or '-'}}</dd>
-    <dt class="col-sm-3">Email</dt><dd class="col-sm-9">{{c.email or '-'}}</dd>
-    <dt class="col-sm-3">Phone</dt><dd class="col-sm-9">{{c.phone or '-'}}</dd>
-    <dt class="col-sm-3">Ghi chú</dt><dd class="col-sm-9">{{c.notes or '-'}}</dd>
-    <dt class="col-sm-3">Tạo lúc</dt><dd class="col-sm-9">{{c.created_at}}</dd>
-  </dl>
-  <a class="btn btn-secondary" href="/customers/{{c.id}}/edit">Sửa</a>
-  <a class="btn btn-outline-secondary" href="/customers">Quay lại</a>
+  <div class="section-header">
+    <div>
+      <p class="kpi-label mb-2">Chi tiết khách hàng</p>
+      <h1 class="page-title">{{ c.name }}</h1>
+    </div>
+    <div class="toolbar">
+      <a class="btn secondary-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
+      <a class="btn primary-btn" href="/customers">Quay lại</a>
+    </div>
+  </div>
+
+  <div class="panel p-4">
+    <div class="row g-4">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <div class="kpi-label">Facebook ID</div>
+          <div class="fs-5 fw-semibold">{{ c.facebook_id or '—' }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="kpi-label">Email</div>
+          <div class="fs-5 fw-semibold">{{ c.email or '—' }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="kpi-label">Số điện thoại</div>
+          <div class="fs-5 fw-semibold">{{ c.phone or '—' }}</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <div class="kpi-label">Page</div>
+          <div class="fs-5 fw-semibold">{{ c.page_name or '—' }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="kpi-label">Vị trí</div>
+          <div class="fs-5 fw-semibold">{{ c.location or '—' }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="kpi-label">Ngày nhắn cuối</div>
+          <div class="fs-5 fw-semibold">{{ c.last_message_date or '—' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <div class="kpi-label">Ghi chú</div>
+      <div class="fs-6 mt-2 text-secondary">{{ c.notes or 'Chưa có ghi chú.' }}</div>
+    </div>
+  </div>
 {% endblock %}
