@@ -13,8 +13,13 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import time
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+os.makedirs(INSTANCE_DIR, exist_ok=True)
+DB_PATH = os.path.join(INSTANCE_DIR, 'crm.db')
+
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crm.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('CRM_SECRET_KEY', 'dev-secret')
 
@@ -314,7 +319,7 @@ def resolve_facebook_pages(token, fetcher=None):
     }]
 
 
-def fetch_managed_facebook_messages():
+def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=None):
     token = (
         os.environ.get('FACEBOOK_PAGE_ACCESS_TOKEN')
         or os.environ.get('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
@@ -346,9 +351,14 @@ def fetch_managed_facebook_messages():
             else:
                 raise ValueError('Không lấy được danh sách Page từ Facebook. Hãy dùng token doanh nghiệp/page hợp lệ và chắc chắn nó thuộc quyền quản lý page với quyền inbox.')
 
+        page_limit = max_pages if max_pages is not None else int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '3'))
+        page_limit = max(1, min(int(page_limit), 10))
+        conversation_limit = max_conversations_per_page if max_conversations_per_page is not None else int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25'))
+        conversation_limit = max(1, min(int(conversation_limit), 200))
+
         facebook_messages = []
-        request_delay_seconds = 1.5
-        for page in page_data:
+        request_delay_seconds = 0.5
+        for page_index, page in enumerate(page_data[:page_limit]):
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
             page_token = page.get('access_token') or token
@@ -357,12 +367,18 @@ def fetch_managed_facebook_messages():
 
             endpoint = f'{page_id}/conversations'
             next_url = None
+            collected_for_page = 0
 
             while True:
                 params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '25'}
                 payload = fetch_facebook_json(next_url or endpoint, page_token, params)
                 conversations = payload.get('data', [])
+                if not conversations:
+                    break
+
                 for conversation in conversations:
+                    if collected_for_page >= conversation_limit:
+                        break
                     participants = conversation.get('participants', {}).get('data', [])
                     messages = conversation.get('messages', {}).get('data', [])
                     if not messages:
@@ -381,10 +397,11 @@ def fetch_managed_facebook_messages():
                         'message_date': latest_message.get('created_time'),
                         'page_name': page_name,
                     })
+                    collected_for_page += 1
 
                 paging = payload.get('paging', {})
                 next_page = paging.get('next')
-                if not next_page:
+                if collected_for_page >= conversation_limit or not next_page:
                     break
                 next_url = next_page
                 time.sleep(request_delay_seconds)
@@ -545,16 +562,26 @@ def sync_facebook_customers():
         return redirect(url_for('customers'))
 
     try:
-        messages = fetch_managed_facebook_messages()
-    except ValueError as exc:
-        flash(str(exc), 'danger')
+        messages = fetch_managed_facebook_messages(
+            max_pages=int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '3')),
+            max_conversations_per_page=int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25')),
+        )
+    except Exception as exc:
+        app.logger.exception('Facebook sync failed')
+        flash('Đồng bộ Facebook thất bại: token không hợp lệ hoặc thiếu quyền truy cập page/inbox. Vui lòng kiểm tra lại cài đặt Facebook.', 'danger')
         return redirect(url_for('customers'))
 
     if not messages:
-        flash('Không tìm thấy khách hàng nào từ Facebook cho token hiện tại.', 'warning')
+        flash('Không tìm thấy khách hàng nào từ Facebook cho token hiện tại. Hãy kiểm tra quyền page/inbox hoặc token doanh nghiệp.', 'warning')
         return redirect(url_for('customers'))
 
-    imported, updated = import_facebook_messages(messages)
+    try:
+        imported, updated = import_facebook_messages(messages)
+    except Exception as exc:
+        app.logger.exception('Import facebook customers failed')
+        flash('Đồng bộ dữ liệu Facebook xong nhưng lưu trữ CRM gặp lỗi. Vui lòng thử lại sau.', 'danger')
+        return redirect(url_for('customers'))
+
     flash(f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách từ Facebook.', 'success')
     return redirect(url_for('customers'))
 

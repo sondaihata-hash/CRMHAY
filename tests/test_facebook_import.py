@@ -1,4 +1,13 @@
-from app import build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages
+import os
+
+from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages
+
+
+def test_database_uses_persistent_project_path():
+    db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+    sqlite_path = db_uri.replace('sqlite:///', '', 1)
+    assert os.path.isabs(sqlite_path)
+    assert 'instance' in sqlite_path.lower()
 
 
 def test_extract_phone_numbers_from_message():
