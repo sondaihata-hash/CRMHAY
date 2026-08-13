@@ -241,7 +241,14 @@ def fetch_facebook_json(endpoint, access_token, extra_params=None):
     url = f'{base_url}?{urlencode(params)}'
     request = Request(url, headers={'User-Agent': 'CRM-HAY/1.0'})
     with urlopen(request, timeout=25) as response:
-        return json.loads(response.read().decode('utf-8'))
+        payload = json.loads(response.read().decode('utf-8'))
+
+    if isinstance(payload, dict) and 'error' in payload:
+        error = payload['error']
+        message = error.get('message', 'Facebook Graph API returned an error.')
+        raise ValueError(message)
+
+    return payload
 
 
 def normalize_customer_name(participants, page_name):
@@ -251,6 +258,39 @@ def normalize_customer_name(participants, page_name):
         if participant.get('id') and participant.get('name'):
             return participant.get('name')
     return page_name or 'Khách hàng Facebook'
+
+
+def resolve_page_access_tokens(system_token, page_data, fetcher=None):
+    fetcher = fetcher or fetch_facebook_json
+    resolved = []
+    for page in page_data:
+        page_id = page.get('id')
+        page_name = page.get('name') or 'Facebook Page'
+        page_token = page.get('access_token')
+        if page_token:
+            resolved.append({**page, 'access_token': page_token})
+            continue
+        if not page_id:
+            continue
+        try:
+            page_payload = fetcher(page_id, system_token, {'fields': 'id,name,access_token'})
+        except (HTTPError, URLError, ValueError, KeyError):
+            continue
+        access_token = page_payload.get('access_token')
+        if not access_token:
+            continue
+        resolved.append({
+            'id': page_id,
+            'name': page_name,
+            'access_token': access_token,
+        })
+    if not resolved and page_data:
+        resolved = [{
+            'id': page.get('id'),
+            'name': page.get('name') or 'Facebook Page',
+            'access_token': system_token,
+        } for page in page_data if page.get('id')]
+    return resolved
 
 
 def fetch_managed_facebook_messages():
@@ -264,27 +304,39 @@ def fetch_managed_facebook_messages():
 
     try:
         page_data = []
-        accounts_payload = fetch_facebook_json('me/accounts', token, {'fields': 'id,name'})
-        if accounts_payload.get('data'):
-            page_data = accounts_payload.get('data')
-        else:
+        try:
+            accounts_payload = fetch_facebook_json('me/accounts', token, {'fields': 'id,name,access_token'})
+            if accounts_payload.get('data'):
+                page_data = resolve_page_access_tokens(token, accounts_payload.get('data'))
+        except ValueError:
+            page_data = []
+
+        if not page_data:
             page_id = os.environ.get('FACEBOOK_PAGE_ID')
             if page_id:
-                page_data = [{'id': page_id, 'name': os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')}]
+                page_data = [{
+                    'id': page_id,
+                    'name': os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page'),
+                    'access_token': token,
+                }]
             else:
-                page_data = [{'id': 'me', 'name': os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')}]
+                raise ValueError('Không lấy được danh sách Page từ Facebook. Hãy dùng token quản lý page hợp lệ hoặc cấp quyền page inbox cho token này.')
 
         facebook_messages = []
         request_delay_seconds = 1.5
         for page in page_data:
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
-            endpoint = f'{page_id}/conversations' if page_id != 'me' else 'me/conversations'
+            page_token = page.get('access_token') or token
+            if not page_id:
+                continue
+
+            endpoint = f'{page_id}/conversations'
             next_url = None
 
             while True:
                 params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '25'}
-                payload = fetch_facebook_json(next_url or endpoint, token, params)
+                payload = fetch_facebook_json(next_url or endpoint, page_token, params)
                 conversations = payload.get('data', [])
                 for conversation in conversations:
                     participants = conversation.get('participants', {}).get('data', [])
@@ -316,8 +368,15 @@ def fetch_managed_facebook_messages():
             time.sleep(request_delay_seconds)
 
         return facebook_messages
-    except (HTTPError, URLError, ValueError, KeyError):
-        return []
+    except (HTTPError, URLError, ValueError, KeyError) as exc:
+        message = str(exc)
+        if message.startswith('HTTP Error'):
+            raise ValueError('Facebook API trả về lỗi HTTP. Kiểm tra token và quyền truy cập Page.')
+        if 'Invalid OAuth access token' in message or 'OAuthException' in message:
+            raise ValueError('Token Facebook không hợp lệ hoặc hết hạn. Hãy kiểm tra lại FACEBOOK_PAGE_ACCESS_TOKEN / FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.')
+        if 'does not have permission' in message or 'permission' in message.lower():
+            raise ValueError('Token hiện tại không có quyền đọc inbox / page conversations. Cần Page Access Token hoặc token có quyền page messaging.')
+        raise ValueError(f'Facebook API lỗi: {message}')
 
 
 def init_db():
@@ -461,9 +520,14 @@ def sync_facebook_customers():
         flash('Chưa cấu hình token Facebook hợp lệ. Thêm FACEBOOK_PAGE_ACCESS_TOKEN hoặc FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.', 'danger')
         return redirect(url_for('customers'))
 
-    messages = fetch_managed_facebook_messages()
+    try:
+        messages = fetch_managed_facebook_messages()
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('customers'))
+
     if not messages:
-        flash('Không tìm thấy khách hàng nào từ Facebook hoặc token chưa được cấp quyền đủ.', 'warning')
+        flash('Không tìm thấy khách hàng nào từ Facebook cho token hiện tại.', 'warning')
         return redirect(url_for('customers'))
 
     imported, updated = import_facebook_messages(messages)
