@@ -26,6 +26,14 @@
           <label class="form-label fw-semibold">Phone</label>
           <input class="form-control" name="phone" value="{{ c.phone if c else '' }}">
         </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Vị trí</label>
+          <input class="form-control" name="location" value="{{ c.location if c else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Tags (phân cách bằng dấu phẩy)</label>
+          <input class="form-control" name="tags" value="{{ c.tags if c else '' }}" placeholder="VIP, Tiềm năng, Hà Nội">
+        </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Ghi chú</label>
           <textarea class="form-control" name="notes" rows="5">{{ c.notes if c else '' }}</textarea>

@@ -52,6 +52,7 @@
             <th>Nơi ở</th>
             <th>Page</th>
             <th>Số điện thoại</th>
+            <th>Tin nhắn</th>
             <th>Ngày nhắn</th>
             <th>Nguồn</th>
             <th>Thao tác</th>
@@ -63,6 +64,11 @@
             <td><small class="text-muted">{{ c.id }}</small></td>
             <td>
               <div class="d-flex align-items-center gap-2">
+                {% if c.profile_pic %}
+                  <img src="{{ c.profile_pic }}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+                {% else %}
+                  <span style="width:32px;height:32px;border-radius:50%;background:#e2e8f0;display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;color:#64748b;font-weight:700;">{{ c.name[0]|upper if c.name else '?' }}</span>
+                {% endif %}
                 {% if c.source == 'facebook' %}
                   <span class="badge-soft" style="background-color: #e7f3ff; color: #0084ff; font-size: 0.7rem; padding: 0.35rem 0.5rem;">FB</span>
                 {% else %}
@@ -74,6 +80,13 @@
                   </div>
                   {% if c.facebook_id %}
                     <small class="text-muted d-block">ID: {{ c.facebook_id }}</small>
+                  {% endif %}
+                  {% if c.tags %}
+                    <div class="mt-1">
+                      {% for tag in c.tags.split(',') %}
+                        <span class="badge" style="background:#f0f0f0;color:#475569;font-size:0.65rem;font-weight:600;margin-right:2px;">{{ tag.strip() }}</span>
+                      {% endfor %}
+                    </div>
                   {% endif %}
                 </div>
               </div>
@@ -98,6 +111,9 @@
               {% else %}
                 <small class="text-muted">—</small>
               {% endif %}
+            </td>
+            <td>
+              <small class="text-muted">{{ c.message_count or 0 }}</small>
             </td>
             <td>
               {% if c.last_message_date %}
@@ -126,7 +142,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="8" class="text-center text-muted py-4">Không có khách hàng nào.</td>
+            <td colspan="9" class="text-center text-muted py-4">Không có khách hàng nào.</td>
           </tr>
           {% endfor %}
         </tbody>

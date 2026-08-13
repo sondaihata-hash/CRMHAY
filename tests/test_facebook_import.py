@@ -71,3 +71,174 @@ def test_resolve_facebook_pages_accepts_page_access_token_without_me_accounts():
 
     assert resolved == [{"id": "page_999", "name": "Page Demo", "access_token": "page_token_only"}]
     assert calls[0][0] == "me"
+
+
+def test_fetch_managed_excludes_page_id_from_customer():
+    """When latest message sender is the page, customer should come from participants."""
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_111"
+    conversations_response = {
+        "data": [
+            {
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": "CUST_A", "name": "Alice"},
+                ]},
+                "messages": {"data": [
+                    {"from": {"id": page_id, "name": "My Page"}, "message": "Cảm ơn bạn", "created_time": "2026-08-01T10:00:00+0000"},
+                ]},
+            },
+            {
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": "CUST_B", "name": "Bob"},
+                ]},
+                "messages": {"data": [
+                    {"from": {"id": page_id, "name": "My Page"}, "message": "Chào bạn", "created_time": "2026-08-02T10:00:00+0000"},
+                ]},
+            },
+        ],
+        "paging": {},
+    }
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return conversations_response
+        if endpoint == page_id:
+            return {"id": page_id, "name": "My Page", "access_token": "tok"}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
+
+    assert len(results) == 2
+    ids = {r["facebook_id"] for r in results}
+    # Both customers should have distinct IDs, neither should be the page ID
+    assert page_id not in ids
+    assert "CUST_A" in ids
+    assert "CUST_B" in ids
+
+
+def test_import_does_not_merge_different_fb_users_with_same_name():
+    """Two FB users with same name but different facebook_id → 2 records."""
+    import unittest.mock as mock
+    from app import db, Customer, import_facebook_messages
+
+    messages = [
+        {"name": "Nguyễn Văn A", "facebook_id": "FB_001", "message": "Xin chào", "message_date": "2026-08-01T10:00:00+0000", "page_name": "Shop"},
+        {"name": "Nguyễn Văn A", "facebook_id": "FB_002", "message": "Tôi cần mua", "message_date": "2026-08-02T10:00:00+0000", "page_name": "Shop"},
+    ]
+
+    with app.app_context():
+        # Clean slate
+        Customer.query.filter(Customer.facebook_id.in_(["FB_001", "FB_002"])).delete()
+        Customer.query.filter(Customer.name == "Nguyễn Văn A", Customer.source == "facebook").delete()
+        db.session.commit()
+
+        imported, updated = import_facebook_messages(messages)
+
+        customers = Customer.query.filter(Customer.facebook_id.in_(["FB_001", "FB_002"])).all()
+        assert len(customers) == 2, f"Expected 2 distinct customers, got {len(customers)}"
+        assert imported == 2
+        assert updated == 0
+
+        # Cleanup
+        for c in customers:
+            db.session.delete(c)
+        db.session.commit()
+
+
+def test_conversations_with_image_only_not_skipped():
+    """Conversations where latest message has no text should still produce a customer."""
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_222"
+    conversations_response = {
+        "data": [
+            {
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": "CUST_IMG", "name": "Hình Ảnh User"},
+                ]},
+                "messages": {"data": [
+                    {"from": {"id": "CUST_IMG", "name": "Hình Ảnh User"}, "message": "", "created_time": "2026-08-01T10:00:00+0000"},
+                ]},
+            },
+        ],
+        "paging": {},
+    }
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return conversations_response
+        if endpoint == page_id:
+            return {"id": page_id, "name": "My Page", "access_token": "tok"}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
+
+    assert len(results) == 1
+    assert results[0]["facebook_id"] == "CUST_IMG"
+    assert results[0]["message"] == "[Hình ảnh/sticker]"
+
+
+def test_build_customer_splits_name_and_maps_new_fields():
+    """build_customer_from_message maps profile_pic, gender, locale, conversation_id, message_count."""
+    from app import build_customer_from_message
+
+    payload = {
+        "name": "Nguyễn Văn Bình",
+        "facebook_id": "999",
+        "message": "Hello",
+        "message_date": "2026-08-14T10:00:00+0000",
+        "page_name": "Shop",
+        "profile_pic": "https://example.com/pic.jpg",
+        "gender": "male",
+        "locale": "vi_VN",
+        "conversation_id": "conv_123",
+        "message_count": 5,
+    }
+
+    result = build_customer_from_message(payload)
+    assert result["first_name"] == "Bình"
+    assert result["last_name"] == "Nguyễn Văn"
+    assert result["profile_pic"] == "https://example.com/pic.jpg"
+    assert result["gender"] == "male"
+    assert result["locale"] == "vi_VN"
+    assert result["conversation_id"] == "conv_123"
+    assert result["message_count"] == 5
+
+
+def test_import_dedup_by_conversation_id():
+    """Same conversation_id → update, not duplicate."""
+    from app import db, Customer, import_facebook_messages
+
+    messages = [
+        {"name": "User A", "facebook_id": "U1", "conversation_id": "CONV_X", "message": "Hi", "message_date": "2026-08-14T10:00:00+0000", "page_name": "Shop"},
+        {"name": "User A Updated", "facebook_id": "U1", "conversation_id": "CONV_X", "message": "Bye", "message_date": "2026-08-14T11:00:00+0000", "page_name": "Shop"},
+    ]
+
+    with app.app_context():
+        Customer.query.filter(Customer.conversation_id == "CONV_X").delete()
+        db.session.commit()
+
+        imported, updated = import_facebook_messages(messages)
+        assert imported == 1
+        assert updated == 1
+
+        customers = Customer.query.filter(Customer.conversation_id == "CONV_X").all()
+        assert len(customers) == 1
+        assert customers[0].name == "User A Updated"
+
+        db.session.delete(customers[0])
+        db.session.commit()

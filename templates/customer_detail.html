@@ -14,10 +14,29 @@
   <div class="panel p-4">
     <div class="row g-4">
       <div class="col-md-6">
+        <div class="mb-3 d-flex align-items-center gap-3">
+          {% if c.profile_pic %}
+            <img src="{{ c.profile_pic }}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;">
+          {% else %}
+            <span style="width:64px;height:64px;border-radius:50%;background:#e2e8f0;display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;color:#64748b;font-weight:700;">{{ c.name[0]|upper if c.name else '?' }}</span>
+          {% endif %}
+          <div>
+            <div class="fs-5 fw-semibold">{{ c.name }}</div>
+            {% if c.first_name or c.last_name %}
+              <small class="text-muted">{{ c.last_name or '' }} {{ c.first_name or '' }}</small>
+            {% endif %}
+          </div>
+        </div>
         <div class="mb-3">
           <div class="kpi-label">Facebook ID</div>
           <div class="fs-5 fw-semibold">{{ c.facebook_id or '—' }}</div>
         </div>
+        {% if c.conversation_id %}
+        <div class="mb-3">
+          <div class="kpi-label">Conversation ID</div>
+          <div class="fs-6 fw-semibold">{{ c.conversation_id }}</div>
+        </div>
+        {% endif %}
         <div class="mb-3">
           <div class="kpi-label">Email</div>
           <div class="fs-5 fw-semibold">{{ c.email or '—' }}</div>
@@ -26,6 +45,18 @@
           <div class="kpi-label">Số điện thoại</div>
           <div class="fs-5 fw-semibold">{{ c.phone or '—' }}</div>
         </div>
+        {% if c.gender %}
+        <div class="mb-3">
+          <div class="kpi-label">Giới tính</div>
+          <div class="fs-5 fw-semibold">{{ c.gender | title }}</div>
+        </div>
+        {% endif %}
+        {% if c.locale %}
+        <div class="mb-3">
+          <div class="kpi-label">Ngôn ngữ</div>
+          <div class="fs-5 fw-semibold">{{ c.locale }}</div>
+        </div>
+        {% endif %}
       </div>
       <div class="col-md-6">
         <div class="mb-3">
@@ -46,6 +77,20 @@
           <div class="kpi-label">Vị trí</div>
           <div class="fs-5 fw-semibold">{{ c.location or '—' }}</div>
         </div>
+        <div class="mb-3">
+          <div class="kpi-label">Số tin nhắn</div>
+          <div class="fs-5 fw-semibold">{{ c.message_count or 0 }}</div>
+        </div>
+        {% if c.tags %}
+        <div class="mb-3">
+          <div class="kpi-label">Tags</div>
+          <div>
+            {% for tag in c.tags.split(',') %}
+              <span class="badge" style="background:#e7f3ff;color:#0084ff;font-size:0.8rem;margin-right:4px;">{{ tag.strip() }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
         <div class="mb-3">
           <div class="kpi-label">Ngày nhắn cuối</div>
           <div class="fs-5 fw-semibold">

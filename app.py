@@ -29,7 +29,13 @@ db = SQLAlchemy(app)
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
+    first_name = db.Column(db.String(100), nullable=True)
+    last_name = db.Column(db.String(100), nullable=True)
     facebook_id = db.Column(db.String(100), nullable=True)
+    conversation_id = db.Column(db.String(200), nullable=True)
+    profile_pic = db.Column(db.Text, nullable=True)
+    gender = db.Column(db.String(20), nullable=True)
+    locale = db.Column(db.String(20), nullable=True)
     email = db.Column(db.String(200), nullable=True)
     phone = db.Column(db.String(50), nullable=True)
     notes = db.Column(db.Text, nullable=True)
@@ -38,6 +44,8 @@ class Customer(db.Model):
     last_message_date = db.Column(db.DateTime, nullable=True)
     message_excerpt = db.Column(db.Text, nullable=True)
     source = db.Column(db.String(50), default='manual')
+    message_count = db.Column(db.Integer, default=0)
+    tags = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -56,6 +64,14 @@ def ensure_customer_columns():
         'last_message_date': 'DATETIME',
         'message_excerpt': 'TEXT',
         'source': 'TEXT',
+        'first_name': 'TEXT',
+        'last_name': 'TEXT',
+        'conversation_id': 'TEXT',
+        'profile_pic': 'TEXT',
+        'gender': 'TEXT',
+        'locale': 'TEXT',
+        'message_count': 'INTEGER DEFAULT 0',
+        'tags': 'TEXT',
     }
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
@@ -134,9 +150,21 @@ def build_customer_from_message(payload):
             except ValueError:
                 last_message_date = datetime.utcnow()
 
+    # Split name into first/last (Vietnamese: last word = first_name)
+    name_clean = raw_name.strip() or 'Khách hàng Facebook'
+    name_parts = name_clean.split()
+    first_name = payload.get('first_name') or (name_parts[-1] if name_parts else '')
+    last_name = payload.get('last_name') or (' '.join(name_parts[:-1]) if len(name_parts) > 1 else '')
+
     return {
-        'name': raw_name.strip() or 'Khách hàng Facebook',
+        'name': name_clean,
+        'first_name': first_name,
+        'last_name': last_name,
         'facebook_id': facebook_id,
+        'conversation_id': payload.get('conversation_id') or '',
+        'profile_pic': payload.get('profile_pic') or '',
+        'gender': payload.get('gender') or '',
+        'locale': payload.get('locale') or '',
         'email': payload.get('email') or '',
         'phone': phone,
         'notes': f"Page: {raw_page_name}\nVị trí: {location}\nTin nhắn: {message[:500]}",
@@ -145,6 +173,8 @@ def build_customer_from_message(payload):
         'last_message_date': last_message_date,
         'message_excerpt': message[:500],
         'source': 'facebook',
+        'message_count': payload.get('message_count') or 0,
+        'tags': payload.get('tags') or '',
     }
 
 
@@ -202,15 +232,25 @@ def import_facebook_messages(messages):
             continue
 
         customer = None
-        if payload.get('facebook_id'):
+        # Dedup priority: conversation_id > facebook_id > name (no facebook_id only)
+        if payload.get('conversation_id'):
+            customer = Customer.query.filter(Customer.conversation_id == payload['conversation_id']).first()
+        if customer is None and payload.get('facebook_id'):
             customer = Customer.query.filter(Customer.facebook_id == payload['facebook_id']).first()
-        if customer is None:
-            customer = Customer.query.filter(Customer.name == payload['name']).first()
+        if customer is None and not payload.get('facebook_id'):
+            # Only dedup by name when no facebook_id — avoid merging distinct FB users
+            customer = Customer.query.filter(Customer.name == payload['name'], Customer.source == 'facebook').first()
 
         if customer is None:
             customer = Customer(
                 name=payload['name'],
+                first_name=payload['first_name'],
+                last_name=payload['last_name'],
                 facebook_id=payload['facebook_id'],
+                conversation_id=payload['conversation_id'],
+                profile_pic=payload['profile_pic'],
+                gender=payload['gender'],
+                locale=payload['locale'],
                 email=payload['email'],
                 phone=payload['phone'],
                 notes=payload['notes'],
@@ -219,12 +259,20 @@ def import_facebook_messages(messages):
                 last_message_date=payload['last_message_date'],
                 message_excerpt=payload['message_excerpt'],
                 source=payload['source'],
+                message_count=payload['message_count'],
+                tags=payload['tags'],
             )
             db.session.add(customer)
             imported += 1
         else:
             customer.name = payload['name']
+            customer.first_name = payload['first_name'] or customer.first_name
+            customer.last_name = payload['last_name'] or customer.last_name
             customer.facebook_id = payload['facebook_id'] or customer.facebook_id
+            customer.conversation_id = payload['conversation_id'] or customer.conversation_id
+            customer.profile_pic = payload['profile_pic'] or customer.profile_pic
+            customer.gender = payload['gender'] or customer.gender
+            customer.locale = payload['locale'] or customer.locale
             customer.email = payload['email'] or customer.email
             customer.phone = payload['phone'] or customer.phone
             customer.page_name = payload['page_name'] or customer.page_name
@@ -233,6 +281,8 @@ def import_facebook_messages(messages):
             customer.message_excerpt = payload['message_excerpt'] or customer.message_excerpt
             customer.notes = payload['notes']
             customer.source = 'facebook'
+            customer.message_count = payload['message_count'] or customer.message_count
+            customer.tags = payload['tags'] or customer.tags
             updated += 1
     db.session.commit()
     return imported, updated
@@ -353,8 +403,8 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 
         page_limit = max_pages if max_pages is not None else int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '3'))
         page_limit = max(1, min(int(page_limit), 10))
-        conversation_limit = max_conversations_per_page if max_conversations_per_page is not None else int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25'))
-        conversation_limit = max(1, min(int(conversation_limit), 200))
+        conversation_limit = max_conversations_per_page if max_conversations_per_page is not None else int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '500'))
+        conversation_limit = max(1, min(int(conversation_limit), 2000))
 
         facebook_messages = []
         request_delay_seconds = 0.5
@@ -385,17 +435,57 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         continue
                     latest_message = messages[0]
                     sender = latest_message.get('from', {})
-                    customer_name = sender.get('name') or normalize_customer_name(participants, page_name)
-                    customer_id = sender.get('id') or (participants[0].get('id') if participants else '')
+                    # Find the actual customer, not the page itself
+                    customer_participants = [p for p in participants if p.get('id') != page_id]
+                    if sender.get('id') and sender.get('id') != page_id:
+                        customer_name = sender.get('name') or normalize_customer_name(customer_participants, page_name)
+                        customer_id = sender.get('id')
+                    elif customer_participants:
+                        customer_name = customer_participants[0].get('name') or normalize_customer_name(customer_participants, page_name)
+                        customer_id = customer_participants[0].get('id') or ''
+                    else:
+                        customer_name = sender.get('name') or normalize_customer_name(participants, page_name)
+                        customer_id = sender.get('id') or (participants[0].get('id') if participants else '')
                     message_text = latest_message.get('message') or latest_message.get('story') or ''
                     if not message_text:
-                        continue
+                        message_text = '[Hình ảnh/sticker]'
+
+                    # Fetch user profile (profile_pic, first_name, last_name, gender, locale)
+                    profile_pic = ''
+                    first_name = ''
+                    last_name = ''
+                    gender = ''
+                    locale = ''
+                    if customer_id:
+                        try:
+                            profile = fetch_facebook_json(
+                                customer_id, page_token,
+                                {'fields': 'first_name,last_name,profile_pic,gender,locale'}
+                            )
+                            profile_pic = profile.get('profile_pic') or ''
+                            first_name = profile.get('first_name') or ''
+                            last_name = profile.get('last_name') or ''
+                            gender = profile.get('gender') or ''
+                            locale = profile.get('locale') or ''
+                        except Exception:
+                            pass  # Profile API may not be available
+
+                    conversation_id = conversation.get('id') or ''
+                    message_count = len(messages)
+
                     facebook_messages.append({
                         'name': customer_name,
+                        'first_name': first_name,
+                        'last_name': last_name,
                         'facebook_id': customer_id,
+                        'conversation_id': conversation_id,
+                        'profile_pic': profile_pic,
+                        'gender': gender,
+                        'locale': locale,
                         'message': message_text,
                         'message_date': latest_message.get('created_time'),
                         'page_name': page_name,
+                        'message_count': message_count,
                     })
                     collected_for_page += 1
 
@@ -448,7 +538,15 @@ def index():
 def customers():
     q = request.args.get('q', '')
     if q:
-        items = Customer.query.filter(Customer.name.contains(q)).all()
+        items = Customer.query.filter(
+            db.or_(
+                Customer.name.contains(q),
+                Customer.phone.contains(q),
+                Customer.facebook_id.contains(q),
+                Customer.email.contains(q),
+                Customer.tags.contains(q),
+            )
+        ).all()
     else:
         items = Customer.query.order_by(Customer.created_at.desc()).all()
     return render_template('customers.html', customers=items, q=q)
@@ -462,10 +560,12 @@ def add_customer():
         email = request.form.get('email')
         phone = request.form.get('phone')
         notes = request.form.get('notes')
+        location = request.form.get('location')
+        tags = request.form.get('tags')
         if not name:
             flash('Tên là bắt buộc', 'danger')
             return redirect(url_for('add_customer'))
-        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone, notes=notes)
+        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone, notes=notes, location=location, tags=tags)
         db.session.add(c)
         db.session.commit()
         flash('Đã thêm khách hàng', 'success')
@@ -488,6 +588,8 @@ def edit_customer(c_id):
         c.email = request.form.get('email')
         c.phone = request.form.get('phone')
         c.notes = request.form.get('notes')
+        c.location = request.form.get('location')
+        c.tags = request.form.get('tags')
         db.session.commit()
         flash('Đã cập nhật khách hàng', 'success')
         return redirect(url_for('customer_detail', c_id=c.id))
@@ -564,7 +666,7 @@ def sync_facebook_customers():
     try:
         messages = fetch_managed_facebook_messages(
             max_pages=int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '3')),
-            max_conversations_per_page=int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25')),
+            max_conversations_per_page=int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '500')),
         )
     except Exception as exc:
         app.logger.exception('Facebook sync failed')
@@ -596,20 +698,28 @@ def facebook_import_legacy():
 def facebook_export():
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['id', 'name', 'facebook_id', 'email', 'phone', 'location', 'page_name', 'last_message_date', 'source'])
+    writer.writerow(['id', 'name', 'first_name', 'last_name', 'facebook_id', 'conversation_id', 'email', 'phone', 'location', 'page_name', 'gender', 'locale', 'message_count', 'tags', 'last_message_date', 'source', 'profile_pic'])
 
     customers = Customer.query.order_by(Customer.created_at.desc()).all()
     for customer in customers:
         writer.writerow([
             customer.id,
             customer.name,
+            customer.first_name or '',
+            customer.last_name or '',
             customer.facebook_id or '',
+            customer.conversation_id or '',
             customer.email or '',
             customer.phone or '',
             customer.location or '',
             customer.page_name or '',
+            customer.gender or '',
+            customer.locale or '',
+            customer.message_count or 0,
+            customer.tags or '',
             customer.last_message_date.strftime('%Y-%m-%d %H:%M:%S') if customer.last_message_date else '',
             customer.source or '',
+            customer.profile_pic or '',
         ])
 
     csv_data = output.getvalue()
