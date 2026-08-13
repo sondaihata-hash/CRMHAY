@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, Res
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy import text
+import ast
 import csv
 import io
 import json
@@ -145,24 +146,46 @@ def build_customer_from_message(payload):
 def parse_facebook_messages(raw_text):
     if not raw_text or not raw_text.strip():
         return []
-    try:
-        parsed = json.loads(raw_text)
-        if isinstance(parsed, list):
-            return parsed
-        if isinstance(parsed, dict):
-            return [parsed]
-    except json.JSONDecodeError:
-        items = []
-        for line in raw_text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
+
+    candidate_texts = [raw_text.strip()]
+    if '\n' in raw_text:
+        candidate_texts.extend(line.strip() for line in raw_text.splitlines() if line.strip())
+
+    for candidate in candidate_texts:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, dict):
+                return [parsed]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+        try:
+            parsed = ast.literal_eval(candidate)
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, dict):
+                return [parsed]
+        except (ValueError, SyntaxError):
+            pass
+
+    items = []
+    for line in raw_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        for parser in (json.loads, ast.literal_eval):
             try:
-                items.append(json.loads(line))
-            except json.JSONDecodeError:
+                parsed = parser(line)
+                if isinstance(parsed, dict):
+                    items.append(parsed)
+                elif isinstance(parsed, list):
+                    items.extend(parsed)
+                break
+            except (TypeError, ValueError, SyntaxError):
                 continue
-        return items
-    return []
+    return items
 
 
 def import_facebook_messages(messages):
@@ -426,30 +449,32 @@ def edit_setting(s_id):
     return render_template('setting_form.html', s=s)
 
 
-@app.route('/facebook/import', methods=['GET', 'POST'])
-def facebook_import():
-    if request.method == 'POST':
-        source_mode = request.form.get('source', 'manual')
-        if source_mode == 'page':
-            messages = fetch_managed_facebook_messages()
-        else:
-            raw_messages = request.form.get('messages', '')
-            messages = parse_facebook_messages(raw_messages)
-
-        if not messages:
-            flash('Không có dữ liệu Facebook hợp lệ để import. Hãy paste JSON hoặc dùng Page access token.', 'danger')
-            return redirect(url_for('facebook_import'))
-
-        imported, updated = import_facebook_messages(messages)
-        flash(f'Đã import {imported} khách mới và cập nhật {updated} khách', 'success')
-        return redirect(url_for('customers'))
-
+@app.route('/customers/sync-facebook')
+def sync_facebook_customers():
     configured = bool(
         os.environ.get('FACEBOOK_PAGE_ACCESS_TOKEN')
         or os.environ.get('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
         or os.environ.get('FACEBOOK_APP_ACCESS_TOKEN')
     )
-    return render_template('facebook_import.html', configured=configured)
+
+    if not configured:
+        flash('Chưa cấu hình token Facebook hợp lệ. Thêm FACEBOOK_PAGE_ACCESS_TOKEN hoặc FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.', 'danger')
+        return redirect(url_for('customers'))
+
+    messages = fetch_managed_facebook_messages()
+    if not messages:
+        flash('Không tìm thấy khách hàng nào từ Facebook hoặc token chưa được cấp quyền đủ.', 'warning')
+        return redirect(url_for('customers'))
+
+    imported, updated = import_facebook_messages(messages)
+    flash(f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách từ Facebook.', 'success')
+    return redirect(url_for('customers'))
+
+
+@app.route('/facebook/import')
+def facebook_import_legacy():
+    flash('Chức năng đồng bộ Facebook đã được chuyển sang tab Khách hàng.', 'info')
+    return redirect(url_for('customers'))
 
 
 @app.route('/facebook/export')

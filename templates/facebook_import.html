@@ -12,7 +12,7 @@
       <input type="hidden" name="source" value="manual">
       <div class="mb-3">
         <label class="form-label">Dữ liệu JSON</label>
-        <textarea name="messages" rows="12" class="form-control" placeholder='[{"name":"Lan Anh","facebook_id":"123456789","message":"Mình ở Hà Nội, liên hệ 0987654321","message_date":"2026-08-13T10:00:00+0000","page_name":"Page Cửa Hàng"}]'></textarea>
+        <textarea name="messages" rows="12" class="form-control" placeholder='[{"name":"Lan Anh","facebook_id":"123456789","message":"Mình ở Hà Nội, liên hệ 0987654321","message_date":"2026-08-13T10:00:00+0000","page_name":"Page Cửa Hàng"}]'>{{ last_input or '' }}</textarea>
       </div>
       <button class="btn btn-primary">Import dữ liệu</button>
     </form>
