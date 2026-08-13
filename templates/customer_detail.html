@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1>Khách hàng: {{c.name}}</h1>
+  <dl class="row">
+    <dt class="col-sm-3">Facebook ID</dt><dd class="col-sm-9">{{c.facebook_id or '-'}}</dd>
+    <dt class="col-sm-3">Email</dt><dd class="col-sm-9">{{c.email or '-'}}</dd>
+    <dt class="col-sm-3">Phone</dt><dd class="col-sm-9">{{c.phone or '-'}}</dd>
+    <dt class="col-sm-3">Ghi chú</dt><dd class="col-sm-9">{{c.notes or '-'}}</dd>
+    <dt class="col-sm-3">Tạo lúc</dt><dd class="col-sm-9">{{c.created_at}}</dd>
+  </dl>
+  <a class="btn btn-secondary" href="/customers/{{c.id}}/edit">Sửa</a>
+  <a class="btn btn-outline-secondary" href="/customers">Quay lại</a>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+  {% if action == 'add' %}
+    <h1>Thêm khách hàng</h1>
+    <form method="post">
+  {% else %}
+    <h1>Sửa khách hàng</h1>
+    <form method="post">
+  {% endif %}
+    <div class="mb-3">
+      <label class="form-label">Tên</label>
+      <input class="form-control" name="name" value="{{c.name if c else ''}}" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Facebook ID</label>
+      <input class="form-control" name="facebook_id" value="{{c.facebook_id if c else ''}}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input class="form-control" name="email" value="{{c.email if c else ''}}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Phone</label>
+      <input class="form-control" name="phone" value="{{c.phone if c else ''}}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Ghi chú</label>
+      <textarea class="form-control" name="notes">{{c.notes if c else ''}}</textarea>
+    </div>
+    <button class="btn btn-primary">Lưu</button>
+    <a class="btn btn-outline-secondary" href="/customers">Hủy</a>
+  </form>
+{% endblock %}

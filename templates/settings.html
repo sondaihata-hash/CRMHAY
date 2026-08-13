@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Cài đặt (Databe con)</h1>
+    <form class="row g-2" action="/settings/add" method="post">
+      <div class="col">
+        <input name="key" class="form-control" placeholder="Key">
+      </div>
+      <div class="col">
+        <input name="value" class="form-control" placeholder="Value">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary">Thêm</button>
+      </div>
+    </form>
+  </div>
+  <table class="table">
+    <thead><tr><th>Key</th><th>Value</th><th>Mô tả</th><th>Thao tác</th></tr></thead>
+    <tbody>
+      {% for s in items %}
+      <tr>
+        <td>{{s.key}}</td>
+        <td>{{s.value}}</td>
+        <td>{{s.description or ''}}</td>
+        <td>
+          <a class="btn btn-sm btn-outline-secondary" href="/settings/{{s.id}}/edit">Sửa</a>
+          <form action="/settings/{{s.id}}/delete" method="post" style="display:inline" onsubmit="return confirm('Xóa setting?')">
+            <button class="btn btn-sm btn-danger">Xóa</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">Không có cài đặt</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

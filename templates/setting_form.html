@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1>Sửa setting</h1>
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label">Key</label>
+      <input class="form-control" value="{{s.key}}" disabled>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Value</label>
+      <input class="form-control" name="value" value="{{s.value}}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Mô tả</label>
+      <input class="form-control" name="description" value="{{s.description}}">
+    </div>
+    <button class="btn btn-primary">Lưu</button>
+    <a class="btn btn-outline-secondary" href="/settings">Hủy</a>
+  </form>
+{% endblock %}
