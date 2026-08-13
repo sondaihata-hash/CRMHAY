@@ -29,6 +29,16 @@
       </div>
       <div class="col-md-6">
         <div class="mb-3">
+          <div class="kpi-label">Nguồn</div>
+          <div class="fs-5 fw-semibold">
+            {% if c.source == 'facebook' %}
+              <span class="badge" style="background-color: #0084ff; color: white;">Facebook</span>
+            {% else %}
+              <span class="badge" style="background-color: #6c757d; color: white;">{{ c.source | title }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="mb-3">
           <div class="kpi-label">Page</div>
           <div class="fs-5 fw-semibold">{{ c.page_name or '—' }}</div>
         </div>
@@ -38,7 +48,13 @@
         </div>
         <div class="mb-3">
           <div class="kpi-label">Ngày nhắn cuối</div>
-          <div class="fs-5 fw-semibold">{{ c.last_message_date or '—' }}</div>
+          <div class="fs-5 fw-semibold">
+            {% if c.last_message_date %}
+              {{ c.last_message_date.strftime('%d/%m/%Y %H:%M') }}
+            {% else %}
+              —
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
@@ -47,5 +63,14 @@
       <div class="kpi-label">Ghi chú</div>
       <div class="fs-6 mt-2 text-secondary">{{ c.notes or 'Chưa có ghi chú.' }}</div>
     </div>
+
+    {% if c.message_excerpt %}
+    <div class="mt-4">
+      <div class="kpi-label">Tin nhắn gần nhất</div>
+      <div class="fs-6 mt-2 text-secondary" style="background-color: #f8f9fa; padding: 12px; border-radius: 6px; max-height: 150px; overflow-y: auto; border-left: 3px solid #0084ff;">
+        {{ c.message_excerpt }}
+      </div>
+    </div>
+    {% endif %}
   </div>
 {% endblock %}
