@@ -25,14 +25,14 @@ class Setting(db.Model):
     value = db.Column(db.Text, nullable=True)
     description = db.Column(db.String(400), nullable=True)
 
-@app.before_first_request
 def init_db():
-    db.create_all()
-    # sample data
-    if not Customer.query.first():
-        sample = Customer(name='Nguyen Van A', facebook_id='fb_12345', email='a@example.com', phone='0123456789', notes='Khách hàng tiềm năng')
-        db.session.add(sample)
-        db.session.commit()
+    with app.app_context():
+        db.create_all()
+        # sample data
+        if not Customer.query.first():
+            sample = Customer(name='Nguyen Van A', facebook_id='fb_12345', email='a@example.com', phone='0123456789', notes='Khách hàng tiềm năng')
+            db.session.add(sample)
+            db.session.commit()
 
 @app.route('/')
 def index():
@@ -142,4 +142,7 @@ def fb_import_placeholder():
     return redirect(url_for('customers'))
 
 if __name__ == '__main__':
+    init_db()
     app.run(debug=True)
+else:
+    init_db()
