@@ -1,6 +1,6 @@
 import os
 
-from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages
+from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json
 
 
 def test_database_uses_persistent_project_path():
@@ -56,6 +56,49 @@ def test_resolve_page_access_tokens_falls_back_to_page_lookup_without_page_id():
 
     assert resolved[0]["access_token"] == "page_token_101"
     assert resolved[1]["access_token"] == "page_token_202"
+
+
+def test_facebook_token_can_be_loaded_from_database_settings():
+    from app import db, Setting
+
+    with app.app_context():
+        Setting.query.filter_by(key='FACEBOOK_PAGE_ACCESS_TOKEN').delete()
+        db.session.add(Setting(key='FACEBOOK_PAGE_ACCESS_TOKEN', value='db_token_123'))
+        db.session.commit()
+
+        assert get_setting_value('FACEBOOK_PAGE_ACCESS_TOKEN') == 'db_token_123'
+
+        Setting.query.filter_by(key='FACEBOOK_PAGE_ACCESS_TOKEN').delete()
+        db.session.commit()
+
+
+def test_fetch_facebook_json_keeps_pagination_query_string_valid():
+    import unittest.mock as mock
+
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"data": []}'
+
+    def fake_urlopen(request, timeout=25):
+        captured['url'] = request.full_url
+        return FakeResponse()
+
+    next_url = 'https://graph.facebook.com/v19.0/123/conversations?fields=participants{id,name}&limit=25&after=abc'
+    with mock.patch('app.urlopen', side_effect=fake_urlopen):
+        result = fetch_facebook_json(next_url, 'token_123', {'limit': '25'})
+
+    assert result == {'data': []}
+    assert captured['url'].count('?') == 1
+    assert 'after=abc' in captured['url']
+    assert 'access_token=token_123' in captured['url']
 
 
 def test_resolve_facebook_pages_accepts_page_access_token_without_me_accounts():

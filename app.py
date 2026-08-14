@@ -9,7 +9,7 @@ import json
 import os
 import re
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import time
 
@@ -223,6 +223,25 @@ def parse_facebook_messages(raw_text):
     return items
 
 
+def get_setting_value(key, default=None):
+    value = os.environ.get(key)
+    if value:
+        return value
+    with app.app_context():
+        setting = Setting.query.filter_by(key=key).first()
+        if setting and setting.value:
+            return setting.value
+    return default
+
+
+def get_facebook_token():
+    return (
+        get_setting_value('FACEBOOK_PAGE_ACCESS_TOKEN')
+        or get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
+        or get_setting_value('FACEBOOK_APP_ACCESS_TOKEN')
+    )
+
+
 def import_facebook_messages(messages):
     imported = 0
     updated = 0
@@ -289,11 +308,25 @@ def import_facebook_messages(messages):
 
 
 def fetch_facebook_json(endpoint, access_token, extra_params=None):
-    base_url = endpoint if endpoint.startswith('http') else f'https://graph.facebook.com/v19.0/{endpoint}'
-    params = {'access_token': access_token}
-    if extra_params:
-        params.update(extra_params)
-    url = f'{base_url}?{urlencode(params)}'
+    if endpoint.startswith('http'):
+        parsed = urlsplit(endpoint)
+        params = parse_qsl(parsed.query, keep_blank_values=True)
+        params = [(key, value) for key, value in params if key != 'access_token']
+        params.append(('access_token', access_token))
+        if extra_params:
+            for key, value in extra_params.items():
+                if value is None:
+                    continue
+                params = [(k, v) for k, v in params if k != key]
+                params.append((str(key), str(value)))
+        url = urlunsplit(parsed._replace(query=urlencode(params)))
+    else:
+        base_url = f'https://graph.facebook.com/v19.0/{endpoint}'
+        params = {'access_token': access_token}
+        if extra_params:
+            params.update({key: str(value) for key, value in extra_params.items() if value is not None})
+        url = f'{base_url}?{urlencode(params)}'
+
     request = Request(url, headers={'User-Agent': 'CRM-HAY/1.0'})
     with urlopen(request, timeout=25) as response:
         payload = json.loads(response.read().decode('utf-8'))
@@ -370,11 +403,7 @@ def resolve_facebook_pages(token, fetcher=None):
 
 
 def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=None):
-    token = (
-        os.environ.get('FACEBOOK_PAGE_ACCESS_TOKEN')
-        or os.environ.get('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
-        or os.environ.get('FACEBOOK_APP_ACCESS_TOKEN')
-    )
+    token = get_facebook_token()
     if not token:
         return []
 
@@ -653,11 +682,7 @@ def edit_setting(s_id):
 
 @app.route('/customers/sync-facebook')
 def sync_facebook_customers():
-    configured = bool(
-        os.environ.get('FACEBOOK_PAGE_ACCESS_TOKEN')
-        or os.environ.get('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
-        or os.environ.get('FACEBOOK_APP_ACCESS_TOKEN')
-    )
+    configured = bool(get_facebook_token())
 
     if not configured:
         flash('Chưa cấu hình token Facebook hợp lệ. Thêm FACEBOOK_PAGE_ACCESS_TOKEN hoặc FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.', 'danger')
