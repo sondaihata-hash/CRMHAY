@@ -285,3 +285,36 @@ def test_import_dedup_by_conversation_id():
 
         db.session.delete(customers[0])
         db.session.commit()
+
+
+def test_fetch_managed_facebook_messages_uses_safe_default_limit():
+    """Default sync should not process an unbounded conversation list and trigger worker timeouts."""
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_SAFE"
+    conversations = []
+    for index in range(60):
+        conversations.append({
+            "id": f"CONV_{index}",
+            "participants": {"data": [
+                {"id": page_id, "name": "My Page"},
+                {"id": f"CUST_{index}", "name": f"Customer {index}"},
+            ]},
+            "messages": {"data": [
+                {"from": {"id": f"CUST_{index}", "name": f"Customer {index}"}, "message": f"Hello {index}", "created_time": "2026-08-01T10:00:00+0000"},
+            ]},
+        })
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return {"data": conversations, "paging": {}}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
+        results = fetch_managed_facebook_messages()
+
+    assert len(results) == 25

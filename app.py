@@ -242,6 +242,19 @@ def get_facebook_token():
     )
 
 
+def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
+    configured_page_limit = max_pages
+    if configured_page_limit is None:
+        configured_page_limit = int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '1'))
+    configured_conversation_limit = max_conversations_per_page
+    if configured_conversation_limit is None:
+        configured_conversation_limit = int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25'))
+
+    page_limit = max(1, min(int(configured_page_limit), 3))
+    conversation_limit = max(1, min(int(configured_conversation_limit), 50))
+    return page_limit, conversation_limit
+
+
 def import_facebook_messages(messages):
     imported = 0
     updated = 0
@@ -430,13 +443,10 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
             else:
                 raise ValueError('Không lấy được danh sách Page từ Facebook. Hãy dùng token doanh nghiệp/page hợp lệ và chắc chắn nó thuộc quyền quản lý page với quyền inbox.')
 
-        page_limit = max_pages if max_pages is not None else int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '3'))
-        page_limit = max(1, min(int(page_limit), 10))
-        conversation_limit = max_conversations_per_page if max_conversations_per_page is not None else int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '500'))
-        conversation_limit = max(1, min(int(conversation_limit), 2000))
+        page_limit, conversation_limit = get_facebook_sync_limits(max_pages, max_conversations_per_page)
 
         facebook_messages = []
-        request_delay_seconds = 0.5
+        request_delay_seconds = 0
         for page_index, page in enumerate(page_data[:page_limit]):
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
@@ -523,9 +533,11 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                 if collected_for_page >= conversation_limit or not next_page:
                     break
                 next_url = next_page
-                time.sleep(request_delay_seconds)
+                if request_delay_seconds:
+                    time.sleep(request_delay_seconds)
 
-            time.sleep(request_delay_seconds)
+            if request_delay_seconds:
+                time.sleep(request_delay_seconds)
 
         return facebook_messages
     except (HTTPError, URLError, ValueError, KeyError) as exc:
@@ -690,8 +702,7 @@ def sync_facebook_customers():
 
     try:
         messages = fetch_managed_facebook_messages(
-            max_pages=int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '3')),
-            max_conversations_per_page=int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '500')),
+            *get_facebook_sync_limits(),
         )
     except Exception as exc:
         app.logger.exception('Facebook sync failed')
