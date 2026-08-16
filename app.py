@@ -245,13 +245,13 @@ def get_facebook_token():
 def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
     configured_page_limit = max_pages
     if configured_page_limit is None:
-        configured_page_limit = int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '1'))
+        configured_page_limit = int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '5'))
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
         configured_conversation_limit = int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25'))
 
-    page_limit = max(1, min(int(configured_page_limit), 3))
-    conversation_limit = max(1, min(int(configured_conversation_limit), 50))
+    page_limit = max(1, min(int(configured_page_limit), 20))
+    conversation_limit = max(1, min(int(configured_conversation_limit), 100))
     return page_limit, conversation_limit
 
 
@@ -415,6 +415,27 @@ def resolve_facebook_pages(token, fetcher=None):
     }]
 
 
+def fetch_all_facebook_pages(token, fetcher=None):
+    """Fetch ALL pages from me/accounts, following pagination."""
+    fetcher = fetcher or fetch_facebook_json
+    all_pages = []
+    try:
+        payload = fetcher('me/accounts', token, {'fields': 'id,name,access_token', 'limit': '100'})
+    except (HTTPError, URLError, ValueError, KeyError):
+        return []
+    while payload:
+        for page in (payload.get('data') or []):
+            all_pages.append(page)
+        next_url = (payload.get('paging') or {}).get('next')
+        if not next_url:
+            break
+        try:
+            payload = fetcher(next_url, token)
+        except (HTTPError, URLError, ValueError, KeyError):
+            break
+    return all_pages
+
+
 def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=None):
     token = get_facebook_token()
     if not token:
@@ -423,9 +444,9 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
     try:
         page_data = []
         try:
-            accounts_payload = fetch_facebook_json('me/accounts', token, {'fields': 'id,name,access_token'})
-            if accounts_payload.get('data'):
-                page_data = resolve_page_access_tokens(token, accounts_payload.get('data'))
+            all_account_pages = fetch_all_facebook_pages(token)
+            if all_account_pages:
+                page_data = resolve_page_access_tokens(token, all_account_pages)
         except (HTTPError, URLError, ValueError, KeyError):
             page_data = []
 
@@ -460,6 +481,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 
             while True:
                 params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '25'}
+                # ponytail: messages.limit=50 covers most conversations; increase if needed
                 payload = fetch_facebook_json(next_url or endpoint, page_token, params)
                 conversations = payload.get('data', [])
                 if not conversations:
@@ -485,9 +507,24 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     else:
                         customer_name = sender.get('name') or normalize_customer_name(participants, page_name)
                         customer_id = sender.get('id') or (participants[0].get('id') if participants else '')
-                    message_text = latest_message.get('message') or latest_message.get('story') or ''
-                    if not message_text:
-                        message_text = '[Hình ảnh/sticker]'
+
+                    # Scan ALL messages in conversation for phone & location
+                    all_texts = []
+                    for msg in messages:
+                        txt = msg.get('message') or msg.get('story') or ''
+                        if txt:
+                            all_texts.append(txt)
+                    combined_text = '\n'.join(all_texts)
+
+                    phone_numbers = extract_phone_numbers(combined_text)
+                    if not phone_numbers:
+                        continue  # chỉ lấy khách có SĐT
+                    phone = phone_numbers[0]
+
+                    location = extract_location(combined_text) or ''
+
+                    # message_text = latest message for excerpt display
+                    message_text = latest_message.get('message') or latest_message.get('story') or '[Hình ảnh/sticker]'
 
                     # Fetch user profile (profile_pic, first_name, last_name, gender, locale)
                     profile_pic = ''
@@ -521,7 +558,9 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         'profile_pic': profile_pic,
                         'gender': gender,
                         'locale': locale,
-                        'message': message_text,
+                        'phone': phone,
+                        'location': location,
+                        'message': combined_text[:500] if combined_text else message_text,
                         'message_date': latest_message.get('created_time'),
                         'page_name': page_name,
                         'message_count': message_count,

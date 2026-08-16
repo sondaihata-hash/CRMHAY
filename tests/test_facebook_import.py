@@ -131,6 +131,7 @@ def test_fetch_managed_excludes_page_id_from_customer():
                 ]},
                 "messages": {"data": [
                     {"from": {"id": page_id, "name": "My Page"}, "message": "Cảm ơn bạn", "created_time": "2026-08-01T10:00:00+0000"},
+                    {"from": {"id": "CUST_A", "name": "Alice"}, "message": "Số tôi 0912345678", "created_time": "2026-07-31T10:00:00+0000"},
                 ]},
             },
             {
@@ -140,6 +141,7 @@ def test_fetch_managed_excludes_page_id_from_customer():
                 ]},
                 "messages": {"data": [
                     {"from": {"id": page_id, "name": "My Page"}, "message": "Chào bạn", "created_time": "2026-08-02T10:00:00+0000"},
+                    {"from": {"id": "CUST_B", "name": "Bob"}, "message": "SĐT 0988777666", "created_time": "2026-08-01T10:00:00+0000"},
                 ]},
             },
         ],
@@ -197,7 +199,7 @@ def test_import_does_not_merge_different_fb_users_with_same_name():
 
 
 def test_conversations_with_image_only_not_skipped():
-    """Conversations where latest message has no text should still produce a customer."""
+    """Conversations where latest message is image-only but earlier message has phone → imported."""
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
 
@@ -211,6 +213,7 @@ def test_conversations_with_image_only_not_skipped():
                 ]},
                 "messages": {"data": [
                     {"from": {"id": "CUST_IMG", "name": "Hình Ảnh User"}, "message": "", "created_time": "2026-08-01T10:00:00+0000"},
+                    {"from": {"id": "CUST_IMG", "name": "Hình Ảnh User"}, "message": "SĐT tôi 0966111222", "created_time": "2026-07-31T10:00:00+0000"},
                 ]},
             },
         ],
@@ -232,7 +235,7 @@ def test_conversations_with_image_only_not_skipped():
 
     assert len(results) == 1
     assert results[0]["facebook_id"] == "CUST_IMG"
-    assert results[0]["message"] == "[Hình ảnh/sticker]"
+    assert results[0]["phone"] == "0966111222"
 
 
 def test_build_customer_splits_name_and_maps_new_fields():
@@ -303,6 +306,7 @@ def test_fetch_managed_facebook_messages_uses_safe_default_limit():
             ]},
             "messages": {"data": [
                 {"from": {"id": f"CUST_{index}", "name": f"Customer {index}"}, "message": f"Hello {index}", "created_time": "2026-08-01T10:00:00+0000"},
+                {"from": {"id": f"CUST_{index}", "name": f"Customer {index}"}, "message": f"Gọi tôi 09{70000000 + index}", "created_time": "2026-07-31T10:00:00+0000"},
             ]},
         })
 
@@ -318,3 +322,77 @@ def test_fetch_managed_facebook_messages_uses_safe_default_limit():
         results = fetch_managed_facebook_messages()
 
     assert len(results) == 25
+
+
+def test_fetch_managed_facebook_messages_scans_multiple_pages_and_filters_phone_and_location():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_one = "PAGE_ONE"
+    page_two = "PAGE_TWO"
+
+    def page_conversations(page_id, customer_name, customer_id, phone, location):
+        return {
+            "data": [{
+                "id": f"CONV_{page_id}",
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": customer_id, "name": customer_name},
+                ]},
+                "messages": {"data": [
+                    {"from": {"id": customer_id, "name": customer_name}, "message": f"Xin chào, tôi ở {location}, sđt {phone}", "created_time": "2026-08-01T10:00:00+0000"},
+                ]},
+            }],
+            "paging": {},
+        }
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [
+                {"id": page_one, "name": "Page One", "access_token": "tok_one"},
+                {"id": page_two, "name": "Page Two", "access_token": "tok_two"},
+            ]}
+        if endpoint == f"{page_one}/conversations":
+            return page_conversations(page_one, "Khách A", "CUST_A", "0987654321", "Hà Nội")
+        if endpoint == f"{page_two}/conversations":
+            return page_conversations(page_two, "Khách B", "CUST_B", "0911222333", "Đà Nẵng")
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=5, max_conversations_per_page=10)
+
+    assert len(results) == 2
+    assert {r["facebook_id"] for r in results} == {"CUST_A", "CUST_B"}
+    assert any(r["phone"] == "0987654321" and "hà nội" in (r["location"] or '').lower() for r in results)
+    assert any(r["phone"] == "0911222333" and "đà nẵng" in (r["location"] or '').lower() for r in results)
+
+
+def test_fetch_managed_facebook_messages_skips_conversations_without_phone():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_NO_PHONE"
+    conversations = [{
+        "id": "CONV_EMPTY",
+        "participants": {"data": [
+            {"id": page_id, "name": "My Page"},
+            {"id": "CUST_X", "name": "Khách không số"},
+        ]},
+        "messages": {"data": [
+            {"from": {"id": "CUST_X", "name": "Khách không số"}, "message": "Xin chào tôi ở quận 7", "created_time": "2026-08-01T10:00:00+0000"},
+        ]},
+    }]
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return {"data": conversations, "paging": {}}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
+
+    assert results == []
