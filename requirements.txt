@@ -2,5 +2,4 @@ Flask==2.2.5
 Flask-SQLAlchemy==3.0.3
 gunicorn==21.2.0
 setuptools==68.0.0
-gevent==24.2.1
 Werkzeug==2.3.8
