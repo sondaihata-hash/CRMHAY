@@ -6,12 +6,14 @@ import ast
 import csv
 import io
 import json
+import logging
 import os
 import re
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import time
+import threading
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
@@ -24,6 +26,28 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('CRM_SECRET_KEY', 'dev-secret')
 
 db = SQLAlchemy(app)
+
+logger = logging.getLogger(__name__)
+
+# Background sync state — single-worker safe
+# ponytail: upgrade to Redis/Celery when moving to multi-worker
+_sync_state = {
+    'running': False,
+    'result': None,
+    'message': '',
+    'imported': 0,
+    'updated': 0,
+    'started_at': None,
+    'finished_at': None,
+}
+_sync_lock = threading.Lock()
+
+# Hard caps to prevent runaway API usage
+MAX_API_CALLS_PER_SYNC = 100
+MAX_CONVERSATION_PAGES = 10
+MAX_PAGE_PAGINATION_ROUNDS = 5
+FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
+API_RATE_DELAY = 0.25  # seconds between Facebook API calls
 
 
 class Customer(db.Model):
@@ -95,14 +119,10 @@ def extract_phone_numbers(text_value):
 
     normalized = []
     for value in found:
-        cleaned = re.sub(r'\D', '', value)
+        cleaned = re.sub(r'[\s.-]', '', value)
         if cleaned.startswith('+84'):
             cleaned = '0' + cleaned[3:]
-        elif cleaned.startswith('84'):
-            cleaned = '0' + cleaned[2:]
-        if cleaned.startswith('0') and len(cleaned) >= 10:
-            cleaned = cleaned[:11]
-        if cleaned and cleaned not in normalized:
+        if 10 <= len(cleaned) <= 12 and cleaned not in normalized:
             normalized.append(cleaned)
 
     return normalized
@@ -114,6 +134,8 @@ def extract_location(text_value):
     lower = text_value.lower()
     location_keywords = [
         'hà nội', 'hồ chí minh', 'đà nẵng', 'hải phòng', 'cần thơ', 'biên hòa',
+        'huế', 'nha trang', 'đà lạt', 'vũng tàu', 'quy nhơn', 'buôn ma thuột',
+        'thái nguyên', 'nam định', 'vinh', 'hạ long', 'thanh hóa', 'bắc ninh',
         'quận 1', 'quận 2', 'quận 3', 'quận 4', 'quận 5', 'quận 6', 'quận 7',
         'quận 8', 'quận 9', 'quận 10', 'quận 11', 'quận 12', 'huyện', 'tỉnh',
         'thành phố', 'phường', 'xã', 'thị trấn'
@@ -290,14 +312,14 @@ def import_facebook_messages(messages):
                 location=payload['location'],
                 last_message_date=payload['last_message_date'],
                 message_excerpt=payload['message_excerpt'],
-                source=payload['source'],
+                source='facebook',
                 message_count=payload['message_count'],
                 tags=payload['tags'],
             )
             db.session.add(customer)
             imported += 1
         else:
-            customer.name = payload['name']
+            customer.name = payload['name'] or customer.name
             customer.first_name = payload['first_name'] or customer.first_name
             customer.last_name = payload['last_name'] or customer.last_name
             customer.facebook_id = payload['facebook_id'] or customer.facebook_id
@@ -305,10 +327,9 @@ def import_facebook_messages(messages):
             customer.profile_pic = payload['profile_pic'] or customer.profile_pic
             customer.gender = payload['gender'] or customer.gender
             customer.locale = payload['locale'] or customer.locale
-            customer.email = payload['email'] or customer.email
             customer.phone = payload['phone'] or customer.phone
-            customer.page_name = payload['page_name'] or customer.page_name
             customer.location = payload['location'] or customer.location
+            customer.page_name = payload['page_name'] or customer.page_name
             customer.last_message_date = payload['last_message_date']
             customer.message_excerpt = payload['message_excerpt'] or customer.message_excerpt
             customer.notes = payload['notes']
@@ -340,9 +361,18 @@ def fetch_facebook_json(endpoint, access_token, extra_params=None):
             params.update({key: str(value) for key, value in extra_params.items() if value is not None})
         url = f'{base_url}?{urlencode(params)}'
 
-    request = Request(url, headers={'User-Agent': 'CRM-HAY/1.0'})
-    with urlopen(request, timeout=25) as response:
-        payload = json.loads(response.read().decode('utf-8'))
+    safe_endpoint = endpoint if not endpoint.startswith('http') else urlsplit(endpoint).path
+    t0 = time.time()
+    req = Request(url, headers={'User-Agent': 'CRM-HAY/1.0'})
+    try:
+        with urlopen(req, timeout=FACEBOOK_API_TIMEOUT) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except Exception as exc:
+        elapsed = time.time() - t0
+        logger.error("Facebook API FAIL %s %.2fs: %s", safe_endpoint, elapsed, exc)
+        raise
+    elapsed = time.time() - t0
+    logger.info("Facebook API OK %s %.2fs", safe_endpoint, elapsed)
 
     if isinstance(payload, dict) and 'error' in payload:
         error = payload['error']
@@ -416,14 +446,16 @@ def resolve_facebook_pages(token, fetcher=None):
 
 
 def fetch_all_facebook_pages(token, fetcher=None):
-    """Fetch ALL pages from me/accounts, following pagination."""
+    """Fetch ALL pages from me/accounts, following pagination with cap."""
     fetcher = fetcher or fetch_facebook_json
     all_pages = []
     try:
         payload = fetcher('me/accounts', token, {'fields': 'id,name,access_token', 'limit': '100'})
     except (HTTPError, URLError, ValueError, KeyError):
         return []
-    while payload:
+    rounds = 0
+    while payload and rounds < MAX_PAGE_PAGINATION_ROUNDS:
+        rounds += 1
         for page in (payload.get('data') or []):
             all_pages.append(page)
         next_url = (payload.get('paging') or {}).get('next')
@@ -467,7 +499,9 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
         page_limit, conversation_limit = get_facebook_sync_limits(max_pages, max_conversations_per_page)
 
         facebook_messages = []
-        request_delay_seconds = 0
+        api_call_count = 0
+        t_sync_start = time.time()
+
         for page_index, page in enumerate(page_data[:page_limit]):
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
@@ -475,17 +509,29 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
             if not page_id:
                 continue
 
+            logger.info("START sync page %d/%d id=%s name=%s",
+                        page_index + 1, min(len(page_data), page_limit), page_id, page_name)
+            t_page_start = time.time()
             endpoint = f'{page_id}/conversations'
             next_url = None
             collected_for_page = 0
+            pagination_round = 0
 
-            while True:
+            while pagination_round < MAX_CONVERSATION_PAGES:
+                pagination_round += 1
+                if api_call_count >= MAX_API_CALLS_PER_SYNC:
+                    logger.warning("Hit MAX_API_CALLS=%d, stopping sync", MAX_API_CALLS_PER_SYNC)
+                    break
+
                 params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '25'}
-                # ponytail: messages.limit=50 covers most conversations; increase if needed
                 payload = fetch_facebook_json(next_url or endpoint, page_token, params)
+                api_call_count += 1
                 conversations = payload.get('data', [])
                 if not conversations:
                     break
+
+                if API_RATE_DELAY:
+                    time.sleep(API_RATE_DELAY)
 
                 for conversation in conversations:
                     if collected_for_page >= conversation_limit:
@@ -496,7 +542,6 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         continue
                     latest_message = messages[0]
                     sender = latest_message.get('from', {})
-                    # Find the actual customer, not the page itself
                     customer_participants = [p for p in participants if p.get('id') != page_id]
                     if sender.get('id') and sender.get('id') != page_id:
                         customer_name = sender.get('name') or normalize_customer_name(customer_participants, page_name)
@@ -508,7 +553,6 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         customer_name = sender.get('name') or normalize_customer_name(participants, page_name)
                         customer_id = sender.get('id') or (participants[0].get('id') if participants else '')
 
-                    # Scan ALL messages in conversation for phone & location
                     all_texts = []
                     for msg in messages:
                         txt = msg.get('message') or msg.get('story') or ''
@@ -518,33 +562,34 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 
                     phone_numbers = extract_phone_numbers(combined_text)
                     if not phone_numbers:
-                        continue  # chỉ lấy khách có SĐT
+                        continue
                     phone = phone_numbers[0]
 
                     location = extract_location(combined_text) or ''
-
-                    # message_text = latest message for excerpt display
                     message_text = latest_message.get('message') or latest_message.get('story') or '[Hình ảnh/sticker]'
 
-                    # Fetch user profile (profile_pic, first_name, last_name, gender, locale)
+                    # Profile fetch — skip when near API limit
                     profile_pic = ''
                     first_name = ''
                     last_name = ''
                     gender = ''
                     locale = ''
-                    if customer_id:
+                    if customer_id and api_call_count < MAX_API_CALLS_PER_SYNC:
                         try:
                             profile = fetch_facebook_json(
                                 customer_id, page_token,
                                 {'fields': 'first_name,last_name,profile_pic,gender,locale'}
                             )
+                            api_call_count += 1
                             profile_pic = profile.get('profile_pic') or ''
                             first_name = profile.get('first_name') or ''
                             last_name = profile.get('last_name') or ''
                             gender = profile.get('gender') or ''
                             locale = profile.get('locale') or ''
+                            if API_RATE_DELAY:
+                                time.sleep(API_RATE_DELAY)
                         except Exception:
-                            pass  # Profile API may not be available
+                            pass
 
                     conversation_id = conversation.get('id') or ''
                     message_count = len(messages)
@@ -572,12 +617,15 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                 if collected_for_page >= conversation_limit or not next_page:
                     break
                 next_url = next_page
-                if request_delay_seconds:
-                    time.sleep(request_delay_seconds)
 
-            if request_delay_seconds:
-                time.sleep(request_delay_seconds)
+            logger.info("END sync page %s collected=%d in %.2fs api_calls=%d",
+                        page_name, collected_for_page, time.time() - t_page_start, api_call_count)
 
+            if api_call_count >= MAX_API_CALLS_PER_SYNC:
+                break
+
+        logger.info("END Facebook sync total=%d api_calls=%d time=%.2fs",
+                     len(facebook_messages), api_call_count, time.time() - t_sync_start)
         return facebook_messages
     except (HTTPError, URLError, ValueError, KeyError) as exc:
         message = str(exc)
@@ -699,23 +747,14 @@ def add_setting():
     if not key:
         flash('Key là bắt buộc', 'danger')
         return redirect(url_for('settings'))
-    s = Setting(key=key, value=value, description=description)
-    db.session.add(s)
-    try:
-        db.session.commit()
-        flash('Đã thêm setting', 'success')
-    except Exception:
-        db.session.rollback()
-        flash('Lỗi: có thể key đã tồn tại', 'danger')
-    return redirect(url_for('settings'))
-
-
-@app.route('/settings/<int:s_id>/delete', methods=['POST'])
-def delete_setting(s_id):
-    s = Setting.query.get_or_404(s_id)
-    db.session.delete(s)
+    existing = Setting.query.filter_by(key=key).first()
+    if existing:
+        existing.value = value
+        existing.description = description
+    else:
+        db.session.add(Setting(key=key, value=value, description=description))
     db.session.commit()
-    flash('Đã xóa setting', 'info')
+    flash('Đã lưu setting', 'success')
     return redirect(url_for('settings'))
 
 
@@ -731,6 +770,47 @@ def edit_setting(s_id):
     return render_template('setting_form.html', s=s)
 
 
+# ---------------------------------------------------------------------------
+# Facebook sync — background thread, non-blocking
+# ---------------------------------------------------------------------------
+
+def _run_facebook_sync():
+    """Background worker for Facebook sync. Runs in a daemon thread."""
+    try:
+        with app.app_context():
+            t0 = time.time()
+            logger.info("START background Facebook sync")
+            messages = fetch_managed_facebook_messages(
+                *get_facebook_sync_limits(),
+            )
+            if not messages:
+                with _sync_lock:
+                    _sync_state['running'] = False
+                    _sync_state['result'] = 'warning'
+                    _sync_state['message'] = 'Không tìm thấy khách hàng nào từ Facebook.'
+                    _sync_state['finished_at'] = datetime.utcnow().isoformat()
+                logger.info("END background Facebook sync: no customers (%.2fs)", time.time() - t0)
+                return
+
+            imported, updated = import_facebook_messages(messages)
+            with _sync_lock:
+                _sync_state['running'] = False
+                _sync_state['result'] = 'success'
+                _sync_state['imported'] = imported
+                _sync_state['updated'] = updated
+                _sync_state['message'] = f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách.'
+                _sync_state['finished_at'] = datetime.utcnow().isoformat()
+            logger.info("END background Facebook sync: imported=%d updated=%d (%.2fs)",
+                        imported, updated, time.time() - t0)
+    except Exception as exc:
+        logger.exception("Background Facebook sync FAILED")
+        with _sync_lock:
+            _sync_state['running'] = False
+            _sync_state['result'] = 'error'
+            _sync_state['message'] = f'Đồng bộ thất bại: {exc}'
+            _sync_state['finished_at'] = datetime.utcnow().isoformat()
+
+
 @app.route('/customers/sync-facebook')
 def sync_facebook_customers():
     configured = bool(get_facebook_token())
@@ -739,28 +819,37 @@ def sync_facebook_customers():
         flash('Chưa cấu hình token Facebook hợp lệ. Thêm FACEBOOK_PAGE_ACCESS_TOKEN hoặc FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.', 'danger')
         return redirect(url_for('customers'))
 
-    try:
-        messages = fetch_managed_facebook_messages(
-            *get_facebook_sync_limits(),
-        )
-    except Exception as exc:
-        app.logger.exception('Facebook sync failed')
-        flash('Đồng bộ Facebook thất bại: token không hợp lệ hoặc thiếu quyền truy cập page/inbox. Vui lòng kiểm tra lại cài đặt Facebook.', 'danger')
-        return redirect(url_for('customers'))
+    with _sync_lock:
+        if _sync_state['running']:
+            flash('Đang đồng bộ Facebook... Vui lòng chờ.', 'info')
+            return redirect(url_for('customers'))
+        _sync_state['running'] = True
+        _sync_state['result'] = None
+        _sync_state['message'] = 'Đang đồng bộ...'
+        _sync_state['imported'] = 0
+        _sync_state['updated'] = 0
+        _sync_state['started_at'] = datetime.utcnow().isoformat()
+        _sync_state['finished_at'] = None
 
-    if not messages:
-        flash('Không tìm thấy khách hàng nào từ Facebook cho token hiện tại. Hãy kiểm tra quyền page/inbox hoặc token doanh nghiệp.', 'warning')
-        return redirect(url_for('customers'))
-
-    try:
-        imported, updated = import_facebook_messages(messages)
-    except Exception as exc:
-        app.logger.exception('Import facebook customers failed')
-        flash('Đồng bộ dữ liệu Facebook xong nhưng lưu trữ CRM gặp lỗi. Vui lòng thử lại sau.', 'danger')
-        return redirect(url_for('customers'))
-
-    flash(f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách từ Facebook.', 'success')
+    thread = threading.Thread(target=_run_facebook_sync, daemon=True)
+    thread.start()
+    flash('Đã bắt đầu đồng bộ Facebook ở chế độ nền. Tải lại trang sau vài phút để xem kết quả.', 'info')
     return redirect(url_for('customers'))
+
+
+@app.route('/customers/sync-facebook/status')
+def sync_facebook_status():
+    """JSON endpoint for polling sync progress."""
+    with _sync_lock:
+        return {
+            'running': _sync_state['running'],
+            'result': _sync_state['result'],
+            'message': _sync_state['message'],
+            'imported': _sync_state['imported'],
+            'updated': _sync_state['updated'],
+            'started_at': _sync_state['started_at'],
+            'finished_at': _sync_state['finished_at'],
+        }
 
 
 @app.route('/facebook/import')
@@ -775,8 +864,8 @@ def facebook_export():
     writer = csv.writer(output)
     writer.writerow(['id', 'name', 'first_name', 'last_name', 'facebook_id', 'conversation_id', 'email', 'phone', 'location', 'page_name', 'gender', 'locale', 'message_count', 'tags', 'last_message_date', 'source', 'profile_pic'])
 
-    customers = Customer.query.order_by(Customer.created_at.desc()).all()
-    for customer in customers:
+    customers_list = Customer.query.order_by(Customer.created_at.desc()).all()
+    for customer in customers_list:
         writer.writerow([
             customer.id,
             customer.name,
