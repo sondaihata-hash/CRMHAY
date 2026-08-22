@@ -277,6 +277,19 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
     return page_limit, conversation_limit
 
 
+def should_fetch_facebook_profiles():
+    """Profile lookups are not available for most Messenger Page tokens.
+
+    Facebook exposes a customer's display name in the conversation payload, but
+    querying the customer's PSID as a Graph object is commonly rejected with a
+    400 response.  Keep this off unless the connected app has explicitly been
+    granted the required profile access.
+    """
+    return os.environ.get('FACEBOOK_FETCH_PROFILE', '').strip().lower() in {
+        '1', 'true', 'yes', 'on'
+    }
+
+
 def import_facebook_messages(messages):
     imported = 0
     updated = 0
@@ -568,13 +581,17 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     location = extract_location(combined_text) or ''
                     message_text = latest_message.get('message') or latest_message.get('story') or '[Hình ảnh/sticker]'
 
-                    # Profile fetch — skip when near API limit
+                    # The conversation payload already contains the sender name.
+                    # Do not query /{PSID} by default: Messenger Page tokens are
+                    # normally not allowed to read customer profile fields and
+                    # Facebook returns HTTP 400 for every customer.
                     profile_pic = ''
                     first_name = ''
                     last_name = ''
                     gender = ''
                     locale = ''
-                    if customer_id and api_call_count < MAX_API_CALLS_PER_SYNC:
+                    if (customer_id and should_fetch_facebook_profiles()
+                            and api_call_count < MAX_API_CALLS_PER_SYNC):
                         try:
                             profile = fetch_facebook_json(
                                 customer_id, page_token,
@@ -588,7 +605,9 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                             locale = profile.get('locale') or ''
                             if API_RATE_DELAY:
                                 time.sleep(API_RATE_DELAY)
-                        except Exception:
+                        except (HTTPError, URLError, ValueError, KeyError):
+                            # Profile access is optional; importing conversations
+                            # must continue when the connected app cannot read it.
                             pass
 
                     conversation_id = conversation.get('id') or ''

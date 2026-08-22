@@ -396,3 +396,41 @@ def test_fetch_managed_facebook_messages_skips_conversations_without_phone():
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
 
     assert results == []
+
+
+def test_sync_does_not_request_customer_profiles_by_default():
+    """PSID profile requests cause Graph API HTTP 400 for normal Page tokens."""
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_PROFILE"
+    customer_id = "34683375887973748"
+    calls = []
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        calls.append(endpoint)
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return {"data": [{
+                "id": "CONV_PROFILE",
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": customer_id, "name": "Customer"},
+                ]},
+                "messages": {"data": [{
+                    "from": {"id": customer_id, "name": "Customer"},
+                    "message": "Số điện thoại 0987654321",
+                    "created_time": "2026-08-01T10:00:00+0000",
+                }]},
+            }], "paging": {}}
+        if endpoint == customer_id:
+            raise AssertionError("Customer profile endpoint must not be called")
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
+
+    assert len(results) == 1
+    assert customer_id not in calls
