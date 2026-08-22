@@ -1,7 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy import text, inspect
+try:
+    from celery import Celery
+except ImportError:  # Allows local development before optional worker deps install.
+    Celery = None
 import ast
 import csv
 import io
@@ -14,18 +18,30 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import time
 import threading
+import uuid
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 DB_PATH = os.path.join(INSTANCE_DIR, 'crm.db')
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('CRM_SECRET_KEY', 'dev-secret')
 
 db = SQLAlchemy(app)
+
+# Configure these in Render for durable background jobs.  When absent, the
+# local-thread fallback keeps development/demo deployments usable.
+CELERY_BROKER_URL = os.environ.get('REDIS_URL') or os.environ.get('CELERY_BROKER_URL')
+celery = None
+if CELERY_BROKER_URL and Celery:
+    celery = Celery(app.import_name, broker=CELERY_BROKER_URL, backend=CELERY_BROKER_URL)
+    celery.conf.update(task_track_started=True, task_acks_late=True, worker_prefetch_multiplier=1)
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +96,19 @@ class Setting(db.Model):
     description = db.Column(db.String(400), nullable=True)
 
 
+class SyncJob(db.Model):
+    id = db.Column(db.String(36), primary_key=True)
+    status = db.Column(db.String(20), nullable=False, default='queued', index=True)
+    message = db.Column(db.Text, nullable=True)
+    imported = db.Column(db.Integer, nullable=False, default=0)
+    updated = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime, nullable=True)
+    finished_at = db.Column(db.DateTime, nullable=True)
+
+
 def ensure_customer_columns():
-    columns = [row[1] for row in db.session.execute(text('PRAGMA table_info(customer)'))]
+    columns = {column['name'] for column in inspect(db.engine).get_columns('customer')}
     new_columns = {
         'page_name': 'TEXT',
         'location': 'TEXT',
@@ -574,6 +601,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     combined_text = '\n'.join(all_texts)
 
                     phone_numbers = extract_phone_numbers(combined_text)
+                    # CRM only imports leads that explicitly supplied a phone number.
                     if not phone_numbers:
                         continue
                     phone = phone_numbers[0]
@@ -684,6 +712,7 @@ def index():
 @app.route('/customers')
 def customers():
     q = request.args.get('q', '')
+    sync_job_id = request.args.get('sync_job', '')
     if q:
         items = Customer.query.filter(
             db.or_(
@@ -696,7 +725,7 @@ def customers():
         ).all()
     else:
         items = Customer.query.order_by(Customer.created_at.desc()).all()
-    return render_template('customers.html', customers=items, q=q)
+    return render_template('customers.html', customers=items, q=q, sync_job_id=sync_job_id)
 
 
 @app.route('/customers/add', methods=['GET', 'POST'])
@@ -790,44 +819,60 @@ def edit_setting(s_id):
 
 
 # ---------------------------------------------------------------------------
-# Facebook sync — background thread, non-blocking
+# Facebook sync — durable job when PostgreSQL + Redis/Celery are configured
 # ---------------------------------------------------------------------------
 
-def _run_facebook_sync():
-    """Background worker for Facebook sync. Runs in a daemon thread."""
+def _run_facebook_sync(job_id=None):
+    """Run one sync and save its visible state in the database."""
     try:
         with app.app_context():
+            job = SyncJob.query.get(job_id) if job_id else None
+            if job:
+                job.status = 'running'
+                job.started_at = datetime.utcnow()
+                job.message = 'Đang đồng bộ Facebook...'
+                db.session.commit()
             t0 = time.time()
             logger.info("START background Facebook sync")
             messages = fetch_managed_facebook_messages(
                 *get_facebook_sync_limits(),
             )
             if not messages:
-                with _sync_lock:
-                    _sync_state['running'] = False
-                    _sync_state['result'] = 'warning'
-                    _sync_state['message'] = 'Không tìm thấy khách hàng nào từ Facebook.'
-                    _sync_state['finished_at'] = datetime.utcnow().isoformat()
+                if job:
+                    job.status = 'warning'
+                    job.message = 'Không tìm thấy khách nào đã cung cấp SĐT trong các hội thoại được quét.'
+                    job.finished_at = datetime.utcnow()
+                    db.session.commit()
                 logger.info("END background Facebook sync: no customers (%.2fs)", time.time() - t0)
                 return
 
             imported, updated = import_facebook_messages(messages)
-            with _sync_lock:
-                _sync_state['running'] = False
-                _sync_state['result'] = 'success'
-                _sync_state['imported'] = imported
-                _sync_state['updated'] = updated
-                _sync_state['message'] = f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách.'
-                _sync_state['finished_at'] = datetime.utcnow().isoformat()
+            if job:
+                job.status = 'success'
+                job.imported = imported
+                job.updated = updated
+                job.message = f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách.'
+                job.finished_at = datetime.utcnow()
+                db.session.commit()
             logger.info("END background Facebook sync: imported=%d updated=%d (%.2fs)",
                         imported, updated, time.time() - t0)
     except Exception as exc:
         logger.exception("Background Facebook sync FAILED")
-        with _sync_lock:
-            _sync_state['running'] = False
-            _sync_state['result'] = 'error'
-            _sync_state['message'] = f'Đồng bộ thất bại: {exc}'
-            _sync_state['finished_at'] = datetime.utcnow().isoformat()
+        with app.app_context():
+            if job_id:
+                db.session.rollback()
+                job = db.session.get(SyncJob, job_id)
+                if job:
+                    job.status = 'error'
+                    job.message = f'Đồng bộ thất bại: {exc}'
+                    job.finished_at = datetime.utcnow()
+                    db.session.commit()
+
+
+if celery:
+    @celery.task(name='crmhay.facebook_sync', bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
+    def facebook_sync_task(self, job_id):
+        _run_facebook_sync(job_id)
 
 
 @app.route('/customers/sync-facebook')
@@ -838,37 +883,37 @@ def sync_facebook_customers():
         flash('Chưa cấu hình token Facebook hợp lệ. Thêm FACEBOOK_PAGE_ACCESS_TOKEN hoặc FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.', 'danger')
         return redirect(url_for('customers'))
 
-    with _sync_lock:
-        if _sync_state['running']:
-            flash('Đang đồng bộ Facebook... Vui lòng chờ.', 'info')
-            return redirect(url_for('customers'))
-        _sync_state['running'] = True
-        _sync_state['result'] = None
-        _sync_state['message'] = 'Đang đồng bộ...'
-        _sync_state['imported'] = 0
-        _sync_state['updated'] = 0
-        _sync_state['started_at'] = datetime.utcnow().isoformat()
-        _sync_state['finished_at'] = None
+    active_job = SyncJob.query.filter(SyncJob.status.in_(('queued', 'running'))).first()
+    if active_job:
+        flash('Đang có một tác vụ đồng bộ Facebook. Vui lòng chờ hoàn tất.', 'info')
+        return redirect(url_for('customers', sync_job=active_job.id))
 
-    thread = threading.Thread(target=_run_facebook_sync, daemon=True)
-    thread.start()
-    flash('Đã bắt đầu đồng bộ Facebook ở chế độ nền. Tải lại trang sau vài phút để xem kết quả.', 'info')
-    return redirect(url_for('customers'))
+    job = SyncJob(id=str(uuid.uuid4()), status='queued', message='Đang xếp hàng đồng bộ Facebook...')
+    db.session.add(job)
+    db.session.commit()
+
+    if celery:
+        facebook_sync_task.delay(job.id)
+    else:
+        # Fallback for local development only. Render production should set REDIS_URL.
+        thread = threading.Thread(target=_run_facebook_sync, args=(job.id,), daemon=True)
+        thread.start()
+
+    flash('Đã bắt đầu đồng bộ Facebook. Trang sẽ tự cập nhật khi hoàn tất.', 'info')
+    return redirect(url_for('customers', sync_job=job.id))
 
 
 @app.route('/customers/sync-facebook/status')
 def sync_facebook_status():
-    """JSON endpoint for polling sync progress."""
-    with _sync_lock:
-        return {
-            'running': _sync_state['running'],
-            'result': _sync_state['result'],
-            'message': _sync_state['message'],
-            'imported': _sync_state['imported'],
-            'updated': _sync_state['updated'],
-            'started_at': _sync_state['started_at'],
-            'finished_at': _sync_state['finished_at'],
-        }
+    """JSON endpoint for polling the current or requested durable job."""
+    job_id = request.args.get('job_id')
+    job = db.session.get(SyncJob, job_id) if job_id else SyncJob.query.order_by(SyncJob.created_at.desc()).first()
+    if not job:
+        return {'running': False, 'result': None, 'message': ''}
+    return {'running': job.status in ('queued', 'running'), 'result': job.status,
+            'message': job.message or '', 'imported': job.imported, 'updated': job.updated,
+            'started_at': job.started_at.isoformat() if job.started_at else None,
+            'finished_at': job.finished_at.isoformat() if job.finished_at else None}
 
 
 @app.route('/facebook/import')

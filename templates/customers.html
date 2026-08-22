@@ -10,6 +10,8 @@
     </div>
   </div>
 
+  <div id="syncStatus" class="alert alert-info" style="display:none;" role="status"></div>
+
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="kpi-card">
@@ -160,6 +162,25 @@
   </div>
 
   <script>
+    const syncJobId = {{ sync_job_id|tojson }};
+
+    function monitorSync() {
+      if (!syncJobId) return;
+      const status = document.getElementById('syncStatus');
+      fetch('/customers/sync-facebook/status?job_id=' + encodeURIComponent(syncJobId), {cache: 'no-store'})
+        .then(response => response.json())
+        .then(data => {
+          status.style.display = 'block';
+          status.textContent = data.message || 'Đang đồng bộ Facebook...';
+          if (data.running) {
+            window.setTimeout(monitorSync, 3000);
+          } else {
+            window.setTimeout(() => window.location.replace('/customers'), 1200);
+          }
+        })
+        .catch(() => window.setTimeout(monitorSync, 5000));
+    }
+
     function syncFacebook() {
       const btn = document.getElementById('syncBtn');
       const text = document.getElementById('syncText');
@@ -173,5 +194,7 @@
         window.location.href = '/customers/sync-facebook';
       }, 300);
     }
+
+    monitorSync();
   </script>
 {% endblock %}
