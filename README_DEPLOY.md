@@ -4,6 +4,12 @@ Hướng dẫn chi tiết deploy CRM lên Render và cấu hình domain `crmhay.
 
 ## Bước 1: Deploy lên Render
 
+> Bản `render.yaml` hiện tạo sẵn PostgreSQL `crmhay-db` và một tác vụ quét
+> Facebook tự động vào đầu mỗi khoảng 3 giờ. PostgreSQL là nơi lưu dữ liệu
+> bền vững: không dùng SQLite nội bộ của Render vì nó bị mất sau redeploy/restart.
+> Sau mỗi lần quét, ứng dụng cũng xuất `customers-backup.json` để có bản sao
+> phục hồi. Trên Render, bản JSON này chỉ là bản sao; dữ liệu chính là PostgreSQL.
+
 ### 1.1 Commit và push Procfile
 Ensure `Procfile` và `requirements.txt` đã push lên GitHub:
 
@@ -130,7 +136,7 @@ Khi muốn đổi domain mới (VD: crmhay.vn):
 ## Next Steps
 
 - [ ] Deploy xong, kiểm tra trên https://www.sslshopper.com/ssl-checker.html để xác nhận certificate
-- [ ] Setup database (PostgreSQL) nếu muốn production-ready
+- [ ] Kiểm tra PostgreSQL `crmhay-db` và cron `crmhay-facebook-sync` đã được tạo từ Blueprint
 - [ ] Thêm authentication/login nếu muốn (bảo vệ CRM)
 - [ ] Tích hợp Facebook API khi sẵn sàng
 

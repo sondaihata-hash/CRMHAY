@@ -1,6 +1,10 @@
 import os
+import json
+from pathlib import Path
+import tempfile
+import unittest.mock as mock
 
-from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json
+from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json, write_customer_snapshot
 
 
 def test_database_uses_persistent_project_path():
@@ -8,6 +12,16 @@ def test_database_uses_persistent_project_path():
     sqlite_path = db_uri.replace('sqlite:///', '', 1)
     assert os.path.isabs(sqlite_path)
     assert 'instance' in sqlite_path.lower()
+
+
+def test_customer_snapshot_is_written_as_json():
+    snapshot_path = Path(tempfile.gettempdir()) / 'crmhay-customer-snapshot-test.json'
+    with app.app_context(), mock.patch('app.CUSTOMER_SNAPSHOT_PATH', str(snapshot_path)):
+        write_customer_snapshot()
+        payload = json.loads(snapshot_path.read_text(encoding='utf-8'))
+        assert 'generated_at' in payload
+        assert payload['customer_count'] == len(payload['customers'])
+    snapshot_path.unlink(missing_ok=True)
 
 
 def test_extract_phone_numbers_from_message():

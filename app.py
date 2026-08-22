@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -24,6 +25,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 DB_PATH = os.path.join(INSTANCE_DIR, 'crm.db')
+# The database is the source of truth. This JSON file is a recovery copy
+# written after each successful Facebook sync.
+CUSTOMER_SNAPSHOT_PATH = os.environ.get(
+    'CUSTOMER_SNAPSHOT_PATH', os.path.join(INSTANCE_DIR, 'customers-backup.json')
+)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
@@ -116,6 +122,40 @@ class Order(db.Model):
     note = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
+
+
+def write_customer_snapshot():
+    """Atomically save imported customer data to a JSON recovery file."""
+    customers = Customer.query.order_by(Customer.id).all()
+    fields = (
+        'id', 'name', 'first_name', 'last_name', 'facebook_id',
+        'conversation_id', 'profile_pic', 'gender', 'locale', 'email', 'phone',
+        'notes', 'page_name', 'location', 'message_excerpt', 'source',
+        'message_count', 'tags', 'created_at', 'last_message_date',
+    )
+    payload = {
+        'generated_at': datetime.utcnow().isoformat() + 'Z',
+        'customer_count': len(customers),
+        'customers': [{
+            field: (getattr(customer, field).isoformat() if isinstance(
+                getattr(customer, field), datetime) else getattr(customer, field)
+            ) for field in fields
+        } for customer in customers],
+    }
+    snapshot_dir = os.path.dirname(os.path.abspath(CUSTOMER_SNAPSHOT_PATH))
+    os.makedirs(snapshot_dir, exist_ok=True)
+    fd, temporary_path = tempfile.mkstemp(prefix='.customers-', suffix='.json', dir=snapshot_dir)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as snapshot_file:
+            json.dump(payload, snapshot_file, ensure_ascii=False, indent=2)
+        os.replace(temporary_path, CUSTOMER_SNAPSHOT_PATH)
+        logger.info('Customer snapshot saved: %s (%d customers)', CUSTOMER_SNAPSHOT_PATH, len(customers))
+    except Exception:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def ensure_customer_columns():
@@ -872,6 +912,12 @@ def _run_facebook_sync(job_id=None):
                 *get_facebook_sync_limits(),
             )
             if not messages:
+                # Still refresh the recovery copy: an empty API result must
+                # never erase customers already stored in the database.
+                try:
+                    write_customer_snapshot()
+                except Exception:
+                    logger.exception('Could not write customer snapshot')
                 if job:
                     job.status = 'warning'
                     job.message = 'Không tìm thấy khách nào đã cung cấp SĐT trong các hội thoại được quét.'
@@ -881,6 +927,11 @@ def _run_facebook_sync(job_id=None):
                 return
 
             imported, updated = import_facebook_messages(messages)
+            # A snapshot failure must not mark an already committed import as failed.
+            try:
+                write_customer_snapshot()
+            except Exception:
+                logger.exception('Could not write customer snapshot')
             if job:
                 job.status = 'success'
                 job.imported = imported
