@@ -45,7 +45,14 @@
   </div>
 
   <div class="panel table-card">
-    <div class="table-responsive">
+    <div class="customer-list-toolbar">
+      <span>Danh sách khách hàng</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary action-btn" onclick="scrollCustomerList(-1)">↑ Cuộn lên</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary action-btn" onclick="scrollCustomerList(1)">Cuộn xuống ↓</button>
+      </div>
+    </div>
+    <div id="customerList" class="table-responsive customer-list-scroll">
       <table class="table mb-0 align-middle">
         <thead>
           <tr>
@@ -134,6 +141,7 @@
             </td>
             <td>
               <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-success action-btn" href="/orders/create/{{ c.id }}">Tạo đơn</a>
                 <a class="btn btn-sm btn-outline-primary action-btn" href="/customers/{{ c.id }}">Xem</a>
                 <a class="btn btn-sm btn-outline-secondary action-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
                 <form action="/customers/{{ c.id }}/delete" method="post" onsubmit="return confirm('Xóa khách hàng này?')" style="display:inline;">
@@ -193,6 +201,10 @@
       setTimeout(() => {
         window.location.href = '/customers/sync-facebook';
       }, 300);
+    }
+
+    function scrollCustomerList(direction) {
+      document.getElementById('customerList').scrollBy({ top: direction * 360, behavior: 'smooth' });
     }
 
     monitorSync();

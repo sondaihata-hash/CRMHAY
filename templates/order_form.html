@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="section-header">
+    <div>
+      <p class="kpi-label mb-2">Đơn đặt hàng mới</p>
+      <h1 class="page-title">Tạo đơn cho {{ customer.name }}</h1>
+    </div>
+    <div class="toolbar"><a class="btn secondary-btn" href="/customers/{{ customer.id }}">Quay lại</a></div>
+  </div>
+
+  <form method="post" class="panel p-4" style="max-width:760px;">
+    <div class="mb-4"><div class="kpi-label">Khách hàng</div><div class="fs-5 fw-semibold">{{ customer.name }} · {{ customer.phone or 'Chưa có SĐT' }}</div></div>
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label fw-semibold">Tổng tiền (VNĐ)</label><input class="form-control" name="total_amount" type="number" min="0" step="1000" value="0" required></div>
+      <div class="col-md-6"><label class="form-label fw-semibold">Trạng thái</label><select class="form-select" name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option><option>Đã hủy</option></select></div>
+      <div class="col-12"><label class="form-label fw-semibold">Ghi chú</label><textarea class="form-control" name="note" rows="4" placeholder="Sản phẩm, số lượng, địa chỉ giao hàng..."></textarea></div>
+    </div>
+    <button class="btn success-btn mt-4 px-4">Tạo đơn đặt hàng</button>
+  </form>
+{% endblock %}

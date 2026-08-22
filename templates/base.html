@@ -153,6 +153,31 @@
         overflow: hidden;
       }
 
+      .customer-list-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        color: var(--muted);
+        font-size: 0.86rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .customer-list-scroll {
+        max-height: 560px;
+        overflow: auto;
+        scrollbar-color: #94a3b8 #eef2f7;
+        scrollbar-width: thin;
+      }
+
+      .customer-list-scroll thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+
       .table thead th {
         background: #f8fafc;
         color: #475569;

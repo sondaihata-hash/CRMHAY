@@ -107,6 +107,17 @@ class SyncJob(db.Model):
     finished_at = db.Column(db.DateTime, nullable=True)
 
 
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    code = db.Column(db.String(40), nullable=False, unique=True)
+    total_amount = db.Column(db.Float, nullable=False, default=0)
+    status = db.Column(db.String(30), nullable=False, default='Mới')
+    note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
+
+
 def ensure_customer_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('customer')}
     new_columns = {
@@ -753,6 +764,29 @@ def add_customer():
 def customer_detail(c_id):
     c = Customer.query.get_or_404(c_id)
     return render_template('customer_detail.html', c=c)
+
+
+@app.route('/orders/create/<int:customer_id>', methods=['GET', 'POST'])
+def create_order(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    if request.method == 'POST':
+        try:
+            total_amount = float((request.form.get('total_amount') or '0').replace(',', ''))
+        except ValueError:
+            flash('Tổng tiền cần là một số hợp lệ.', 'danger')
+            return redirect(url_for('create_order', customer_id=customer.id))
+        order = Order(
+            customer_id=customer.id,
+            code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{customer.id}",
+            total_amount=max(total_amount, 0),
+            status=request.form.get('status') or 'Mới',
+            note=request.form.get('note', '').strip(),
+        )
+        db.session.add(order)
+        db.session.commit()
+        flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
+        return redirect(url_for('customer_detail', c_id=customer.id))
+    return render_template('order_form.html', customer=customer)
 
 
 @app.route('/customers/<int:c_id>/edit', methods=['GET', 'POST'])
