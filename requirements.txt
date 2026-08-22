@@ -5,3 +5,4 @@ setuptools==68.0.0
 Werkzeug==2.3.8
 celery[redis]==5.4.0
 psycopg2-binary==2.9.9
+reportlab==4.2.5

@@ -1,20 +1,3 @@
-{% extends 'base.html' %}
-{% block content %}
-  <div class="section-header">
-    <div>
-      <p class="kpi-label mb-2">Đơn đặt hàng mới</p>
-      <h1 class="page-title">Tạo đơn cho {{ customer.name }}</h1>
-    </div>
-    <div class="toolbar"><a class="btn secondary-btn" href="/customers/{{ customer.id }}">Quay lại</a></div>
-  </div>
-
-  <form method="post" class="panel p-4" style="max-width:760px;">
-    <div class="mb-4"><div class="kpi-label">Khách hàng</div><div class="fs-5 fw-semibold">{{ customer.name }} · {{ customer.phone or 'Chưa có SĐT' }}</div></div>
-    <div class="row g-3">
-      <div class="col-md-6"><label class="form-label fw-semibold">Tổng tiền (VNĐ)</label><input class="form-control" name="total_amount" type="number" min="0" step="1000" value="0" required></div>
-      <div class="col-md-6"><label class="form-label fw-semibold">Trạng thái</label><select class="form-select" name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option><option>Đã hủy</option></select></div>
-      <div class="col-12"><label class="form-label fw-semibold">Ghi chú</label><textarea class="form-control" name="note" rows="4" placeholder="Sản phẩm, số lượng, địa chỉ giao hàng..."></textarea></div>
-    </div>
-    <button class="btn success-btn mt-4 px-4">Tạo đơn đặt hàng</button>
-  </form>
-{% endblock %}
+{% extends 'base.html' %}{% block content %}
+<div class="section-header"><div><p class="kpi-label mb-2">Đơn đặt hàng mới</p><h1 class="page-title">Tạo đơn cho {{ customer.name }}</h1></div><a class="btn secondary-btn" href="/customers/{{ customer.id }}">Quay lại</a></div>
+<form method="post" class="panel p-4"><div class="row g-3 mb-3"><div class="col-md-6"><label>Khách hàng</label><input class="form-control" value="{{ customer.name }}" readonly></div><div class="col-md-6"><label>Địa chỉ giao hàng</label><input class="form-control" name="delivery_address" value="{{ customer.location or '' }}"></div></div><div class="table-responsive"><table class="table" id="items"><thead><tr><th>Mã SP</th><th>Tên hàng</th><th>ĐVT</th><th>SL</th><th>Đơn giá</th><th></th></tr></thead><tbody><tr><td><input class="form-control" name="product_code"></td><td><input class="form-control" name="product_name" required></td><td><input class="form-control" name="unit" value="Cái"></td><td><input class="form-control" name="quantity" type="number" value="1"></td><td><input class="form-control" name="unit_price" type="number" value="0"></td><td><button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove()">×</button></td></tr></tbody></table></div><button type="button" class="btn btn-sm btn-outline-primary" onclick="addItem()">+ Thêm hàng</button><div class="row g-3 mt-2"><div class="col-md-4"><label>Chiết khấu</label><input class="form-control" name="discount_amount" type="number" value="0"></div><div class="col-md-4"><label>VAT</label><input class="form-control" name="vat_amount" type="number" value="0"></div><div class="col-md-4"><label>Trạng thái</label><select class="form-select" name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option></select></div><div class="col-md-6"><label>Thông tin thanh toán</label><input class="form-control" name="payment_details"></div><div class="col-md-6"><label>Ghi chú</label><input class="form-control" name="note"></div></div><button class="btn success-btn mt-4">Tạo đơn & xem mẫu in</button></form><script>function addItem(){document.querySelector('#items tbody').insertAdjacentHTML('beforeend',`<tr><td><input class="form-control" name="product_code"></td><td><input class="form-control" name="product_name"></td><td><input class="form-control" name="unit" value="Cái"></td><td><input class="form-control" name="quantity" type="number" value="1"></td><td><input class="form-control" name="unit_price" type="number" value="0"></td><td><button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove()">×</button></td></tr>`)}</script>{% endblock %}

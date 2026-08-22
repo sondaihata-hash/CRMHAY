@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy import text, inspect, func
@@ -120,8 +120,23 @@ class Order(db.Model):
     total_amount = db.Column(db.Float, nullable=False, default=0)
     status = db.Column(db.String(30), nullable=False, default='Mới')
     note = db.Column(db.Text, nullable=True)
+    delivery_address = db.Column(db.String(400), nullable=True)
+    discount_amount = db.Column(db.Float, nullable=False, default=0)
+    vat_amount = db.Column(db.Float, nullable=False, default=0)
+    payment_details = db.Column(db.String(400), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
+
+
+class OrderItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False, index=True)
+    product_code = db.Column(db.String(100), nullable=True)
+    product_name = db.Column(db.String(300), nullable=False)
+    unit = db.Column(db.String(50), nullable=True)
+    quantity = db.Column(db.Float, nullable=False, default=1)
+    unit_price = db.Column(db.Float, nullable=False, default=0)
+    order = db.relationship('Order', backref=db.backref('items', lazy=True, cascade='all, delete-orphan'))
 
 
 class SalesGroup(db.Model):
@@ -758,6 +773,7 @@ def init_db():
     with app.app_context():
         db.create_all()
         ensure_customer_columns()
+        ensure_order_columns()
         if not Customer.query.first():
             sample = Customer(
                 name='Nguyen Van A',
@@ -869,6 +885,15 @@ def handoff_customer_to_zalo(c_id):
     message = build_zalo_handoff_message(customer)
     db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
     db.session.commit()
+
+
+def ensure_order_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
+    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT'}
+    for column_name, column_type in new_columns.items():
+        if column_name not in columns:
+            db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
+    db.session.commit()
     return {'ok': True, 'message': message, 'group_name': group.name}
 
 
@@ -911,22 +936,57 @@ def create_order(customer_id):
     customer = Customer.query.get_or_404(customer_id)
     if request.method == 'POST':
         try:
-            total_amount = float((request.form.get('total_amount') or '0').replace(',', ''))
+            discount_amount = float(request.form.get('discount_amount') or 0)
+            vat_amount = float(request.form.get('vat_amount') or 0)
         except ValueError:
-            flash('Tổng tiền cần là một số hợp lệ.', 'danger')
+            flash('Chiết khấu và VAT cần là số hợp lệ.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
+        items = []
+        for code, name, unit, qty, price in zip(request.form.getlist('product_code'), request.form.getlist('product_name'), request.form.getlist('unit'), request.form.getlist('quantity'), request.form.getlist('unit_price')):
+            if not name.strip():
+                continue
+            try:
+                item = OrderItem(product_code=code.strip(), product_name=name.strip(), unit=unit.strip(), quantity=max(float(qty or 0), 0), unit_price=max(float(price or 0), 0))
+            except ValueError:
+                flash('Số lượng và đơn giá phải là số hợp lệ.', 'danger')
+                return redirect(url_for('create_order', customer_id=customer.id))
+            items.append(item)
+        if not items:
+            flash('Hãy nhập ít nhất một sản phẩm.', 'danger')
+            return redirect(url_for('create_order', customer_id=customer.id))
+        total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) + max(vat_amount, 0), 0)
         order = Order(
             customer_id=customer.id,
             code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{customer.id}",
-            total_amount=max(total_amount, 0),
+            total_amount=total_amount,
             status=request.form.get('status') or 'Mới',
             note=request.form.get('note', '').strip(),
+            delivery_address=request.form.get('delivery_address', '').strip(), payment_details=request.form.get('payment_details', '').strip(),
+            discount_amount=max(discount_amount, 0), vat_amount=max(vat_amount, 0),
         )
         db.session.add(order)
+        order.items.extend(items)
         db.session.commit()
         flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
-        return redirect(url_for('customer_detail', c_id=customer.id))
+        return redirect(url_for('order_document', order_id=order.id))
     return render_template('order_form.html', customer=customer)
+
+
+@app.route('/orders/<int:order_id>')
+def order_document(order_id):
+    order = db.session.get(Order, order_id)
+    if not order:
+        return 'Không tìm thấy đơn hàng.', 404
+    return render_template('order_document.html', order=order)
+
+
+@app.route('/orders/<int:order_id>/export.pdf')
+def export_order_pdf(order_id):
+    order = db.session.get(Order, order_id)
+    if not order:
+        return 'Không tìm thấy đơn hàng.', 404
+    from order_pdf import build_order_pdf
+    return send_file(build_order_pdf(order), mimetype='application/pdf', as_attachment=True, download_name=f'don-dat-hang-{order.code}.pdf')
 
 
 @app.route('/customers/<int:c_id>/edit', methods=['GET', 'POST'])
