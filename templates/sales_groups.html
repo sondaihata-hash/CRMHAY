@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="section-header">
+    <div>
+      <p class="kpi-label mb-2">Cấu hình chuyển khách</p>
+      <h1 class="page-title">Nhóm Sales Zalo</h1>
+    </div>
+  </div>
+
+  <div class="panel p-3 p-md-4 mb-4">
+    <p class="text-secondary mb-3">Khai báo tên các nhóm Zalo mà bạn thường gửi khách. Danh sách này chỉ giúp chọn đúng nhóm trong CRM; Zalo Desktop vẫn là nơi bạn dán và gửi tin.</p>
+    <form class="row g-3 align-items-end" action="/sales-groups/add" method="post">
+      <div class="col-md-5"><label class="form-label fw-semibold">Tên nhóm</label><input class="form-control" name="name" placeholder="Ví dụ: Sales miền Nam" required></div>
+      <div class="col-md-5"><label class="form-label fw-semibold">Ghi chú</label><input class="form-control" name="description" placeholder="Ví dụ: Nhận lead Facebook"></div>
+      <div class="col-md-2 d-grid"><button class="btn primary-btn">Thêm nhóm</button></div>
+    </form>
+  </div>
+
+  <div class="panel table-card">
+    <div class="table-responsive"><table class="table mb-0 align-middle">
+      <thead><tr><th>Tên nhóm</th><th>Ghi chú</th><th>Thao tác</th></tr></thead>
+      <tbody>
+      {% for group in groups %}
+        <tr><td class="fw-semibold">{{ group.name }}</td><td>{{ group.description or '—' }}</td><td>
+          <form action="/sales-groups/{{ group.id }}/delete" method="post" onsubmit="return confirm('Xóa nhóm này?')"><button class="btn btn-sm btn-danger action-btn">Xóa</button></form>
+        </td></tr>
+      {% else %}
+        <tr><td colspan="3" class="text-center text-muted py-4">Chưa có nhóm Sales nào.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+{% endblock %}

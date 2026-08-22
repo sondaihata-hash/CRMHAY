@@ -119,4 +119,73 @@
     </div>
     {% endif %}
   </div>
+
+  <div class="panel p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div>
+        <div class="kpi-label">Chuyển khách cho Sales qua Zalo</div>
+        <div class="text-secondary mt-1">CRM sẽ sao chép sẵn thông tin khách và mở Zalo Desktop. Chọn đúng nhóm rồi dán, gửi tin nhắn.</div>
+      </div>
+      <a class="btn btn-sm btn-outline-secondary" href="/sales-groups">Quản lý nhóm</a>
+    </div>
+    {% if sales_groups %}
+      <form id="zaloHandoffForm" class="row g-2 mt-3" action="/customers/{{ c.id }}/handoff-zalo" method="post">
+        <div class="col-md-8">
+          <select class="form-select" name="group_id" required>
+            <option value="">Chọn nhóm Sales trên Zalo</option>
+            {% for group in sales_groups %}
+              <option value="{{ group.id }}">{{ group.name }}{% if group.description %} — {{ group.description }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4 d-grid">
+          <button class="btn success-btn" type="submit">Sao chép & mở Zalo</button>
+        </div>
+      </form>
+      <div id="zaloHandoffStatus" class="small mt-3" aria-live="polite"></div>
+    {% else %}
+      <div class="alert alert-warning mt-3 mb-0">Chưa có nhóm Sales. <a href="/sales-groups">Thêm nhóm để bắt đầu</a>.</div>
+    {% endif %}
+  </div>
+
+  {% if handoffs %}
+  <div class="panel p-4 mt-4">
+    <div class="kpi-label mb-2">Lịch sử chuyển Sales</div>
+    {% for handoff in handoffs %}
+      <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <strong>{{ handoff.group.name }}</strong> <span class="text-secondary">· {{ handoff.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <script>
+    const handoffForm = document.getElementById('zaloHandoffForm');
+    if (handoffForm) {
+      handoffForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const status = document.getElementById('zaloHandoffStatus');
+        const response = await fetch(handoffForm.action, {method: 'POST', body: new FormData(handoffForm)});
+        const data = await response.json();
+        if (!response.ok) {
+          status.className = 'small mt-3 text-danger';
+          status.textContent = data.message || 'Không thể chuẩn bị nội dung chuyển khách.';
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(data.message);
+        } catch (error) {
+          const textArea = document.createElement('textarea');
+          textArea.value = data.message;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          textArea.remove();
+        }
+        status.className = 'small mt-3 text-success';
+        status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Zalo đang được mở — chọn nhóm và dán để gửi.`;
+        window.location.href = 'zalo://';
+      });
+    }
+  </script>
 {% endblock %}

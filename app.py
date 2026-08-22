@@ -124,6 +124,24 @@ class Order(db.Model):
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
 
 
+class SalesGroup(db.Model):
+    """A manually maintained destination list for the user's Zalo groups."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, unique=True)
+    description = db.Column(db.String(400), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SalesHandoff(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('sales_group.id'), nullable=False, index=True)
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    customer = db.relationship('Customer', backref=db.backref('sales_handoffs', lazy=True))
+    group = db.relationship('SalesGroup', backref=db.backref('handoffs', lazy=True))
+
+
 def write_customer_snapshot():
     """Atomically save imported customer data to a JSON recovery file."""
     customers = Customer.query.order_by(Customer.id).all()
@@ -755,6 +773,24 @@ def init_db():
             db.session.commit()
 
 
+def build_zalo_handoff_message(customer):
+    """Keep a consistent, copy-ready message for the sales team."""
+    parts = [
+        'KHÁCH MỚI CẦN TƯ VẤN',
+        f'Họ tên: {customer.name}',
+        f'Số điện thoại: {customer.phone or "Chưa có"}',
+        f'Facebook: {customer.facebook_id or "Chưa có"}',
+        f'Khu vực: {customer.location or "Chưa rõ"}',
+        f'Nguồn: {customer.page_name or customer.source or "CRM"}',
+    ]
+    if customer.message_excerpt:
+        parts.append(f'Nội dung gần nhất: {customer.message_excerpt}')
+    if customer.notes:
+        parts.append(f'Ghi chú CRM: {customer.notes}')
+    parts.append(f'Chi tiết CRM: {url_for("customer_detail", c_id=customer.id, _external=True)}')
+    return '\n'.join(parts)
+
+
 @app.route('/')
 def index():
     return redirect(url_for('customers'))
@@ -803,7 +839,57 @@ def add_customer():
 @app.route('/customers/<int:c_id>')
 def customer_detail(c_id):
     c = Customer.query.get_or_404(c_id)
-    return render_template('customer_detail.html', c=c)
+    groups = SalesGroup.query.order_by(SalesGroup.name).all()
+    handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
+    return render_template('customer_detail.html', c=c, sales_groups=groups, handoffs=handoffs)
+
+
+@app.route('/customers/<int:c_id>/handoff-zalo', methods=['POST'])
+def handoff_customer_to_zalo(c_id):
+    customer = Customer.query.get_or_404(c_id)
+    group_id = request.form.get('group_id', type=int)
+    group = db.session.get(SalesGroup, group_id) if group_id else None
+    if not group:
+        return {'ok': False, 'message': 'Vui lòng chọn nhóm Sales.'}, 400
+
+    message = build_zalo_handoff_message(customer)
+    db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
+    db.session.commit()
+    return {'ok': True, 'message': message, 'group_name': group.name}
+
+
+@app.route('/sales-groups')
+def sales_groups():
+    return render_template('sales_groups.html', groups=SalesGroup.query.order_by(SalesGroup.name).all())
+
+
+@app.route('/sales-groups/add', methods=['POST'])
+def add_sales_group():
+    name = (request.form.get('name') or '').strip()
+    description = (request.form.get('description') or '').strip()
+    if not name:
+        flash('Tên nhóm Sales là bắt buộc.', 'danger')
+    elif SalesGroup.query.filter_by(name=name).first():
+        flash('Nhóm Sales này đã tồn tại.', 'warning')
+    else:
+        db.session.add(SalesGroup(name=name, description=description or None))
+        db.session.commit()
+        flash('Đã thêm nhóm Sales.', 'success')
+    return redirect(url_for('sales_groups'))
+
+
+@app.route('/sales-groups/<int:group_id>/delete', methods=['POST'])
+def delete_sales_group(group_id):
+    group = db.session.get(SalesGroup, group_id)
+    if not group:
+        flash('Không tìm thấy nhóm Sales.', 'danger')
+    elif group.handoffs:
+        flash('Không thể xóa nhóm đã có lịch sử chuyển khách.', 'warning')
+    else:
+        db.session.delete(group)
+        db.session.commit()
+        flash('Đã xóa nhóm Sales.', 'info')
+    return redirect(url_for('sales_groups'))
 
 
 @app.route('/orders/create/<int:customer_id>', methods=['GET', 'POST'])
