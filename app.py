@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from sqlalchemy import text, inspect
+from sqlalchemy import text, inspect, func
 try:
     from celery import Celery
 except ImportError:  # Allows local development before optional worker deps install.
@@ -812,7 +812,21 @@ def customers():
         ).all()
     else:
         items = Customer.query.order_by(Customer.created_at.desc()).all()
-    return render_template('customers.html', customers=items, q=q, sync_job_id=sync_job_id)
+    customer_stats = db.session.query(
+        Customer.source,
+        Customer.page_name,
+        func.count(Customer.id).label('total_customers'),
+        func.count(Customer.phone).label('customers_with_phone'),
+        func.max(Customer.last_message_date).label('latest_message_at'),
+    ).group_by(
+        Customer.source, Customer.page_name,
+    ).order_by(
+        func.count(Customer.id).desc(), Customer.source.asc(), Customer.page_name.asc(),
+    ).all()
+    return render_template(
+        'customers.html', customers=items, customer_stats=customer_stats,
+        q=q, sync_job_id=sync_job_id,
+    )
 
 
 @app.route('/customers/add', methods=['GET', 'POST'])

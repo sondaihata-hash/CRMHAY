@@ -44,6 +44,50 @@
     </form>
   </div>
 
+  <div class="panel table-card mb-4">
+    <div class="customer-list-toolbar">
+      <span>Thống kê khách hàng theo nguồn và Page</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Nguồn</th>
+            <th>Page</th>
+            <th>Tổng khách</th>
+            <th>Có số điện thoại</th>
+            <th>Nhắn gần nhất</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stat in customer_stats %}
+          <tr>
+            <td>
+              {% if stat.source == 'facebook' %}
+                <span class="badge" style="background-color:#0084ff;color:white;">Facebook</span>
+              {% else %}
+                <span class="badge" style="background-color:#6c757d;color:white;">{{ stat.source | title if stat.source else 'Khác' }}</span>
+              {% endif %}
+            </td>
+            <td>{{ stat.page_name or '—' }}</td>
+            <td><strong>{{ stat.total_customers }}</strong></td>
+            <td>{{ stat.customers_with_phone }}</td>
+            <td>
+              {% if stat.latest_message_at %}
+                {{ stat.latest_message_at.strftime('%d/%m/%Y %H:%M') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu thống kê.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="panel table-card">
     <div class="customer-list-toolbar">
       <span>Danh sách khách hàng</span>
