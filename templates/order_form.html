@@ -1,3 +1,45 @@
-{% extends 'base.html' %}{% block content %}
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .order-sheet { max-width: 980px; margin: 0 auto; background: #fff; color: #111; border: 1px solid #707070; font-family: Arial, sans-serif; font-size: 13px; }
+  .order-sheet input, .order-sheet textarea, .order-sheet select { border: 0; border-bottom: 1px dotted #94a3b8; border-radius: 0; padding: 3px 5px; min-height: 26px; font-size: 13px; background: transparent; }
+  .order-sheet input:focus, .order-sheet textarea:focus, .order-sheet select:focus { box-shadow: none; border-bottom-color: #0f766e; }
+  .order-heading { border-bottom: 1px solid #707070; padding: 13px 16px; min-height: 78px; }
+  .order-heading p { margin: 0; font-size: 11px; line-height: 1.45; }
+  .order-title { text-align: center; font-size: 19px; font-weight: 700; padding: 13px 0; }
+  .order-meta { display:grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; padding: 0 16px 12px; }
+  .order-meta label { font-weight: 700; white-space: nowrap; }
+  .items-grid { width: 100%; border-collapse: collapse; }
+  .items-grid th, .items-grid td { border: 1px solid #707070; padding: 2px 4px; vertical-align: middle; }
+  .items-grid th { text-align: center; font-size: 11px; }
+  .items-grid input { width: 100%; }
+  .order-totals { margin-left:auto; width: 48%; padding: 10px 16px; }
+  .order-totals .line { border-bottom: 1px solid #707070; display:flex; justify-content:space-between; padding: 4px 0; }
+  @media (max-width: 700px) { .order-meta { grid-template-columns:1fr; } .order-totals { width:100%; } .order-sheet { font-size:12px; } }
+</style>
 <div class="section-header"><div><p class="kpi-label mb-2">Đơn đặt hàng mới</p><h1 class="page-title">Tạo đơn cho {{ customer.name }}</h1></div><a class="btn secondary-btn" href="/customers/{{ customer.id }}">Quay lại</a></div>
-<form method="post" class="panel p-4"><div class="row g-3 mb-3"><div class="col-md-6"><label>Khách hàng</label><input class="form-control" value="{{ customer.name }}" readonly></div><div class="col-md-6"><label>Địa chỉ giao hàng</label><input class="form-control" name="delivery_address" value="{{ customer.location or '' }}"></div></div><div class="table-responsive"><table class="table" id="items"><thead><tr><th>Mã SP</th><th>Tên hàng</th><th>ĐVT</th><th>SL</th><th>Đơn giá</th><th></th></tr></thead><tbody><tr><td><input class="form-control" name="product_code"></td><td><input class="form-control" name="product_name" required></td><td><input class="form-control" name="unit" value="Cái"></td><td><input class="form-control" name="quantity" type="number" value="1"></td><td><input class="form-control" name="unit_price" type="number" value="0"></td><td><button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove()">×</button></td></tr></tbody></table></div><button type="button" class="btn btn-sm btn-outline-primary" onclick="addItem()">+ Thêm hàng</button><div class="row g-3 mt-2"><div class="col-md-4"><label>Chiết khấu</label><input class="form-control" name="discount_amount" type="number" value="0"></div><div class="col-md-4"><label>VAT</label><input class="form-control" name="vat_amount" type="number" value="0"></div><div class="col-md-4"><label>Trạng thái</label><select class="form-select" name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option></select></div><div class="col-md-6"><label>Thông tin thanh toán</label><input class="form-control" name="payment_details"></div><div class="col-md-6"><label>Ghi chú</label><input class="form-control" name="note"></div></div><button class="btn success-btn mt-4">Tạo đơn & xem mẫu in</button></form><script>function addItem(){document.querySelector('#items tbody').insertAdjacentHTML('beforeend',`<tr><td><input class="form-control" name="product_code"></td><td><input class="form-control" name="product_name"></td><td><input class="form-control" name="unit" value="Cái"></td><td><input class="form-control" name="quantity" type="number" value="1"></td><td><input class="form-control" name="unit_price" type="number" value="0"></td><td><button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove()">×</button></td></tr>`)}</script>{% endblock %}
+<form method="post" class="order-sheet">
+  <div class="order-heading"><p><b>CÔNG TY CỔ PHẦN SƠN IHATA VIỆT NAM</b></p><p>- 34/15 Ấp Trung Đông 2, Trung Mỹ Tây, TP. Hồ Chí Minh, Việt Nam.</p><p>- Số tài khoản: ....................................................</p><p>Tel: .................................................................</p></div>
+  <div class="order-title">ĐƠN ĐẶT HÀNG</div>
+  <div class="order-meta">
+    <div><label>Tên khách hàng:</label><input name="customer_name_display" value="{{ customer.name }}" readonly></div>
+    <div><label>Ngày:</label><input value="{{ now().strftime('%d/%m/%Y') if now is defined else '' }}" placeholder="Tự động khi tạo" readonly></div>
+    <div><label>Địa chỉ:</label><input name="delivery_address" value="{{ customer.location or '' }}"></div>
+    <div><label>Số ĐĐH:</label><input placeholder="Tự động tạo" readonly></div>
+    <div><label>Điện thoại:</label><input value="{{ customer.phone or '' }}" readonly></div>
+    <div><label>Loại tiền:</label><input value="VND" readonly></div>
+    <div><label>Email:</label><input value="{{ customer.email or '' }}" readonly></div>
+    <div><label>Trạng thái:</label><select name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option></select></div>
+  </div>
+  <table class="items-grid" id="items"><thead><tr><th style="width:5%">STT</th><th style="width:14%">Mã hàng</th><th>Tên hàng</th><th style="width:10%">ĐVT</th><th style="width:8%">SL</th><th style="width:14%">Đơn giá</th><th style="width:16%">Thành tiền</th><th></th></tr></thead><tbody>
+    <tr><td class="row-number">1</td><td><input name="product_code"></td><td><input name="product_name" required></td><td><input name="unit" value="Cái"></td><td><input name="quantity" type="number" min="0" step="0.01" value="1" oninput="updateTotals()"></td><td><input name="unit_price" type="number" min="0" step="1000" value="0" oninput="updateTotals()"></td><td class="line-total text-end">0</td><td><button type="button" class="btn btn-sm btn-link text-danger" onclick="this.closest('tr').remove();updateTotals()">×</button></td></tr>
+  </tbody></table>
+  <div class="p-2"><button type="button" class="btn btn-sm btn-outline-secondary" onclick="addItem()">+ Thêm dòng hàng</button></div>
+  <div class="order-totals"><div class="line"><span>Cộng tiền hàng</span><b id="merchandiseTotal">0 đ</b></div><div class="line"><span>Chiết khấu / Giảm trừ</span><input name="discount_amount" id="discount" type="number" min="0" value="0" oninput="updateTotals()"></div><div class="line"><span>VAT</span><input name="vat_amount" id="vat" type="number" min="0" value="0" oninput="updateTotals()"></div><div class="line"><b>Tổng tiền thanh toán</b><b id="grandTotal">0 đ</b></div></div>
+  <div class="p-3 border-top"><label class="fw-bold">Ghi chú:</label><textarea class="form-control w-100" name="note" rows="2"></textarea><label class="fw-bold mt-2">Thông tin thanh toán:</label><input class="form-control w-100" name="payment_details" placeholder="STK: ... Ngân hàng ..."><div class="row text-center mt-5 mb-4"><div class="col-4"><b>Người lập</b><br><small>(Ký, họ tên)</small></div><div class="col-4"><b>Kế toán trưởng</b><br><small>(Ký, họ tên)</small></div><div class="col-4"><b>Khách hàng</b><br><small>(Ký, họ tên)</small></div></div><button class="btn success-btn">Tạo đơn & xem mẫu in</button></div>
+</form>
+<script>
+function updateTotals(){let sum=0;document.querySelectorAll('#items tbody tr').forEach((row,i)=>{row.querySelector('.row-number').textContent=i+1;const q=Number(row.querySelector('[name=quantity]').value)||0,p=Number(row.querySelector('[name=unit_price]').value)||0,v=q*p;row.querySelector('.line-total').textContent=v.toLocaleString('vi-VN');sum+=v});const discount=Number(document.getElementById('discount').value)||0,vat=Number(document.getElementById('vat').value)||0;document.getElementById('merchandiseTotal').textContent=sum.toLocaleString('vi-VN')+' đ';document.getElementById('grandTotal').textContent=(sum-discount+vat).toLocaleString('vi-VN')+' đ'}
+function addItem(){document.querySelector('#items tbody').insertAdjacentHTML('beforeend',`<tr><td class="row-number"></td><td><input name="product_code"></td><td><input name="product_name"></td><td><input name="unit" value="Cái"></td><td><input name="quantity" type="number" value="1" oninput="updateTotals()"></td><td><input name="unit_price" type="number" value="0" oninput="updateTotals()"></td><td class="line-total text-end">0</td><td><button type="button" class="btn btn-sm btn-link text-danger" onclick="this.closest('tr').remove();updateTotals()">×</button></td></tr>`);updateTotals()}
+</script>
+{% endblock %}

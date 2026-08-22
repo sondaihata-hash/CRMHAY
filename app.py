@@ -885,6 +885,7 @@ def handoff_customer_to_zalo(c_id):
     message = build_zalo_handoff_message(customer)
     db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
     db.session.commit()
+    return {'ok': True, 'message': message, 'group_name': group.name}
 
 
 def ensure_order_columns():
@@ -894,7 +895,6 @@ def ensure_order_columns():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
     db.session.commit()
-    return {'ok': True, 'message': message, 'group_name': group.name}
 
 
 @app.route('/sales-groups')
@@ -969,7 +969,7 @@ def create_order(customer_id):
         db.session.commit()
         flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
         return redirect(url_for('order_document', order_id=order.id))
-    return render_template('order_form.html', customer=customer)
+    return render_template('order_form.html', customer=customer, now=datetime.utcnow)
 
 
 @app.route('/orders/<int:order_id>')
