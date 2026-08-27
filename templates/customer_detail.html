@@ -165,26 +165,33 @@
       handoffForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const status = document.getElementById('zaloHandoffStatus');
-        const response = await fetch(handoffForm.action, {method: 'POST', body: new FormData(handoffForm)});
-        const data = await response.json();
-        if (!response.ok) {
-          status.className = 'small mt-3 text-danger';
-          status.textContent = data.message || 'Không thể chuẩn bị nội dung chuyển khách.';
-          return;
-        }
+        const submitButton = handoffForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
         try {
-          await navigator.clipboard.writeText(data.message);
+          const response = await fetch(handoffForm.action, {method: 'POST', body: new FormData(handoffForm)});
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || 'Không thể chuẩn bị nội dung chuyển khách.');
+          }
+          try {
+            await navigator.clipboard.writeText(data.message);
+          } catch (error) {
+            const textArea = document.createElement('textarea');
+            textArea.value = data.message;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            textArea.remove();
+          }
+          status.className = 'small mt-3 text-success';
+          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Zalo đang được mở — dán để gửi.`;
+          window.location.href = data.destination_url || 'zalo://';
         } catch (error) {
-          const textArea = document.createElement('textarea');
-          textArea.value = data.message;
-          document.body.appendChild(textArea);
-          textArea.select();
-          document.execCommand('copy');
-          textArea.remove();
+          status.className = 'small mt-3 text-danger';
+          status.textContent = error.message || 'Không thể kết nối CRM. Hãy thử lại.';
+        } finally {
+          submitButton.disabled = false;
         }
-        status.className = 'small mt-3 text-success';
-        status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Zalo đang được mở — dán để gửi.`;
-        window.location.href = data.destination_url || 'zalo://';
       });
     }
   </script>

@@ -852,12 +852,18 @@ def build_zalo_handoff_message(customer):
 def is_valid_zalo_group_url(value):
     if not value:
         return True
-    parsed = urlsplit(value)
-    return (
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    return bool(
         parsed.scheme == 'https'
         and parsed.hostname in {'zalo.me', 'www.zalo.me'}
-        and parsed.path.startswith('/g/')
-        and bool(parsed.path[3:].strip('/'))
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+        and re.fullmatch(r'/g/[A-Za-z0-9_-]+/?', parsed.path)
     )
 
 
@@ -961,7 +967,8 @@ def handoff_customer_to_zalo(c_id):
     message = build_zalo_handoff_message(customer)
     db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
     db.session.commit()
-    return {'ok': True, 'message': message, 'group_name': group.name, 'destination_url': group.zalo_url or 'zalo://'}
+    destination_url = group.zalo_url if is_valid_zalo_group_url(group.zalo_url) else 'zalo://'
+    return {'ok': True, 'message': message, 'group_name': group.name, 'destination_url': destination_url}
 
 
 def ensure_order_columns():
