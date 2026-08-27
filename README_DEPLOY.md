@@ -136,8 +136,8 @@ Quy trình được hỗ trợ ổn định:
 4. CRM ghi lịch sử chuyển khách, sao chép nội dung lead và mở đúng link nhóm;
    Sale chỉ cần dán và gửi.
 
-Link nhóm phải bắt đầu bằng `https://` hoặc `zalo://`. Nếu không cấu hình link,
-CRM vẫn mở Zalo chung như trước.
+Link nhóm phải có dạng `https://zalo.me/g/...`. Nếu không cấu hình link, CRM
+vẫn mở Zalo chung như trước.
 
 ---
 
