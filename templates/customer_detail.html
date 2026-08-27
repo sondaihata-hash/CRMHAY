@@ -186,12 +186,12 @@
             textArea.remove();
           }
           status.className = 'small mt-3 text-success';
-          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Mở Zalo Desktop để chọn nhóm và dán.`;
+          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Bấm nút bên dưới để mở Zalo Desktop.`;
           const openButton = document.createElement('button');
           openButton.type = 'button';
           openButton.className = 'btn btn-sm primary-btn ms-2';
           openButton.textContent = 'Mở Zalo Desktop';
-          openButton.addEventListener('click', () => window.location.assign('zalo://'));
+          openButton.addEventListener('click', () => window.location.assign(data.desktop_app_url || 'zalo://'));
           status.appendChild(openButton);
         } catch (error) {
           status.className = 'small mt-3 text-danger';
