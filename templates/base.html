@@ -37,6 +37,11 @@
         box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
       }
 
+      .topbar .page-shell {
+        margin-top: 0;
+        margin-bottom: 0;
+      }
+
       .brand {
         letter-spacing: 0.02em;
         font-weight: 700;
@@ -309,7 +314,10 @@
     <nav class="topbar navbar navbar-expand-lg navbar-dark">
       <div class="container-fluid page-shell px-0">
         <a class="navbar-brand brand" href="/">CRM HAY</a>
-        <div class="collapse navbar-collapse">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-label="Mở menu">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavigation">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <li class="nav-item"><a class="nav-link" href="/">Tổng quan</a></li>
             <li class="nav-item"><a class="nav-link" href="/customers">Khách hàng</a></li>
