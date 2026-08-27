@@ -49,6 +49,21 @@ def test_extract_location_stops_before_phone_and_request_details():
     assert extract_location(text) == "Đà Nẵng"
 
 
+def test_extract_location_stops_before_phone_without_comma():
+    text = "Mình ở Hà Nội sđt 0987654321"
+
+    assert extract_location(text) == "Hà Nội"
+
+
+def test_extract_location_ignores_non_location_phrases():
+    assert extract_location("Mình ở nhà, cần tư vấn") == ""
+    assert extract_location("Tôi ở đây, muốn mua hàng") == ""
+
+
+def test_extract_location_normalizes_common_city_abbreviation():
+    assert extract_location("Tôi ở TP.HCM, cần tư vấn") == "Hồ Chí Minh"
+
+
 def test_build_customer_from_message_uses_facebook_fields():
     payload = {
         "name": "Lan Anh",
