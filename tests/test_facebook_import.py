@@ -19,15 +19,15 @@ def test_dashboard_route_exposes_crm_summary():
     from app import Customer, Order
 
     with app.app_context():
-            db = __import__('app').db
-            db.session.query(Order).filter(Order.code.like('DASHBOARD-TEST-%')).delete(synchronize_session=False)
-            db.session.query(Customer).filter(Customer.name == 'Dashboard Test').delete(synchronize_session=False)
-            db.session.commit()
+        db = __import__('app').db
+        db.session.query(Order).filter(Order.code.like('DASHBOARD-TEST-%')).delete(synchronize_session=False)
+        db.session.query(Customer).filter(Customer.name == 'Dashboard Test').delete(synchronize_session=False)
+        db.session.commit()
         customer = Customer(name='Dashboard Test', phone='0987654321', source='manual')
         db.session.add(customer)
         db.session.flush()
-            order = Order(customer_id=customer.id, code=f'DASHBOARD-TEST-{uuid.uuid4().hex}', total_amount=1250000, status='Mới')
-            db.session.add(order)
+        order = Order(customer_id=customer.id, code=f'DASHBOARD-TEST-{uuid.uuid4().hex}', total_amount=1250000, status='Mới')
+        db.session.add(order)
         db.session.commit()
 
         response = app.test_client().get('/')
@@ -36,7 +36,7 @@ def test_dashboard_route_exposes_crm_summary():
         assert 'Dashboard Test' in response.get_data(as_text=True)
         assert '1,250,000' in response.get_data(as_text=True)
 
-            db.session.delete(order)
+        db.session.delete(order)
         db.session.delete(customer)
         db.session.commit()
 
