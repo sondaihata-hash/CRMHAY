@@ -581,3 +581,118 @@ def test_sync_uses_customer_profile_location_when_message_has_no_location():
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
 
     assert results[0]["location"] == "Đà Nẵng"
+
+
+def test_sync_prefers_message_location_over_customer_profile_location():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_LOCATION_PRIORITY"
+    customer_id = "CUSTOMER_LOCATION_PRIORITY"
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return {"data": [{
+                "id": "CONV_LOCATION_PRIORITY",
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": customer_id, "name": "Customer"},
+                ]},
+                "messages": {"data": [{
+                    "from": {"id": customer_id, "name": "Customer"},
+                    "message": "Tôi ở Hà Nội, số 0987654321",
+                    "created_time": "2026-08-01T10:00:00+0000",
+                }]},
+            }], "paging": {}}
+        if endpoint == customer_id:
+            return {"location": {"name": "Đà Nẵng"}}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {
+             "FACEBOOK_PAGE_ACCESS_TOKEN": "tok",
+             "FACEBOOK_FETCH_PROFILE": "true",
+         }, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
+
+    assert results[0]["location"] == "Hà Nội"
+
+
+def test_sync_counts_failed_profile_requests_against_api_limit():
+    import unittest.mock as mock
+    from app import MAX_API_CALLS_PER_SYNC, fetch_managed_facebook_messages
+    from urllib.error import HTTPError
+
+    page_id = "PAGE_PROFILE_FAILURES"
+    conversations = [{
+        "id": f"CONV_PROFILE_FAILURE_{index}",
+        "participants": {"data": [
+            {"id": page_id, "name": "My Page"},
+            {"id": f"CUSTOMER_{index}", "name": f"Customer {index}"},
+        ]},
+        "messages": {"data": [{
+            "from": {"id": f"CUSTOMER_{index}", "name": f"Customer {index}"},
+            "message": f"Số điện thoại 09876543{index:02d}",
+            "created_time": "2026-08-01T10:00:00+0000",
+        }]},
+    } for index in range(MAX_API_CALLS_PER_SYNC + 5)]
+    profile_calls = 0
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        nonlocal profile_calls
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return {"data": conversations, "paging": {}}
+        profile_calls += 1
+        raise HTTPError(endpoint, 403, "Forbidden", {}, None)
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {
+             "FACEBOOK_PAGE_ACCESS_TOKEN": "tok",
+             "FACEBOOK_FETCH_PROFILE": "true",
+         }, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=500)
+
+    assert profile_calls + 1 <= MAX_API_CALLS_PER_SYNC
+    assert len(results) == MAX_API_CALLS_PER_SYNC
+
+
+def test_sync_ignores_malformed_customer_profile_response():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = "PAGE_MALFORMED_PROFILE"
+    customer_id = "CUSTOMER_MALFORMED_PROFILE"
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
+        if endpoint == f"{page_id}/conversations":
+            return {"data": [{
+                "id": "CONV_MALFORMED_PROFILE",
+                "participants": {"data": [
+                    {"id": page_id, "name": "My Page"},
+                    {"id": customer_id, "name": "Customer"},
+                ]},
+                "messages": {"data": [{
+                    "from": {"id": customer_id, "name": "Customer"},
+                    "message": "Số điện thoại 0987654321",
+                    "created_time": "2026-08-01T10:00:00+0000",
+                }]},
+            }], "paging": {}}
+        if endpoint == customer_id:
+            return {"location": {"name": 12345}}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {
+             "FACEBOOK_PAGE_ACCESS_TOKEN": "tok",
+             "FACEBOOK_FETCH_PROFILE": "true",
+         }, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
+
+    assert len(results) == 1
+    assert results[0]["location"] == ""

@@ -240,6 +240,8 @@ def extract_phone_numbers(text_value):
 
 
 def normalize_location_name(location):
+    if not isinstance(location, str):
+        return ''
     normalized = location.strip().title()
     if re.fullmatch(r'tp\.?\s*hcm', location.strip(), re.IGNORECASE):
         return 'Hồ Chí Minh'
@@ -723,25 +725,35 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     last_name = ''
                     gender = ''
                     locale = ''
+                    profile_location = ''
                     if (customer_id and should_fetch_facebook_profiles()
                             and api_call_count < MAX_API_CALLS_PER_SYNC):
+                        api_call_count += 1
                         try:
                             profile = fetch_facebook_json(
                                 customer_id, page_token,
-                                {'fields': 'first_name,last_name,profile_pic,gender,locale'}
+                                {'fields': 'first_name,last_name,profile_pic,gender,locale,location{name}'}
                             )
-                            api_call_count += 1
+                            if not isinstance(profile, dict):
+                                profile = {}
                             profile_pic = profile.get('profile_pic') or ''
                             first_name = profile.get('first_name') or ''
                             last_name = profile.get('last_name') or ''
                             gender = profile.get('gender') or ''
                             locale = profile.get('locale') or ''
+                            profile_location_data = profile.get('location') or {}
+                            if isinstance(profile_location_data, dict):
+                                profile_location = profile_location_data.get('name') or ''
+                            elif isinstance(profile_location_data, str):
+                                profile_location = profile_location_data
                             if API_RATE_DELAY:
                                 time.sleep(API_RATE_DELAY)
                         except (HTTPError, URLError, ValueError, KeyError):
                             # Profile access is optional; importing conversations
                             # must continue when the connected app cannot read it.
                             pass
+                    if not location and profile_location:
+                        location = normalize_location_name(profile_location)
 
                     conversation_id = conversation.get('id') or ''
                     message_count = len(messages)

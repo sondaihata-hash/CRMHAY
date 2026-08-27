@@ -37,6 +37,21 @@ git push
 
 **Checkpoint**: Mở `https://your-service-name.onrender.com` trong trình duyệt → kiểm tra CRM chạy được chưa.
 
+### 1.4 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
+
+CRM luôn ưu tiên nơi ở khách tự ghi trong tin nhắn. Với khách không ghi nơi ở,
+có thể bật fallback từ Facebook Profile API bằng biến môi trường:
+
+```text
+FACEBOOK_FETCH_PROFILE=true
+```
+
+Trên Render, thêm biến này tại **Environment** của Web Service rồi redeploy.
+Ứng dụng sẽ yêu cầu thêm trường `location{name}` khi đọc hồ sơ khách và chỉ dùng
+dữ liệu đó nếu tin nhắn không có nơi ở. Tính năng này cần token/Page và ứng dụng
+Facebook được cấp quyền phù hợp; nếu Facebook trả lỗi quyền, CRM vẫn đồng bộ
+khách bình thường và để trống nơi ở, không tự đoán theo số điện thoại.
+
 ---
 
 ## Bước 2: Cấu hình DNS (Domain Pointing)
