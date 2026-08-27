@@ -64,6 +64,11 @@ def test_extract_location_normalizes_common_city_abbreviation():
     assert extract_location("Tôi ở TP.HCM, cần tư vấn") == "Hồ Chí Minh"
 
 
+def test_extract_location_stops_at_request_after_attached_punctuation():
+    assert extract_location("Mình ở Hà Nội,cần tư vấn") == "Hà Nội"
+    assert extract_location("Mình ở Hà Nội.cần tư vấn") == "Hà Nội"
+
+
 def test_build_customer_from_message_uses_facebook_fields():
     payload = {
         "name": "Lan Anh",

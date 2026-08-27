@@ -254,7 +254,7 @@ def extract_location(text_value):
         r'(?:địa\s+chỉ\s+(?:là\s+|ở\s+|tại\s+)?|khu\s+vực\s+|'
         r'quê\s+(?:ở|tại)\s+|đang\s+(?:ở|tại)\s+|'
         r'sống\s+(?:ở|tại)\s+|(?:ở|tại)\s+)'
-        r'(?P<location>.+?)(?=(?:,?\s+)(?:cần|muốn|sđt|số|điện thoại|liên hệ|gọi|để)\b|[;\n]|\.(?=\s|$)|$)',
+        r'(?P<location>.+?)(?=(?:,\s*|\s+)(?:cần|muốn|sđt|số|điện thoại|liên hệ|gọi|để)\b|[;\n]|\.(?=\s|$|(?:cần|muốn|sđt|số|điện thoại|liên hệ|gọi|để)\b)|$)',
         re.IGNORECASE,
     )
     match = location_prefix.search(text)
