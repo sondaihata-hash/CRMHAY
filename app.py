@@ -144,6 +144,7 @@ class SalesGroup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False, unique=True)
     description = db.Column(db.String(400), nullable=True)
+    zalo_url = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -212,6 +213,13 @@ def ensure_customer_columns():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE customer ADD COLUMN {column_name} {column_type}'))
     db.session.commit()
+
+
+def ensure_sales_group_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('sales_group')}
+    if 'zalo_url' not in columns:
+        db.session.execute(text('ALTER TABLE sales_group ADD COLUMN zalo_url TEXT'))
+        db.session.commit()
 
 
 def extract_phone_numbers(text_value):
@@ -807,6 +815,7 @@ def init_db():
         db.create_all()
         ensure_customer_columns()
         ensure_order_columns()
+        ensure_sales_group_columns()
         if not Customer.query.first():
             sample = Customer(
                 name='Nguyen Van A',
@@ -940,7 +949,7 @@ def handoff_customer_to_zalo(c_id):
     message = build_zalo_handoff_message(customer)
     db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
     db.session.commit()
-    return {'ok': True, 'message': message, 'group_name': group.name}
+    return {'ok': True, 'message': message, 'group_name': group.name, 'destination_url': group.zalo_url or 'zalo://'}
 
 
 def ensure_order_columns():
@@ -961,12 +970,15 @@ def sales_groups():
 def add_sales_group():
     name = (request.form.get('name') or '').strip()
     description = (request.form.get('description') or '').strip()
+    zalo_url = (request.form.get('zalo_url') or '').strip()
     if not name:
         flash('Tên nhóm Sales là bắt buộc.', 'danger')
     elif SalesGroup.query.filter_by(name=name).first():
         flash('Nhóm Sales này đã tồn tại.', 'warning')
+    elif zalo_url and not (zalo_url.startswith('https://') or zalo_url.startswith('zalo://')):
+        flash('Link Zalo phải bắt đầu bằng https:// hoặc zalo://.', 'danger')
     else:
-        db.session.add(SalesGroup(name=name, description=description or None))
+        db.session.add(SalesGroup(name=name, description=description or None, zalo_url=zalo_url or None))
         db.session.commit()
         flash('Đã thêm nhóm Sales.', 'success')
     return redirect(url_for('sales_groups'))

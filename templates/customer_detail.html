@@ -183,8 +183,8 @@
           textArea.remove();
         }
         status.className = 'small mt-3 text-success';
-        status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Zalo đang được mở — chọn nhóm và dán để gửi.`;
-        window.location.href = 'zalo://';
+        status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Zalo đang được mở — dán để gửi.`;
+        window.location.href = data.destination_url || 'zalo://';
       });
     }
   </script>
