@@ -137,6 +137,68 @@
         margin-top: 0.4rem;
       }
 
+      .section-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        margin: 0.35rem 0 0;
+      }
+
+      .metric-card {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        min-height: 112px;
+      }
+
+      .metric-icon {
+        width: 44px;
+        height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.8rem;
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .metric-blue { background: #e0eaff; color: #1d4ed8; }
+      .metric-teal { background: #d8f7f0; color: #087f6e; }
+      .metric-amber { background: #fff0c7; color: #a16207; }
+      .metric-coral { background: #ffe2dc; color: #c2410c; }
+      .metric-money { font-size: 1.35rem; }
+      .metric-money small { font-size: 0.75rem; color: var(--muted); }
+      .summary-total { color: var(--primary-strong); font-size: 1.05rem; }
+
+      .revenue-stage {
+        min-height: 154px;
+        border-bottom: 1px solid var(--line);
+        background: repeating-linear-gradient(to bottom, transparent 0, transparent 50px, #eef3f8 51px);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .revenue-line {
+        position: absolute;
+        left: 0;
+        right: 6%;
+        bottom: 28px;
+        height: 88px;
+        background: linear-gradient(145deg, transparent 49%, rgba(20,184,166,0.22) 50%, rgba(20,184,166,0.22) 51%, transparent 52%);
+        border-bottom: 3px solid var(--accent);
+        clip-path: polygon(0 72%, 15% 62%, 28% 68%, 43% 38%, 59% 49%, 72% 23%, 84% 34%, 100% 8%, 100% 100%, 0 100%);
+      }
+
+      .revenue-label { position: absolute; font-size: 0.72rem; color: var(--muted); }
+      .revenue-label-top { top: 12px; right: 0; }
+      .revenue-label-bottom { bottom: 8px; left: 0; }
+      .distribution-row { margin-bottom: 1.1rem; }
+      .progress-track { height: 8px; border-radius: 99px; background: #edf2f7; overflow: hidden; }
+      .progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+      .pipeline-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.8rem 0; border-bottom: 1px solid #edf2f7; }
+      .pipeline-row:last-child { border-bottom: 0; }
+      .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(20,184,166,0.12); }
+      .status-pill { display: inline-flex; padding: 0.38rem 0.65rem; border-radius: 999px; background: #e7f3ff; color: #1d4ed8; font-size: 0.75rem; font-weight: 700; }
+
       .form-control, .form-select, textarea {
         border: 1px solid #dfe7f3;
         border-radius: 0.8rem;
