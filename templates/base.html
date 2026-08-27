@@ -203,6 +203,11 @@
       .pipeline-row:last-child { border-bottom: 0; }
       .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(20,184,166,0.12); }
       .status-pill { display: inline-flex; padding: 0.38rem 0.65rem; border-radius: 999px; background: #e7f3ff; color: #1d4ed8; font-size: 0.75rem; font-weight: 700; }
+      .zalo-modal[hidden] { display: none; }
+      .zalo-modal { position: fixed; inset: 0; z-index: 1080; display: grid; place-items: center; padding: 1rem; }
+      .zalo-modal-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,0.55); }
+      .zalo-modal-dialog { position: relative; z-index: 1; width: min(100%, 520px); padding: 1.4rem; }
+      .modal-open { overflow: hidden; }
 
       .form-control, .form-select, textarea {
         border: 1px solid #dfe7f3;

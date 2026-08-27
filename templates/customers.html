@@ -205,13 +205,12 @@
     </div>
   </div>
 
-  <div class="modal fade" id="zaloHandoffModal" tabindex="-1" aria-labelledby="zaloHandoffTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content panel">
-        <div class="modal-header border-0"><div><div class="kpi-label">Chuyển khách cho Sale</div><h2 class="modal-title fs-5" id="zaloHandoffTitle">Gửi khách qua Zalo Desktop</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
-        <div class="modal-body pt-0"><p class="text-secondary small">CRM sẽ sao chép SĐT, tên khách, tên Page và nơi ở, sau đó mở đúng nhóm Zalo đã chọn.</p><form id="customerZaloForm"><input type="hidden" id="zaloCustomerId"><label class="form-label fw-semibold" for="zaloGroupId">Nhóm Sale nhận khách</label><select class="form-select" id="zaloGroupId" required><option value="">Chọn nhóm Zalo</option>{% for group in sales_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select><div id="customerZaloStatus" class="small mt-3" aria-live="polite"></div></form></div>
-        <div class="modal-footer border-0"><button type="button" class="btn secondary-btn" data-bs-dismiss="modal">Hủy</button><button type="submit" form="customerZaloForm" class="btn success-btn" id="customerZaloSubmit">Sao chép & mở Zalo</button></div>
-      </div>
+  <div class="zalo-modal" id="zaloHandoffModal" role="dialog" aria-labelledby="zaloHandoffTitle" aria-modal="true" hidden>
+    <div class="zalo-modal-backdrop" data-close-zalo-modal></div>
+    <div class="zalo-modal-dialog panel">
+      <div class="d-flex justify-content-between align-items-start"><div><div class="kpi-label">Chuyển khách cho Sale</div><h2 class="fs-5 mb-0" id="zaloHandoffTitle">Gửi khách qua Zalo Desktop</h2></div><button type="button" class="btn-close" data-close-zalo-modal aria-label="Đóng"></button></div>
+      <p class="text-secondary small mt-3">CRM sẽ sao chép SĐT, tên khách, tên Page và nơi ở, sau đó mở đúng nhóm Zalo đã chọn.</p><form id="customerZaloForm"><label class="form-label fw-semibold" for="zaloGroupId">Nhóm Sale nhận khách</label><select class="form-select" id="zaloGroupId" required><option value="">Chọn nhóm Zalo</option>{% for group in sales_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select><div id="customerZaloStatus" class="small mt-3" aria-live="polite"></div></form>
+      <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn secondary-btn" data-close-zalo-modal>Hủy</button><button type="submit" form="customerZaloForm" class="btn success-btn" id="customerZaloSubmit">Sao chép & mở Zalo</button></div>
     </div>
   </div>
 
@@ -263,15 +262,20 @@
     }
 
     let selectedZaloCustomerId = null;
-    const zaloModal = new bootstrap.Modal(document.getElementById('zaloHandoffModal'));
+    const zaloModal = document.getElementById('zaloHandoffModal');
+    const closeZaloModal = () => { zaloModal.hidden = true; document.body.classList.remove('modal-open'); };
 
     function openZaloHandoff(customerId, customerName) {
       selectedZaloCustomerId = customerId;
       document.getElementById('zaloHandoffTitle').textContent = `Gửi ${customerName} qua Zalo Desktop`;
       document.getElementById('zaloGroupId').value = '';
       document.getElementById('customerZaloStatus').textContent = '';
-      zaloModal.show();
+      zaloModal.hidden = false;
+      document.body.classList.add('modal-open');
+      document.getElementById('zaloGroupId').focus();
     }
+
+    document.querySelectorAll('[data-close-zalo-modal]').forEach((element) => element.addEventListener('click', closeZaloModal));
 
     document.getElementById('customerZaloForm').addEventListener('submit', async (event) => {
       event.preventDefault();
