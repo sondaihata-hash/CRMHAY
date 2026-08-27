@@ -34,7 +34,19 @@ def test_extract_phone_numbers_from_message():
 def test_extract_location_from_message():
     text = "Mình ở quận 7, thành phố Hồ Chí Minh, cần tư vấn gói dịch vụ"
     location = extract_location(text)
-    assert "quận 7" in location.lower() or "hồ chí minh" in location.lower()
+    assert location == "Quận 7, Thành Phố Hồ Chí Minh"
+
+
+def test_extract_location_does_not_treat_generic_words_as_a_location():
+    text = "Mình cần tư vấn gói dịch vụ, chưa biết chọn loại nào"
+
+    assert extract_location(text) == ""
+
+
+def test_extract_location_stops_before_phone_and_request_details():
+    text = "Địa chỉ ở Đà Nẵng, số điện thoại 0911222333, cần báo giá"
+
+    assert extract_location(text) == "Đà Nẵng"
 
 
 def test_build_customer_from_message_uses_facebook_fields():
