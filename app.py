@@ -242,21 +242,34 @@ def extract_phone_numbers(text_value):
 def extract_location(text_value):
     if not text_value:
         return ''
-    lower = text_value.lower()
-    location_keywords = [
-        'hà nội', 'hồ chí minh', 'đà nẵng', 'hải phòng', 'cần thơ', 'biên hòa',
-        'huế', 'nha trang', 'đà lạt', 'vũng tàu', 'quy nhơn', 'buôn ma thuột',
-        'thái nguyên', 'nam định', 'vinh', 'hạ long', 'thanh hóa', 'bắc ninh',
-        'quận 1', 'quận 2', 'quận 3', 'quận 4', 'quận 5', 'quận 6', 'quận 7',
-        'quận 8', 'quận 9', 'quận 10', 'quận 11', 'quận 12', 'huyện', 'tỉnh',
-        'thành phố', 'phường', 'xã', 'thị trấn'
-    ]
-    for keyword in location_keywords:
-        if keyword in lower:
-            return keyword.capitalize()
-    match = re.search(r'(?:ở|tại|sống|live|reside|resident)\s+([^,.\n;]+)', lower, re.IGNORECASE)
+    text = re.sub(r'\s+', ' ', text_value).strip()
+    location_prefix = re.compile(
+        r'(?:địa\s+chỉ\s+(?:là\s+|ở\s+|tại\s+)?|khu\s+vực\s+|'
+        r'quê\s+(?:ở|tại)\s+|đang\s+(?:ở|tại)\s+|'
+        r'sống\s+(?:ở|tại)\s+|(?:ở|tại)\s+)'
+        r'(?P<location>.+?)(?=,\s*(?:cần|muốn|sđt|số|điện thoại|liên hệ|gọi|để)\b|[.;\n]|$)',
+        re.IGNORECASE,
+    )
+    match = location_prefix.search(text)
     if match:
-        return match.group(1).strip().title()
+        location = match.group('location').strip(' ,:-')
+        if location:
+            normalized = location.title()
+            return normalized.replace('Thành Phố', 'Thành phố')
+
+    location_keywords = [
+        'thành phố hồ chí minh', 'hồ chí minh', 'hà nội', 'đà nẵng', 'hải phòng',
+        'cần thơ', 'biên hòa', 'buôn ma thuột', 'thái nguyên', 'nam định',
+        'nha trang', 'đà lạt', 'vũng tàu', 'quy nhơn', 'hạ long', 'thanh hóa',
+        'bắc ninh', 'quận 10', 'quận 11', 'quận 12', 'quận 1', 'quận 2',
+        'quận 3', 'quận 4', 'quận 5', 'quận 6', 'quận 7', 'quận 8', 'quận 9',
+        'huế', 'vinh',
+    ]
+    lower = text.lower()
+    for keyword in location_keywords:
+        if re.search(rf'(?<!\w){re.escape(keyword)}(?!\w)', lower):
+            normalized = keyword.title()
+            return normalized.replace('Thành Phố', 'Thành phố')
     return ''
 
 
