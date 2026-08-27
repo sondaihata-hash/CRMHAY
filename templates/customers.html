@@ -284,7 +284,16 @@
         const response = await fetch(`/customers/${selectedZaloCustomerId}/handoff-zalo`, {method: 'POST', body: new URLSearchParams({group_id: document.getElementById('zaloGroupId').value})});
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Không thể chuẩn bị nội dung chuyển khách.');
-        await navigator.clipboard.writeText(data.message);
+        try {
+          await navigator.clipboard.writeText(data.message);
+        } catch (error) {
+          const textArea = document.createElement('textarea');
+          textArea.value = data.message;
+          document.body.appendChild(textArea);
+          textArea.select();
+          if (!document.execCommand('copy')) throw new Error('Không thể sao chép nội dung. Hãy kiểm tra quyền clipboard và thử lại.');
+          textArea.remove();
+        }
         status.className = 'small mt-3 text-success';
         status.textContent = 'Đã sao chép thông tin. Đang mở Zalo Desktop...';
         window.location.href = data.destination_url || 'zalo://';
