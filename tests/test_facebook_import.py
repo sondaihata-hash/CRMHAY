@@ -34,7 +34,7 @@ def test_extract_phone_numbers_from_message():
 def test_extract_location_from_message():
     text = "Mình ở quận 7, thành phố Hồ Chí Minh, cần tư vấn gói dịch vụ"
     location = extract_location(text)
-    assert location == "Quận 7, Thành Phố Hồ Chí Minh"
+    assert location == "Quận 7, Thành phố Hồ Chí Minh"
 
 
 def test_extract_location_does_not_treat_generic_words_as_a_location():
