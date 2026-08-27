@@ -830,7 +830,29 @@ def build_zalo_handoff_message(customer):
 
 @app.route('/')
 def index():
-    return redirect(url_for('customers'))
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+    customer_count = Customer.query.count()
+    phone_count = Customer.query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
+    order_count = Order.query.count()
+    revenue = db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).scalar() or 0
+    month_revenue = db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).filter(
+        Order.created_at >= month_start,
+    ).scalar() or 0
+    status_summary = db.session.query(
+        Order.status, func.count(Order.id).label('total'),
+    ).group_by(Order.status).order_by(func.count(Order.id).desc()).all()
+    source_summary = db.session.query(
+        Customer.source, func.count(Customer.id).label('total'),
+    ).group_by(Customer.source).order_by(func.count(Customer.id).desc()).all()
+    recent_customers = Customer.query.order_by(Customer.created_at.desc()).limit(7).all()
+    recent_orders = Order.query.order_by(Order.created_at.desc()).limit(7).all()
+    return render_template(
+        'dashboard.html', customer_count=customer_count, phone_count=phone_count,
+        order_count=order_count, revenue=revenue, month_revenue=month_revenue,
+        status_summary=status_summary, source_summary=source_summary,
+        recent_customers=recent_customers, recent_orders=recent_orders,
+    )
 
 
 @app.route('/customers')
@@ -950,6 +972,20 @@ def delete_sales_group(group_id):
         db.session.commit()
         flash('Đã xóa nhóm Sales.', 'info')
     return redirect(url_for('sales_groups'))
+
+
+@app.route('/orders')
+def orders():
+    status = (request.args.get('status') or '').strip()
+    q = (request.args.get('q') or '').strip()
+    query = Order.query.join(Customer)
+    if status:
+        query = query.filter(Order.status == status)
+    if q:
+        query = query.filter(db.or_(Order.code.contains(q), Customer.name.contains(q), Customer.phone.contains(q)))
+    order_items = query.order_by(Order.created_at.desc()).all()
+    statuses = [item[0] for item in db.session.query(Order.status).distinct().order_by(Order.status).all()]
+    return render_template('orders.html', orders=order_items, statuses=statuses, status=status, q=q)
 
 
 @app.route('/orders/create/<int:customer_id>', methods=['GET', 'POST'])

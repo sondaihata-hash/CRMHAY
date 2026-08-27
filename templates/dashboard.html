@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="section-header dashboard-hero">
+    <div>
+      <p class="kpi-label mb-2">Trung tâm điều hành</p>
+      <h1 class="page-title">Tổng quan CRM</h1>
+      <p class="text-secondary mt-2 mb-0">Theo dõi khách hàng, doanh thu và các việc cần xử lý trong một màn hình.</p>
+    </div>
+    <div class="toolbar">
+      <a class="btn primary-btn" href="/customers/add">+ Thêm khách hàng</a>
+      <a class="btn secondary-btn" href="/orders">Xem đơn hàng</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3"><div class="kpi-card metric-card"><div class="metric-icon metric-blue">KH</div><div><div class="kpi-label">Tổng khách hàng</div><div class="kpi-value">{{ '{:,.0f}'.format(customer_count) }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="kpi-card metric-card"><div class="metric-icon metric-teal">☎</div><div><div class="kpi-label">Có số điện thoại</div><div class="kpi-value">{{ '{:,.0f}'.format(phone_count) }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="kpi-card metric-card"><div class="metric-icon metric-amber">DH</div><div><div class="kpi-label">Tổng đơn hàng</div><div class="kpi-value">{{ '{:,.0f}'.format(order_count) }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="kpi-card metric-card"><div class="metric-icon metric-coral">₫</div><div><div class="kpi-label">Doanh thu tháng này</div><div class="kpi-value metric-money">{{ '{:,.0f}'.format(month_revenue) }}<small> đ</small></div></div></div></div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-xl-7">
+      <section class="panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-4"><div><div class="kpi-label">Dòng tiền</div><h2 class="section-title">Doanh thu tích lũy</h2></div><strong class="summary-total">{{ '{:,.0f}'.format(revenue) }} đ</strong></div>
+        <div class="revenue-stage"><div class="revenue-line"></div><div class="revenue-label revenue-label-top">Tổng doanh thu</div><div class="revenue-label revenue-label-bottom">Đơn hàng đang được ghi nhận</div></div>
+        <div class="d-flex justify-content-between small text-secondary mt-3"><span>{{ order_count }} đơn hàng</span><a href="/orders" class="text-decoration-none">Mở báo cáo đơn hàng →</a></div>
+      </section>
+    </div>
+    <div class="col-xl-5">
+      <section class="panel p-4 h-100"><div class="kpi-label">Phân bổ nguồn khách</div><h2 class="section-title mb-4">Kênh tạo khách</h2>
+        {% for item in source_summary %}<div class="distribution-row"><div class="d-flex justify-content-between small mb-2"><span>{{ item[0] or 'Chưa phân loại' }}</span><strong>{{ item[1] }}</strong></div><div class="progress-track"><span style="width: {{ ((item[1] / customer_count * 100) if customer_count else 0)|round(0) }}%"></span></div></div>{% else %}<p class="text-secondary mb-0">Chưa có dữ liệu nguồn khách.</p>{% endfor %}
+      </section>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-7"><section class="panel table-card"><div class="customer-list-toolbar"><span>Khách hàng mới cập nhật</span><a href="/customers" class="text-decoration-none">Xem tất cả →</a></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Khách hàng</th><th>Liên hệ</th><th>Nguồn</th><th></th></tr></thead><tbody>{% for customer in recent_customers %}<tr><td><strong>{{ customer.name }}</strong><small class="d-block text-secondary">{{ customer.location or 'Chưa rõ khu vực' }}</small></td><td>{{ customer.phone or 'Chưa có số' }}</td><td><span class="badge-soft">{{ customer.source or 'CRM' }}</span></td><td class="text-end"><a href="/customers/{{ customer.id }}" class="btn btn-sm btn-outline-primary">Xem</a></td></tr>{% else %}<tr><td colspan="4" class="text-center py-4 text-secondary">Chưa có khách hàng.</td></tr>{% endfor %}</tbody></table></div></section></div>
+    <div class="col-xl-5"><section class="panel p-4 h-100"><div class="d-flex justify-content-between align-items-start mb-3"><div><div class="kpi-label">Trạng thái đơn</div><h2 class="section-title">Pipeline bán hàng</h2></div><a href="/orders" class="text-decoration-none small">Chi tiết →</a></div>{% for item in status_summary %}<div class="pipeline-row"><span class="status-dot"></span><span class="flex-grow-1">{{ item[0] or 'Chưa xác định' }}</span><strong>{{ item[1] }}</strong></div>{% else %}<p class="text-secondary">Chưa có đơn hàng.</p>{% endfor %}</section></div>
+  </div>
+{% endblock %}
