@@ -1,6 +1,26 @@
 import uuid
 
-from app import Customer, SalesGroup, SalesHandoff, app, db, is_valid_zalo_group_url
+from app import Customer, SalesGroup, SalesHandoff, app, build_zalo_handoff_message, db, is_valid_zalo_group_url
+
+
+def test_zalo_handoff_message_contains_only_required_customer_fields():
+    customer = Customer(
+        name='Lan Anh',
+        phone='0987654321',
+        location='Hà Nội',
+        page_name='Page Cửa Hàng',
+        facebook_id='facebook-123',
+        notes='Ghi chú nội bộ',
+        message_excerpt='Tin nhắn gần nhất',
+    )
+
+    message = build_zalo_handoff_message(customer)
+
+    assert message == 'Họ tên: Lan Anh\nSố điện thoại: 0987654321\nNơi ở: Hà Nội'
+    assert 'Page Cửa Hàng' not in message
+    assert 'facebook-123' not in message
+    assert 'Ghi chú nội bộ' not in message
+    assert 'Tin nhắn gần nhất' not in message
 
 
 def test_zalo_handoff_returns_configured_group_link():

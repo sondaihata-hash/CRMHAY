@@ -835,21 +835,12 @@ def init_db():
 
 
 def build_zalo_handoff_message(customer):
-    """Keep a consistent, copy-ready message for the sales team."""
-    parts = [
-        'KHÁCH MỚI CẦN TƯ VẤN',
+    """Build the minimal customer handoff message for the sales team."""
+    return '\n'.join([
         f'Họ tên: {customer.name}',
         f'Số điện thoại: {customer.phone or "Chưa có"}',
-        f'Facebook: {customer.facebook_id or "Chưa có"}',
-        f'Khu vực: {customer.location or "Chưa rõ"}',
-        f'Nguồn: {customer.page_name or customer.source or "CRM"}',
-    ]
-    if customer.message_excerpt:
-        parts.append(f'Nội dung gần nhất: {customer.message_excerpt}')
-    if customer.notes:
-        parts.append(f'Ghi chú CRM: {customer.notes}')
-    parts.append(f'Chi tiết CRM: {url_for("customer_detail", c_id=customer.id, _external=True)}')
-    return '\n'.join(parts)
+        f'Nơi ở: {customer.location or "Chưa rõ"}',
+    ])
 
 
 def is_valid_zalo_group_url(value):
