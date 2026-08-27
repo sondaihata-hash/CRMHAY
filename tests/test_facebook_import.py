@@ -14,6 +14,27 @@ def test_database_uses_persistent_project_path():
     assert 'instance' in sqlite_path.lower()
 
 
+def test_dashboard_route_exposes_crm_summary():
+    from app import Customer, Order
+
+    with app.app_context():
+        customer = Customer(name='Dashboard Test', phone='0987654321', source='manual')
+        db = __import__('app').db
+        db.session.add(customer)
+        db.session.flush()
+        db.session.add(Order(customer_id=customer.id, code='DASHBOARD-TEST', total_amount=1250000, status='Mới'))
+        db.session.commit()
+
+        response = app.test_client().get('/')
+
+        assert response.status_code == 200
+        assert 'Dashboard Test' in response.get_data(as_text=True)
+        assert '1.250.000' in response.get_data(as_text=True)
+
+        db.session.delete(customer)
+        db.session.commit()
+
+
 def test_customer_snapshot_is_written_as_json():
     snapshot_path = Path(tempfile.gettempdir()) / 'crmhay-customer-snapshot-test.json'
     with app.app_context(), mock.patch('app.CUSTOMER_SNAPSHOT_PATH', str(snapshot_path)):
