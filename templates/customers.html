@@ -186,6 +186,7 @@
             <td>
               <div class="d-flex gap-2">
                 <a class="btn btn-sm btn-success action-btn" href="/orders/create/{{ c.id }}">Tạo đơn</a>
+                <button class="btn btn-sm btn-outline-success action-btn" type="button" onclick="openZaloHandoff({{ c.id }}, {{ c.name|tojson }})">Gửi Zalo</button>
                 <a class="btn btn-sm btn-outline-primary action-btn" href="/customers/{{ c.id }}">Xem</a>
                 <a class="btn btn-sm btn-outline-secondary action-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
                 <form action="/customers/{{ c.id }}/delete" method="post" onsubmit="return confirm('Xóa khách hàng này?')" style="display:inline;">
@@ -201,6 +202,16 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <div class="modal fade" id="zaloHandoffModal" tabindex="-1" aria-labelledby="zaloHandoffTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content panel">
+        <div class="modal-header border-0"><div><div class="kpi-label">Chuyển khách cho Sale</div><h2 class="modal-title fs-5" id="zaloHandoffTitle">Gửi khách qua Zalo Desktop</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+        <div class="modal-body pt-0"><p class="text-secondary small">CRM sẽ sao chép SĐT, tên khách, tên Page và nơi ở, sau đó mở đúng nhóm Zalo đã chọn.</p><form id="customerZaloForm"><input type="hidden" id="zaloCustomerId"><label class="form-label fw-semibold" for="zaloGroupId">Nhóm Sale nhận khách</label><select class="form-select" id="zaloGroupId" required><option value="">Chọn nhóm Zalo</option>{% for group in sales_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select><div id="customerZaloStatus" class="small mt-3" aria-live="polite"></div></form></div>
+        <div class="modal-footer border-0"><button type="button" class="btn secondary-btn" data-bs-dismiss="modal">Hủy</button><button type="submit" form="customerZaloForm" class="btn success-btn" id="customerZaloSubmit">Sao chép & mở Zalo</button></div>
+      </div>
     </div>
   </div>
 
@@ -250,6 +261,40 @@
     function scrollCustomerList(direction) {
       document.getElementById('customerList').scrollBy({ top: direction * 360, behavior: 'smooth' });
     }
+
+    let selectedZaloCustomerId = null;
+    const zaloModal = new bootstrap.Modal(document.getElementById('zaloHandoffModal'));
+
+    function openZaloHandoff(customerId, customerName) {
+      selectedZaloCustomerId = customerId;
+      document.getElementById('zaloHandoffTitle').textContent = `Gửi ${customerName} qua Zalo Desktop`;
+      document.getElementById('zaloGroupId').value = '';
+      document.getElementById('customerZaloStatus').textContent = '';
+      zaloModal.show();
+    }
+
+    document.getElementById('customerZaloForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submitButton = document.getElementById('customerZaloSubmit');
+      const status = document.getElementById('customerZaloStatus');
+      submitButton.disabled = true;
+      status.className = 'small mt-3 text-secondary';
+      status.textContent = 'Đang chuẩn bị nội dung...';
+      try {
+        const response = await fetch(`/customers/${selectedZaloCustomerId}/handoff-zalo`, {method: 'POST', body: new URLSearchParams({group_id: document.getElementById('zaloGroupId').value})});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Không thể chuẩn bị nội dung chuyển khách.');
+        await navigator.clipboard.writeText(data.message);
+        status.className = 'small mt-3 text-success';
+        status.textContent = 'Đã sao chép thông tin. Đang mở Zalo Desktop...';
+        window.location.href = data.destination_url || 'zalo://';
+      } catch (error) {
+        status.className = 'small mt-3 text-danger';
+        status.textContent = error.message || 'Không thể kết nối CRM. Hãy thử lại.';
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
 
     monitorSync();
   </script>

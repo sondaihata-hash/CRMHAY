@@ -929,6 +929,7 @@ def customers():
     return render_template(
         'customers.html', customers=items, customer_stats=customer_stats,
         q=q, sync_job_id=sync_job_id,
+        sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
     )
 
 
