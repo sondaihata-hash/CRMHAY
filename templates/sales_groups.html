@@ -22,7 +22,7 @@
       <thead><tr><th>Tên nhóm</th><th>Link Zalo</th><th>Ghi chú</th><th>Thao tác</th></tr></thead>
       <tbody>
       {% for group in groups %}
-        <tr><td class="fw-semibold">{{ group.name }}</td><td>{% if group.zalo_url %}<a href="{{ group.zalo_url }}" target="_blank" rel="noopener">Mở nhóm</a>{% else %}—{% endif %}</td><td>{{ group.description or '—' }}</td><td>
+        <tr><td class="fw-semibold">{{ group.name }}</td><td><form class="d-flex gap-2" action="/sales-groups/{{ group.id }}/link" method="post"><input class="form-control form-control-sm" name="zalo_url" value="{{ group.zalo_url or '' }}" placeholder="https://zalo.me/g/..." type="url"><button class="btn btn-sm btn-outline-primary">Lưu</button></form></td><td>{{ group.description or '—' }}</td><td>
           <form action="/sales-groups/{{ group.id }}/delete" method="post" onsubmit="return confirm('Xóa nhóm này?')"><button class="btn btn-sm btn-danger action-btn">Xóa</button></form>
         </td></tr>
       {% else %}

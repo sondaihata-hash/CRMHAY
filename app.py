@@ -998,6 +998,22 @@ def delete_sales_group(group_id):
     return redirect(url_for('sales_groups'))
 
 
+@app.route('/sales-groups/<int:group_id>/link', methods=['POST'])
+def update_sales_group_link(group_id):
+    group = db.session.get(SalesGroup, group_id)
+    if not group:
+        flash('Không tìm thấy nhóm Sales.', 'danger')
+        return redirect(url_for('sales_groups'))
+    zalo_url = (request.form.get('zalo_url') or '').strip()
+    if zalo_url and not (zalo_url.startswith('https://') or zalo_url.startswith('zalo://')):
+        flash('Link Zalo phải bắt đầu bằng https:// hoặc zalo://.', 'danger')
+    else:
+        group.zalo_url = zalo_url or None
+        db.session.commit()
+        flash('Đã cập nhật link nhóm Zalo.', 'success')
+    return redirect(url_for('sales_groups'))
+
+
 @app.route('/orders')
 def orders():
     status = (request.args.get('status') or '').strip()

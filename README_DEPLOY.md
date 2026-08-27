@@ -122,6 +122,23 @@ Bạn có 2 lựa chọn quản lý DNS:
 - [ ] Kiểm tra HTTPS (nếu trực tiếp gõ http sẽ redirect sang https)
 - [ ] Thử các tính năng: thêm khách hàng, vào Settings → xóa, sửa
 
+### Kết nối nhóm Zalo cho Sale
+
+CRM không thể tự ý thêm thành viên hoặc gửi tin vào nhóm Zalo cá nhân thông qua
+Zalo cá nhân. Zalo OA/Open API cũng chỉ hỗ trợ các nghiệp vụ được cấp quyền,
+không phải API gửi tuỳ ý vào mọi nhóm cá nhân.
+
+Quy trình được hỗ trợ ổn định:
+
+1. Mở nhóm Zalo cần nhận lead và sao chép link mời/link mở nhóm.
+2. Vào **Nhóm Sales Zalo**, dán link vào nhóm tương ứng rồi bấm **Lưu**.
+3. Vào hồ sơ khách, chọn nhóm Sales và bấm **Sao chép & mở Zalo**.
+4. CRM ghi lịch sử chuyển khách, sao chép nội dung lead và mở đúng link nhóm;
+   Sale chỉ cần dán và gửi.
+
+Link nhóm phải bắt đầu bằng `https://` hoặc `zalo://`. Nếu không cấu hình link,
+CRM vẫn mở Zalo chung như trước.
+
 ---
 
 ## Troubleshooting
