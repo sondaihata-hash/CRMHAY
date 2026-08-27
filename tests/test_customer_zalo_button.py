@@ -14,6 +14,8 @@ def test_customer_list_contains_zalo_handoff_action():
         assert response.status_code == 200
         assert 'Gửi Zalo' in html
         assert 'zaloHandoffModal' in html
+        assert 'customer-zalo-button' in html
+        assert 'onclick="openZaloHandoff' not in html
         assert 'zalo.me/g/button-test' not in html
 
         db.session.delete(group)

@@ -186,7 +186,7 @@
             <td>
               <div class="d-flex gap-2">
                 <a class="btn btn-sm btn-success action-btn" href="/orders/create/{{ c.id }}">Tạo đơn</a>
-                <button class="btn btn-sm btn-outline-success action-btn" type="button" onclick="openZaloHandoff({{ c.id }}, {{ c.name|tojson }})">Gửi Zalo</button>
+                <button class="btn btn-sm btn-outline-success action-btn customer-zalo-button" type="button" data-customer-id="{{ c.id }}" data-customer-name="{{ c.name }}">Gửi Zalo</button>
                 <a class="btn btn-sm btn-outline-primary action-btn" href="/customers/{{ c.id }}">Xem</a>
                 <a class="btn btn-sm btn-outline-secondary action-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
                 <form action="/customers/{{ c.id }}/delete" method="post" onsubmit="return confirm('Xóa khách hàng này?')" style="display:inline;">
@@ -275,6 +275,9 @@
       document.getElementById('zaloGroupId').focus();
     }
 
+    document.querySelectorAll('.customer-zalo-button').forEach((button) => button.addEventListener('click', () => {
+      openZaloHandoff(button.dataset.customerId, button.dataset.customerName);
+    }));
     document.querySelectorAll('[data-close-zalo-modal]').forEach((element) => element.addEventListener('click', closeZaloModal));
 
     document.getElementById('customerZaloForm').addEventListener('submit', async (event) => {
