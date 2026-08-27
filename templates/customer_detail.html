@@ -124,7 +124,7 @@
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
       <div>
         <div class="kpi-label">Chuyển khách cho Sales qua Zalo</div>
-        <div class="text-secondary mt-1">CRM sẽ sao chép sẵn thông tin khách và mở Zalo Desktop. Chọn đúng nhóm rồi dán, gửi tin nhắn.</div>
+        <div class="text-secondary mt-1">CRM chỉ sao chép 3 thông tin cần thiết. Bấm mở Zalo Desktop riêng để không rời khỏi CRM sang Zalo Web.</div>
       </div>
       <a class="btn btn-sm btn-outline-secondary" href="/sales-groups">Quản lý nhóm</a>
     </div>
@@ -139,7 +139,7 @@
           </select>
         </div>
         <div class="col-md-4 d-grid">
-          <button class="btn success-btn" type="submit">Sao chép & mở Zalo</button>
+          <button class="btn success-btn" type="submit">Chuẩn bị & sao chép</button>
         </div>
       </form>
       <div id="zaloHandoffStatus" class="small mt-3" aria-live="polite"></div>
@@ -186,8 +186,13 @@
             textArea.remove();
           }
           status.className = 'small mt-3 text-success';
-          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Zalo đang được mở — dán để gửi.`;
-          window.location.href = data.destination_url || 'zalo://';
+          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Mở Zalo Desktop để chọn nhóm và dán.`;
+          const openButton = document.createElement('button');
+          openButton.type = 'button';
+          openButton.className = 'btn btn-sm primary-btn ms-2';
+          openButton.textContent = 'Mở Zalo Desktop';
+          openButton.addEventListener('click', () => window.location.assign('zalo://'));
+          status.appendChild(openButton);
         } catch (error) {
           status.className = 'small mt-3 text-danger';
           status.textContent = error.message || 'Không thể kết nối CRM. Hãy thử lại.';

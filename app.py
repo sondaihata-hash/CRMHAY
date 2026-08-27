@@ -964,8 +964,12 @@ def handoff_customer_to_zalo(c_id):
     message = build_zalo_handoff_message(customer)
     db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
     db.session.commit()
-    destination_url = group.zalo_url if is_valid_zalo_group_url(group.zalo_url) else 'zalo://'
-    return {'ok': True, 'message': message, 'group_name': group.name, 'destination_url': destination_url}
+    return {
+        'ok': True,
+        'message': message,
+        'group_name': group.name,
+        'desktop_app_url': 'zalo://',
+    }
 
 
 def ensure_order_columns():
