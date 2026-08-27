@@ -849,6 +849,18 @@ def build_zalo_handoff_message(customer):
     return '\n'.join(parts)
 
 
+def is_valid_zalo_group_url(value):
+    if not value:
+        return True
+    parsed = urlsplit(value)
+    return (
+        parsed.scheme == 'https'
+        and parsed.hostname in {'zalo.me', 'www.zalo.me'}
+        and parsed.path.startswith('/g/')
+        and bool(parsed.path[3:].strip('/'))
+    )
+
+
 @app.route('/')
 def index():
     now = datetime.utcnow()
@@ -975,8 +987,8 @@ def add_sales_group():
         flash('Tên nhóm Sales là bắt buộc.', 'danger')
     elif SalesGroup.query.filter_by(name=name).first():
         flash('Nhóm Sales này đã tồn tại.', 'warning')
-    elif zalo_url and not (zalo_url.startswith('https://') or zalo_url.startswith('zalo://')):
-        flash('Link Zalo phải bắt đầu bằng https:// hoặc zalo://.', 'danger')
+    elif not is_valid_zalo_group_url(zalo_url):
+        flash('Link nhóm phải có dạng https://zalo.me/g/....', 'danger')
     else:
         db.session.add(SalesGroup(name=name, description=description or None, zalo_url=zalo_url or None))
         db.session.commit()
@@ -1005,8 +1017,8 @@ def update_sales_group_link(group_id):
         flash('Không tìm thấy nhóm Sales.', 'danger')
         return redirect(url_for('sales_groups'))
     zalo_url = (request.form.get('zalo_url') or '').strip()
-    if zalo_url and not (zalo_url.startswith('https://') or zalo_url.startswith('zalo://')):
-        flash('Link Zalo phải bắt đầu bằng https:// hoặc zalo://.', 'danger')
+    if not is_valid_zalo_group_url(zalo_url):
+        flash('Link nhóm phải có dạng https://zalo.me/g/....', 'danger')
     else:
         group.zalo_url = zalo_url or None
         db.session.commit()

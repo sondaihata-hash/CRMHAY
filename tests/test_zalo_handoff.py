@@ -1,6 +1,6 @@
 import uuid
 
-from app import Customer, SalesGroup, SalesHandoff, app, db
+from app import Customer, SalesGroup, SalesHandoff, app, db, is_valid_zalo_group_url
 
 
 def test_zalo_handoff_returns_configured_group_link():
@@ -50,10 +50,17 @@ def test_sales_group_link_update_accepts_zalo_links_only():
 
         response = client.post(
             f'/sales-groups/{group.id}/link',
-            data={'zalo_url': 'javascript:alert(1)'},
+            data={'zalo_url': 'https://evil.example/phishing'},
         )
         assert response.status_code == 302
         assert db.session.get(SalesGroup, group.id).zalo_url == 'https://zalo.me/g/sales-group'
 
         db.session.delete(group)
         db.session.commit()
+
+
+def test_zalo_group_url_validation_allows_only_group_links():
+    assert is_valid_zalo_group_url('https://zalo.me/g/sales-group')
+    assert is_valid_zalo_group_url('')
+    assert not is_valid_zalo_group_url('https://evil.example/g/sales-group')
+    assert not is_valid_zalo_group_url('zalo://open/group')
