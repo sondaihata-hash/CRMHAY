@@ -65,6 +65,7 @@ def test_zalo_group_url_validation_allows_only_group_links():
     assert not is_valid_zalo_group_url('https://evil.example/g/sales-group')
     assert not is_valid_zalo_group_url('zalo://open/group')
     assert not is_valid_zalo_group_url('https://zalo.me:444/g/sales-group')
+    assert not is_valid_zalo_group_url('https://zalo.me:abc/g/sales-group')
     assert not is_valid_zalo_group_url('https://zalo.me/g/../phishing')
     assert not is_valid_zalo_group_url('https://zalo.me/g/sales-group?next=evil.example')
     assert not is_valid_zalo_group_url('https://[bad')

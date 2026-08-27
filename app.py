@@ -857,12 +857,13 @@ def is_valid_zalo_group_url(value):
         return True
     try:
         parsed = urlsplit(value)
+        port = parsed.port
     except ValueError:
         return False
     return bool(
         parsed.scheme == 'https'
         and parsed.hostname in {'zalo.me', 'www.zalo.me'}
-        and parsed.port is None
+        and port is None
         and not parsed.username
         and not parsed.password
         and not parsed.query
@@ -1129,6 +1130,9 @@ def edit_customer(c_id):
 @app.route('/customers/<int:c_id>/delete', methods=['POST'])
 def delete_customer(c_id):
     c = Customer.query.get_or_404(c_id)
+    if c.orders:
+        flash('Không thể xóa khách đã có đơn hàng. Hãy lưu trữ hoặc xử lý đơn trước.', 'warning')
+        return redirect(url_for('customer_detail', c_id=c.id))
     db.session.delete(c)
     db.session.commit()
     flash('Đã xóa khách hàng', 'info')

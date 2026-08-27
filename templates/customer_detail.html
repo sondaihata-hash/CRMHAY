@@ -180,7 +180,9 @@
             textArea.value = data.message;
             document.body.appendChild(textArea);
             textArea.select();
-            document.execCommand('copy');
+            if (!document.execCommand('copy')) {
+              throw new Error('Không thể sao chép nội dung. Hãy kiểm tra quyền clipboard và thử lại.');
+            }
             textArea.remove();
           }
           status.className = 'small mt-3 text-success';
