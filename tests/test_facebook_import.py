@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest.mock as mock
+import uuid
 
 from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json, write_customer_snapshot
 
@@ -22,14 +23,14 @@ def test_dashboard_route_exposes_crm_summary():
         db = __import__('app').db
         db.session.add(customer)
         db.session.flush()
-        db.session.add(Order(customer_id=customer.id, code='DASHBOARD-TEST', total_amount=1250000, status='Mới'))
+        db.session.add(Order(customer_id=customer.id, code=f'DASHBOARD-TEST-{uuid.uuid4().hex}', total_amount=1250000, status='Mới'))
         db.session.commit()
 
         response = app.test_client().get('/')
 
         assert response.status_code == 200
         assert 'Dashboard Test' in response.get_data(as_text=True)
-        assert '1.250.000' in response.get_data(as_text=True)
+        assert '1,250,000' in response.get_data(as_text=True)
 
         db.session.delete(customer)
         db.session.commit()
