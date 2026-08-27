@@ -239,23 +239,29 @@ def extract_phone_numbers(text_value):
     return normalized
 
 
+def normalize_location_name(location):
+    normalized = location.strip().title()
+    if re.fullmatch(r'tp\.?\s*hcm', location.strip(), re.IGNORECASE):
+        return 'Hồ Chí Minh'
+    return normalized.replace('Thành Phố', 'Thành phố')
+
+
 def extract_location(text_value):
     if not text_value:
         return ''
-    text = re.sub(r'\s+', ' ', text_value).strip()
+    text = re.sub(r'[ \t]+', ' ', text_value).strip()
     location_prefix = re.compile(
         r'(?:địa\s+chỉ\s+(?:là\s+|ở\s+|tại\s+)?|khu\s+vực\s+|'
         r'quê\s+(?:ở|tại)\s+|đang\s+(?:ở|tại)\s+|'
         r'sống\s+(?:ở|tại)\s+|(?:ở|tại)\s+)'
-        r'(?P<location>.+?)(?=,\s*(?:cần|muốn|sđt|số|điện thoại|liên hệ|gọi|để)\b|[.;\n]|$)',
+        r'(?P<location>.+?)(?=(?:,?\s+)(?:cần|muốn|sđt|số|điện thoại|liên hệ|gọi|để)\b|[;\n]|\.(?=\s|$)|$)',
         re.IGNORECASE,
     )
     match = location_prefix.search(text)
     if match:
         location = match.group('location').strip(' ,:-')
-        if location:
-            normalized = location.title()
-            return normalized.replace('Thành Phố', 'Thành phố')
+        if location and location.lower() not in {'nhà', 'đây', 'đó', 'chỗ này', 'nước ngoài'}:
+            return normalize_location_name(location)
 
     location_keywords = [
         'thành phố hồ chí minh', 'hồ chí minh', 'hà nội', 'đà nẵng', 'hải phòng',
@@ -263,13 +269,12 @@ def extract_location(text_value):
         'nha trang', 'đà lạt', 'vũng tàu', 'quy nhơn', 'hạ long', 'thanh hóa',
         'bắc ninh', 'quận 10', 'quận 11', 'quận 12', 'quận 1', 'quận 2',
         'quận 3', 'quận 4', 'quận 5', 'quận 6', 'quận 7', 'quận 8', 'quận 9',
-        'huế', 'vinh',
+        'huế', 'vinh', 'tp.hcm', 'tp hcm', 'tphcm', 'sài gòn',
     ]
     lower = text.lower()
     for keyword in location_keywords:
         if re.search(rf'(?<!\w){re.escape(keyword)}(?!\w)', lower):
-            normalized = keyword.title()
-            return normalized.replace('Thành Phố', 'Thành phố')
+            return normalize_location_name(keyword)
     return ''
 
 
