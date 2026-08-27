@@ -378,12 +378,14 @@ def get_facebook_token():
 def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
     configured_page_limit = max_pages
     if configured_page_limit is None:
-        configured_page_limit = int(os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT', '5'))
+        configured_page_limit = os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT')
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
         configured_conversation_limit = int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25'))
 
-    page_limit = max(1, min(int(configured_page_limit), 20))
+    page_limit = None
+    if configured_page_limit:
+        page_limit = max(1, min(int(configured_page_limit), 20))
     conversation_limit = max(1, min(int(configured_conversation_limit), 100))
     return page_limit, conversation_limit
 
@@ -626,7 +628,8 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
         api_call_count = 0
         t_sync_start = time.time()
 
-        for page_index, page in enumerate(page_data[:page_limit]):
+        pages_to_sync = page_data if page_limit is None else page_data[:page_limit]
+        for page_index, page in enumerate(pages_to_sync):
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
             page_token = page.get('access_token') or token
@@ -634,7 +637,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                 continue
 
             logger.info("START sync page %d/%d id=%s name=%s",
-                        page_index + 1, min(len(page_data), page_limit), page_id, page_name)
+                        page_index + 1, len(pages_to_sync), page_id, page_name)
             t_page_start = time.time()
             endpoint = f'{page_id}/conversations'
             next_url = None
@@ -698,7 +701,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     # normally not allowed to read customer profile fields and
                     # Facebook returns HTTP 400 for every customer.
                     profile_pic = ''
-                    first_name = ''
+                    first_name = sender.get('name') or (customer_name.split()[-1] if customer_name else '')
                     last_name = ''
                     gender = ''
                     locale = ''

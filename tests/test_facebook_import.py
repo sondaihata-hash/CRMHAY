@@ -382,6 +382,42 @@ def test_fetch_managed_facebook_messages_scans_multiple_pages_and_filters_phone_
     assert any(r["phone"] == "0911222333" and "đà nẵng" in (r["location"] or '').lower() for r in results)
 
 
+def test_fetch_managed_facebook_messages_scans_all_managed_pages_by_default():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    pages = [
+        {"id": f"PAGE_{index}", "name": f"Page {index}", "access_token": f"tok_{index}"}
+        for index in range(6)
+    ]
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == "me/accounts":
+            return {"data": pages}
+        page = next((item for item in pages if endpoint == f"{item['id']}/conversations"), None)
+        if page:
+            index = page["id"].split("_")[-1]
+            return {"data": [{
+                "id": f"CONV_{index}",
+                "participants": {"data": [
+                    {"id": page["id"], "name": page["name"]},
+                    {"id": f"CUSTOMER_{index}", "name": f"Customer {index}"},
+                ]},
+                "messages": {"data": [{
+                    "from": {"id": f"CUSTOMER_{index}", "name": f"Customer {index}"},
+                    "message": f"Gọi tôi 09{70000000 + int(index)}",
+                    "created_time": "2026-08-01T10:00:00+0000",
+                }]},
+            }], "paging": {}}
+        return {}
+
+    with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
+         mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
+        results = fetch_managed_facebook_messages(max_conversations_per_page=10)
+
+    assert {result["page_name"] for result in results} == {page["name"] for page in pages}
+
+
 def test_fetch_managed_facebook_messages_skips_conversations_without_phone():
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
