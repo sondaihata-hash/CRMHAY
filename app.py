@@ -154,7 +154,10 @@ class SalesHandoff(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('sales_group.id'), nullable=False, index=True)
     message = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    customer = db.relationship('Customer', backref=db.backref('sales_handoffs', lazy=True))
+    customer = db.relationship(
+        'Customer',
+        backref=db.backref('sales_handoffs', lazy=True, cascade='all, delete-orphan'),
+    )
     group = db.relationship('SalesGroup', backref=db.backref('handoffs', lazy=True))
 
 
@@ -859,6 +862,7 @@ def is_valid_zalo_group_url(value):
     return bool(
         parsed.scheme == 'https'
         and parsed.hostname in {'zalo.me', 'www.zalo.me'}
+        and parsed.port is None
         and not parsed.username
         and not parsed.password
         and not parsed.query

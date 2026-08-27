@@ -64,6 +64,7 @@ def test_zalo_group_url_validation_allows_only_group_links():
     assert is_valid_zalo_group_url('')
     assert not is_valid_zalo_group_url('https://evil.example/g/sales-group')
     assert not is_valid_zalo_group_url('zalo://open/group')
+    assert not is_valid_zalo_group_url('https://zalo.me:444/g/sales-group')
     assert not is_valid_zalo_group_url('https://zalo.me/g/../phishing')
     assert not is_valid_zalo_group_url('https://zalo.me/g/sales-group?next=evil.example')
     assert not is_valid_zalo_group_url('https://[bad')
@@ -87,4 +88,26 @@ def test_handoff_ignores_legacy_invalid_group_destination():
         db.session.query(SalesHandoff).filter_by(customer_id=customer.id).delete()
         db.session.delete(group)
         db.session.delete(customer)
+        db.session.commit()
+
+
+def test_customer_delete_cascades_zalo_handoff_history():
+    group = SalesGroup(name=f'Delete Test {uuid.uuid4().hex}')
+    customer = Customer(name=f'Delete Customer {uuid.uuid4().hex}')
+
+    with app.app_context():
+        db.session.add_all([group, customer])
+        db.session.flush()
+        handoff = SalesHandoff(customer_id=customer.id, group_id=group.id, message='Lead')
+        db.session.add(handoff)
+        db.session.commit()
+        customer_id = customer.id
+        handoff_id = handoff.id
+
+        db.session.delete(customer)
+        db.session.commit()
+
+        assert db.session.get(Customer, customer_id) is None
+        assert db.session.get(SalesHandoff, handoff_id) is None
+        db.session.delete(group)
         db.session.commit()
