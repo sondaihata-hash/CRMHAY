@@ -3,7 +3,6 @@ import argparse
 import os
 from getpass import getpass
 
-from app import User, app, db
 from werkzeug.security import generate_password_hash
 
 
@@ -14,6 +13,8 @@ def main():
     args = parser.parse_args()
     if not args.local and not os.environ.get('DATABASE_URL'):
         raise SystemExit('DATABASE_URL is required. Use --local only for the local database.')
+    from app import User, app, db
+
     password = getpass('New Admin password (min 8 characters): ')
     confirmation = getpass('Confirm new password: ')
     if len(password) < 8:
