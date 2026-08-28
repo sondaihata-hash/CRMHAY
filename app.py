@@ -448,6 +448,30 @@ def extract_phone_numbers(text_value):
     return normalized
 
 
+def configured_hotline_numbers():
+    configured = os.environ.get('CRM_HOTLINE_NUMBERS', '')
+    return {
+        number
+        for value in configured.split(',')
+        for number in extract_phone_numbers(value.strip())
+    }
+
+
+def extract_customer_phone_numbers(messages, page_id):
+    customer_texts = [
+        msg.get('message') or msg.get('story') or ''
+        for msg in messages
+        if (msg.get('from') or {}).get('id') != page_id
+    ]
+    hotline_numbers = configured_hotline_numbers()
+    return [
+        number
+        for text_value in customer_texts
+        for number in extract_phone_numbers(text_value)
+        if number not in hotline_numbers
+    ]
+
+
 def normalize_location_name(location):
     if not isinstance(location, str):
         return ''
@@ -897,7 +921,14 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     if not messages:
                         continue
                     latest_message = messages[0]
-                    sender = latest_message.get('from', {})
+                    customer_messages = [
+                        msg for msg in messages
+                        if (msg.get('from') or {}).get('id') != page_id
+                    ]
+                    if not customer_messages:
+                        continue
+                    latest_customer_message = customer_messages[0]
+                    sender = latest_customer_message.get('from', {})
                     customer_participants = [p for p in participants if p.get('id') != page_id]
                     if sender.get('id') and sender.get('id') != page_id:
                         customer_name = sender.get('name') or normalize_customer_name(customer_participants, page_name)
@@ -910,20 +941,20 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         customer_id = sender.get('id') or (participants[0].get('id') if participants else '')
 
                     all_texts = []
-                    for msg in messages:
+                    for msg in customer_messages:
                         txt = msg.get('message') or msg.get('story') or ''
                         if txt:
                             all_texts.append(txt)
                     combined_text = '\n'.join(all_texts)
 
-                    phone_numbers = extract_phone_numbers(combined_text)
+                    phone_numbers = extract_customer_phone_numbers(messages, page_id)
                     # CRM only imports leads that explicitly supplied a phone number.
                     if not phone_numbers:
                         continue
                     phone = phone_numbers[0]
 
                     location = extract_location(combined_text) or ''
-                    message_text = latest_message.get('message') or latest_message.get('story') or '[Hình ảnh/sticker]'
+                    message_text = latest_customer_message.get('message') or latest_customer_message.get('story') or '[Hình ảnh/sticker]'
 
                     # The conversation payload already contains the sender name.
                     # Do not query /{PSID} by default: Messenger Page tokens are
@@ -979,7 +1010,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         'phone': phone,
                         'location': location,
                         'message': combined_text[:500] if combined_text else message_text,
-                        'message_date': latest_message.get('created_time'),
+                        'message_date': latest_customer_message.get('created_time'),
                         'page_name': page_name,
                         'message_count': message_count,
                     })
