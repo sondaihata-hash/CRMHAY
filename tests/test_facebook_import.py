@@ -6,6 +6,7 @@ import unittest.mock as mock
 import uuid
 
 from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json, write_customer_snapshot
+from auth_helpers import login_admin
 
 
 def test_database_uses_persistent_project_path():
@@ -30,7 +31,7 @@ def test_dashboard_route_exposes_crm_summary():
         db.session.add(order)
         db.session.commit()
 
-        response = app.test_client().get('/')
+        response = login_admin(app.test_client()).get('/')
 
         assert response.status_code == 200
         assert 'Dashboard Test' in response.get_data(as_text=True)

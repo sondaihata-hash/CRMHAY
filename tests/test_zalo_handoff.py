@@ -1,6 +1,7 @@
 import uuid
 
 from app import Customer, SalesGroup, SalesHandoff, app, build_zalo_handoff_message, db, is_valid_zalo_group_url
+from auth_helpers import csrf_token, login_admin
 
 
 def test_zalo_handoff_message_contains_only_required_customer_fields():
@@ -38,9 +39,10 @@ def test_zalo_handoff_returns_configured_group_link():
         customer_id = customer.id
         group_id = group.id
 
-        response = app.test_client().post(
+        client = login_admin(app.test_client())
+        response = client.post(
             f'/customers/{customer_id}/handoff-zalo',
-            data={'group_id': group_id},
+            data={'group_id': group_id, '_csrf_token': csrf_token(client, f'/customers/{customer_id}')},
         )
 
         assert response.status_code == 200
@@ -65,17 +67,18 @@ def test_sales_group_link_update_accepts_zalo_links_only():
         db.session.add(group)
         db.session.commit()
 
-        client = app.test_client()
+        client = login_admin(app.test_client())
+        token = csrf_token(client, '/sales-groups')
         response = client.post(
             f'/sales-groups/{group.id}/link',
-            data={'zalo_url': 'https://zalo.me/g/sales-group'},
+            data={'zalo_url': 'https://zalo.me/g/sales-group', '_csrf_token': token},
         )
         assert response.status_code == 302
         assert db.session.get(SalesGroup, group.id).zalo_url == 'https://zalo.me/g/sales-group'
 
         response = client.post(
             f'/sales-groups/{group.id}/link',
-            data={'zalo_url': 'https://evil.example/phishing'},
+            data={'zalo_url': 'https://evil.example/phishing', '_csrf_token': token},
         )
         assert response.status_code == 302
         assert db.session.get(SalesGroup, group.id).zalo_url == 'https://zalo.me/g/sales-group'
@@ -106,9 +109,10 @@ def test_handoff_ignores_legacy_invalid_group_destination():
     with app.app_context():
         db.session.add_all([group, customer])
         db.session.commit()
-        response = app.test_client().post(
+        client = login_admin(app.test_client())
+        response = client.post(
             f'/customers/{customer.id}/handoff-zalo',
-            data={'group_id': group.id},
+            data={'group_id': group.id, '_csrf_token': csrf_token(client, f'/customers/{customer.id}')},
         )
         assert response.get_json()['desktop_app_url'] == 'zalo://'
         db.session.query(SalesHandoff).filter_by(customer_id=customer.id).delete()

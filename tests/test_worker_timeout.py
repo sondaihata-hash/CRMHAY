@@ -8,13 +8,14 @@ from app import (
     MAX_API_CALLS_PER_SYNC, MAX_CONVERSATION_PAGES,
     FACEBOOK_API_TIMEOUT,
 )
+from auth_helpers import login_admin
 
 
 def test_sync_facebook_returns_immediately():
     """sync-facebook route must return HTTP redirect instantly, not block."""
     with mock.patch('app.get_facebook_token', return_value='fake_tok'), \
          mock.patch('app.threading') as mock_threading:
-        client = app.test_client()
+        client = login_admin(app.test_client())
         # Reset state
         with _sync_lock:
             _sync_state['running'] = False
@@ -33,7 +34,7 @@ def test_sync_facebook_rejects_concurrent():
     """Second sync request while running must be rejected."""
     with _sync_lock:
         _sync_state['running'] = True
-    client = app.test_client()
+    client = login_admin(app.test_client())
     resp = client.get('/customers/sync-facebook', follow_redirects=True)
     assert resp.status_code == 200
     # Reset
@@ -43,7 +44,7 @@ def test_sync_facebook_rejects_concurrent():
 
 def test_sync_status_endpoint():
     """Status endpoint returns JSON with correct fields."""
-    client = app.test_client()
+    client = login_admin(app.test_client())
     resp = client.get('/customers/sync-facebook/status')
     assert resp.status_code == 200
     data = resp.get_json()

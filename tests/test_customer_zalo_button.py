@@ -1,4 +1,5 @@
 from app import Customer, SalesGroup, app, db
+from auth_helpers import login_admin
 
 
 def test_customer_list_contains_zalo_handoff_action():
@@ -8,7 +9,7 @@ def test_customer_list_contains_zalo_handoff_action():
         db.session.add_all([customer, group])
         db.session.commit()
 
-        response = app.test_client().get('/customers')
+        response = login_admin(app.test_client()).get('/customers')
         html = response.get_data(as_text=True)
 
         assert response.status_code == 200
