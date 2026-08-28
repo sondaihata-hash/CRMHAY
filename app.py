@@ -523,9 +523,11 @@ def build_customer_from_message(payload):
     raw_name = payload.get('name') or payload.get('customer_name') or payload.get('sender_name') or 'Khách hàng Facebook'
     raw_page_name = payload.get('page_name') or payload.get('page') or payload.get('page_title') or ''
     phone = payload.get('phone') or ''
+    if phone in configured_hotline_numbers():
+        phone = ''
     if not phone:
         numbers = extract_phone_numbers(message)
-        phone = numbers[0] if numbers else ''
+        phone = next((number for number in numbers if number not in configured_hotline_numbers()), '')
     facebook_id = str(payload.get('facebook_id') or payload.get('id') or payload.get('sender_id') or '').strip()
     location = payload.get('location') or extract_location(message)
     date_value = payload.get('message_date') or payload.get('date') or payload.get('created_time') or payload.get('updated_time')

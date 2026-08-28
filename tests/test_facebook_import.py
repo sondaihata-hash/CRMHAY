@@ -175,6 +175,16 @@ def test_build_customer_from_message_uses_facebook_fields():
     assert "hà nội" in customer["location"].lower()
 
 
+def test_build_customer_from_message_rejects_hotline_phone():
+    payload = {
+        'name': 'Khách hàng',
+        'phone': '0707866676',
+        'message': 'Liên hệ giúp tôi',
+    }
+
+    assert build_customer_from_message(payload)['phone'] == ''
+
+
 def test_resolve_page_access_tokens_falls_back_to_page_lookup_without_page_id():
     pages = [{"id": "101", "name": "Page One"}, {"id": "202", "name": "Page Two"}]
 
