@@ -1022,7 +1022,8 @@ def init_db():
         admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
         if admin_username and len(admin_password) < 8:
             raise RuntimeError('CRM_ADMIN_PASSWORD must be at least 8 characters.')
-        if admin_username and admin_password and not User.query.filter_by(role='admin').first():
+        configured_admin = User.query.filter_by(username=admin_username).first() if admin_username else None
+        if admin_username and admin_password and not configured_admin:
             db.session.add(User(
                 username=admin_username,
                 password_hash=generate_password_hash(admin_password),
