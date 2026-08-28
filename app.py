@@ -90,6 +90,7 @@ MAX_CONVERSATION_PAGES = 100
 MAX_PAGE_PAGINATION_ROUNDS = 20
 FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
+DEFAULT_HOTLINE_NUMBERS = frozenset({'0707866676'})
 
 
 class Customer(db.Model):
@@ -454,7 +455,7 @@ def extract_phone_numbers(text_value):
 
 def configured_hotline_numbers():
     configured = os.environ.get('CRM_HOTLINE_NUMBERS', '')
-    return {
+    return DEFAULT_HOTLINE_NUMBERS | {
         number
         for value in configured.split(',')
         for number in extract_phone_numbers(value.strip())

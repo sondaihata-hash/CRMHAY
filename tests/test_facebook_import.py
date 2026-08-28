@@ -88,6 +88,17 @@ def test_extract_customer_phone_numbers_ignores_page_messages_and_hotlines():
         assert extract_customer_phone_numbers(messages, 'PAGE') == ['0912345678']
 
 
+def test_extract_customer_phone_numbers_always_ignores_company_hotline():
+    from app import extract_customer_phone_numbers
+
+    messages = [
+        {'from': {'id': 'CUSTOMER'}, 'message': 'Số của tôi 0707866676'},
+    ]
+
+    with mock.patch.dict('os.environ', {}, clear=True):
+        assert extract_customer_phone_numbers(messages, 'PAGE') == []
+
+
 def test_existing_facebook_phone_is_cleared_when_rescan_has_no_customer_phone():
     from app import Customer, db, import_facebook_messages
 
