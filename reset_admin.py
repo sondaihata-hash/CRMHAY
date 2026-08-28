@@ -1,5 +1,6 @@
 """Reset an existing Admin password without exposing it in shell history."""
 import argparse
+import os
 from getpass import getpass
 
 from app import User, app, db
@@ -9,7 +10,10 @@ from werkzeug.security import generate_password_hash
 def main():
     parser = argparse.ArgumentParser(description='Reset a CRM Admin password.')
     parser.add_argument('username', help='Existing Admin username')
+    parser.add_argument('--local', action='store_true', help='Allow resetting the local SQLite database.')
     args = parser.parse_args()
+    if not args.local and not os.environ.get('DATABASE_URL'):
+        raise SystemExit('DATABASE_URL is required. Use --local only for the local database.')
     password = getpass('New Admin password (min 8 characters): ')
     confirmation = getpass('Confirm new password: ')
     if len(password) < 8:
@@ -22,7 +26,6 @@ def main():
         if not user:
             raise SystemExit('Admin account not found.')
         user.password_hash = generate_password_hash(password)
-        user.is_active = True
         db.session.commit()
     print('Admin password reset successfully.')
 
