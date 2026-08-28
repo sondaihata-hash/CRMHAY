@@ -46,7 +46,7 @@ Trước khi deploy, thêm các biến môi trường sau trong Render Web Servi
 CRM_SECRET_KEY=<chuỗi ngẫu nhiên dài, tối thiểu 32 ký tự>
 CRM_ADMIN_USERNAME=<tên đăng nhập Admin>
 CRM_ADMIN_PASSWORD=<mật khẩu mạnh, tối thiểu 8 ký tự>
-CRM_HOTLINE_NUMBERS=0901234567,0281234567
+CRM_HOTLINE_NUMBERS=0707866676,0901234567,0281234567
 ```
 
 Lần khởi động đầu tiên sẽ tạo tài khoản Admin từ các biến này. Mật khẩu chỉ
