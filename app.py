@@ -675,6 +675,8 @@ def import_facebook_messages(messages):
             customer = Customer.query.filter(Customer.name == payload['name'], Customer.source == 'facebook').first()
 
         if customer is None:
+            if not payload['phone']:
+                continue
             customer = Customer(
                 name=payload['name'],
                 first_name=payload['first_name'],
@@ -706,7 +708,7 @@ def import_facebook_messages(messages):
             customer.profile_pic = payload['profile_pic'] or customer.profile_pic
             customer.gender = payload['gender'] or customer.gender
             customer.locale = payload['locale'] or customer.locale
-            customer.phone = payload['phone'] or customer.phone
+            customer.phone = payload['phone']
             customer.location = payload['location'] or customer.location
             customer.page_name = payload['page_name'] or customer.page_name
             customer.last_message_date = payload['last_message_date']
@@ -948,10 +950,9 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     combined_text = '\n'.join(all_texts)
 
                     phone_numbers = extract_customer_phone_numbers(messages, page_id)
-                    # CRM only imports leads that explicitly supplied a phone number.
-                    if not phone_numbers:
-                        continue
-                    phone = phone_numbers[0]
+                    # Keep phone-less existing conversations in the rescan result
+                    # so stale hotline/admin numbers can be cleared.
+                    phone = phone_numbers[0] if phone_numbers else ''
 
                     location = extract_location(combined_text) or ''
                     message_text = latest_customer_message.get('message') or latest_customer_message.get('story') or '[Hình ảnh/sticker]'
