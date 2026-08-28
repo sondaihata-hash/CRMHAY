@@ -5,6 +5,7 @@ Set-Location $repoRoot
 
 $pollSeconds = 5
 $settleSeconds = 3
+$retrySeconds = 15
 
 while ($true) {
     $status = git status --porcelain
@@ -31,8 +32,9 @@ while ($true) {
 
         git push origin $branch
         if ($LASTEXITCODE -ne 0) {
-            Write-Error 'Automatic push stopped: git push failed. Check GitHub authentication and restart the task.'
-            exit 1
+            Write-Warning "Automatic push failed. Retrying in $retrySeconds seconds. Check GitHub authentication or network access."
+            Start-Sleep -Seconds $retrySeconds
+            continue
         }
     }
 

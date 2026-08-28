@@ -4,7 +4,14 @@
     {
       "label": "Auto commit and push to GitHub",
       "type": "shell",
-      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\.vscode\\auto-push.ps1\"",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\auto-push.ps1"
+      ],
       "isBackground": true,
       "problemMatcher": [],
       "runOptions": {
