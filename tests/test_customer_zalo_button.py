@@ -1,3 +1,5 @@
+import uuid
+
 from app import Customer, SalesGroup, app, db
 from auth_helpers import login_admin
 
@@ -5,7 +7,7 @@ from auth_helpers import login_admin
 def test_customer_list_contains_zalo_handoff_action():
     with app.app_context():
         customer = Customer(name='Button Test Customer')
-        group = SalesGroup(name='Button Test Group', zalo_url='https://zalo.me/g/button-test')
+        group = SalesGroup(name=f'Button Test Group {uuid.uuid4().hex}', zalo_url='https://zalo.me/g/button-test')
         db.session.add_all([customer, group])
         db.session.commit()
 

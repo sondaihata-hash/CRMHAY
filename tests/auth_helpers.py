@@ -1,6 +1,6 @@
 import re
 
-from app import User, db
+from app import User, app, db
 from werkzeug.security import generate_password_hash
 
 
@@ -9,7 +9,7 @@ ADMIN_PASSWORD = 'TestAdminPass123!'
 
 
 def ensure_test_admin():
-    with db.session.no_autoflush:
+    with app.app_context(), db.session.no_autoflush:
         user = User.query.filter_by(username=ADMIN_USERNAME).first()
         if user:
             user.is_active = True

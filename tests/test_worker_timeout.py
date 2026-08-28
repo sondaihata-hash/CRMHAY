@@ -4,6 +4,7 @@ import unittest.mock as mock
 
 from app import (
     app, _sync_state, _sync_lock,
+    SyncJob, db,
     fetch_managed_facebook_messages,
     MAX_API_CALLS_PER_SYNC, MAX_CONVERSATION_PAGES,
     FACEBOOK_API_TIMEOUT,
@@ -15,6 +16,9 @@ def test_sync_facebook_returns_immediately():
     """sync-facebook route must return HTTP redirect instantly, not block."""
     with mock.patch('app.get_facebook_token', return_value='fake_tok'), \
          mock.patch('app.threading') as mock_threading:
+        with app.app_context():
+            SyncJob.query.filter(SyncJob.status.in_(('queued', 'running'))).delete(synchronize_session=False)
+            db.session.commit()
         client = login_admin(app.test_client())
         # Reset state
         with _sync_lock:
@@ -32,14 +36,18 @@ def test_sync_facebook_returns_immediately():
 
 def test_sync_facebook_rejects_concurrent():
     """Second sync request while running must be rejected."""
-    with _sync_lock:
-        _sync_state['running'] = True
-    client = login_admin(app.test_client())
-    resp = client.get('/customers/sync-facebook', follow_redirects=True)
-    assert resp.status_code == 200
-    # Reset
-    with _sync_lock:
-        _sync_state['running'] = False
+    with app.app_context():
+        job = SyncJob(id='test-concurrent-job', status='running', message='Đang chạy')
+        db.session.add(job)
+        db.session.commit()
+    try:
+        client = login_admin(app.test_client())
+        resp = client.get('/customers/sync-facebook', follow_redirects=True)
+        assert resp.status_code == 200
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(SyncJob, 'test-concurrent-job'))
+            db.session.commit()
 
 
 def test_sync_status_endpoint():
