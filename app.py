@@ -225,11 +225,77 @@ def ensure_customer_columns():
         'locale': 'TEXT',
         'message_count': 'INTEGER DEFAULT 0',
         'tags': 'TEXT',
+        'assigned_user_id': 'INTEGER',
     }
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE customer ADD COLUMN {column_name} {column_type}'))
     db.session.commit()
+
+
+def current_user():
+    user_id = session.get('user_id')
+    return db.session.get(User, user_id) if user_id else None
+
+
+def login_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        user = current_user()
+        if not user or not user.is_active:
+            session.clear()
+            return redirect(url_for('login', next=request.full_path))
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
+def admin_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if current_user().role != 'admin':
+            return 'Bạn không có quyền thực hiện thao tác này.', 403
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
+def visible_customer_query():
+    user = current_user()
+    query = Customer.query
+    if user.role != 'admin':
+        query = query.filter(Customer.assigned_user_id == user.id)
+    return query
+
+
+def get_visible_customer(customer_id):
+    return visible_customer_query().filter(Customer.id == customer_id).first_or_404()
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip().lower()
+        password = request.form.get('password') or ''
+        user = User.query.filter_by(username=username, is_active=True).first()
+        if not user or not check_password_hash(user.password_hash, password):
+            flash('Tên đăng nhập hoặc mật khẩu không đúng.', 'danger')
+            return render_template('login.html'), 401
+        session.clear()
+        session['user_id'] = user.id
+        user.last_login_at = datetime.utcnow()
+        db.session.commit()
+        next_url = request.args.get('next') or url_for('index')
+        if not next_url.startswith('/') or next_url.startswith('//'):
+            next_url = url_for('index')
+        return redirect(next_url)
+    return render_template('login.html')
+
+
+@app.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 
 def ensure_sales_group_columns():
