@@ -9,30 +9,10 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.7
       - key: DATABASE_URL
-        fromDatabase:
-          name: crmhay-db
-          property: connectionString
+        sync: false
       - key: CRM_SECRET_KEY
         sync: false
       - key: CRM_ADMIN_USERNAME
         sync: false
       - key: CRM_ADMIN_PASSWORD
         sync: false
-  - type: cron
-    name: crmhay-facebook-sync
-    env: python
-    schedule: "0 */3 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python scheduled_sync.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.7
-      - key: DATABASE_URL
-        fromDatabase:
-          name: crmhay-db
-          property: connectionString
-databases:
-  - name: crmhay-db
-    databaseName: crmhay
-    user: crmhay
-    plan: free

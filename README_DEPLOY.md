@@ -4,8 +4,9 @@ Hướng dẫn chi tiết deploy CRM lên Render và cấu hình domain `crmhay.
 
 ## Bước 1: Deploy lên Render
 
-> Bản `render.yaml` hiện tạo sẵn PostgreSQL `crmhay-db` và một tác vụ quét
-> Facebook tự động vào đầu mỗi khoảng 3 giờ. PostgreSQL là nơi lưu dữ liệu
+> Bản `render.yaml` chỉ tạo Web Service để tương thích Render Free. Hãy dùng
+> một PostgreSQL bên ngoài (Neon, Supabase hoặc Render Database trả phí) và
+> đặt connection string vào `DATABASE_URL`. PostgreSQL là nơi lưu dữ liệu
 > bền vững: không dùng SQLite nội bộ của Render vì nó bị mất sau redeploy/restart.
 > Sau mỗi lần quét, ứng dụng cũng xuất `customers-backup.json` để có bản sao
 > phục hồi. Trên Render, bản JSON này chỉ là bản sao; dữ liệu chính là PostgreSQL.
@@ -57,20 +58,24 @@ khóa/mở khóa tài khoản và vào hồ sơ khách để phân công. Khách
 chỉ hiển thị cho Admin; khi chuyển khách, Sales cũ mất quyền xem khách và các
 đơn hàng lịch sử của khách đó.
 
-### 1.5 Đặt lại mật khẩu Admin
+### 1.5 Đặt lại mật khẩu Admin trên Render Free
 
-Nếu Admin đã tồn tại và quên mật khẩu, mở **Render → Web Service → Shell** rồi
-chạy:
+Nếu Admin đã tồn tại và quên mật khẩu, vào **Render → Web Service → Environment**
+và thêm tạm thời:
 
 ```bash
-python reset_admin.py <ten-dang-nhap-admin>
+CRM_ADMIN_RESET_PASSWORD=<mat-khau-moi>
 ```
 
-Nhập mật khẩu mới khi được hỏi. Mật khẩu không xuất hiện trên màn hình hoặc
-trong command history. Ví dụ nếu username là `admin`:
+Sau khi deploy lại, đăng nhập bằng mật khẩu mới rồi **xoá ngay** biến
+`CRM_ADMIN_RESET_PASSWORD` và deploy lại lần nữa. Biến này chỉ áp dụng cho
+username trong `CRM_ADMIN_USERNAME`.
+
+Không cần Render Shell. Nếu username là `admin`, cấu hình sẽ gồm:
 
 ```bash
-python reset_admin.py admin
+CRM_ADMIN_USERNAME=admin
+CRM_ADMIN_RESET_PASSWORD=<mat-khau-moi>
 ```
 
 ### 1.6 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
@@ -204,7 +209,7 @@ Khi muốn đổi domain mới (VD: crmhay.vn):
 ## Next Steps
 
 - [ ] Deploy xong, kiểm tra trên https://www.sslshopper.com/ssl-checker.html để xác nhận certificate
-- [ ] Kiểm tra PostgreSQL `crmhay-db` và cron `crmhay-facebook-sync` đã được tạo từ Blueprint
+- [ ] Kiểm tra `DATABASE_URL` trỏ tới PostgreSQL bên ngoài và không dùng SQLite production
 - [ ] Kiểm tra đăng nhập Admin và tạo tài khoản Sales
 - [ ] Tích hợp Facebook API khi sẵn sàng
 

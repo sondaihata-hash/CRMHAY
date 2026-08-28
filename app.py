@@ -1020,6 +1020,7 @@ def init_db():
         ensure_sales_group_columns()
         admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
         admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
+        admin_reset_password = os.environ.get('CRM_ADMIN_RESET_PASSWORD', '')
         if admin_username and len(admin_password) < 8:
             raise RuntimeError('CRM_ADMIN_PASSWORD must be at least 8 characters.')
         configured_admin = User.query.filter_by(username=admin_username).first() if admin_username else None
@@ -1029,6 +1030,11 @@ def init_db():
                 password_hash=generate_password_hash(admin_password),
                 role='admin',
             ))
+            db.session.commit()
+        if configured_admin and admin_reset_password:
+            if len(admin_reset_password) < 8:
+                raise RuntimeError('CRM_ADMIN_RESET_PASSWORD must be at least 8 characters.')
+            configured_admin.password_hash = generate_password_hash(admin_reset_password)
             db.session.commit()
         if not Customer.query.first():
             sample = Customer(
