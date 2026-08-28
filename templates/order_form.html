@@ -19,6 +19,7 @@
 </style>
 <div class="section-header"><div><p class="kpi-label mb-2">Đơn đặt hàng mới</p><h1 class="page-title">Tạo đơn cho {{ customer.name }}</h1></div><a class="btn secondary-btn" href="/customers/{{ customer.id }}">Quay lại</a></div>
 <form method="post" class="order-sheet">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
   <div class="order-heading"><p><b>CÔNG TY CỔ PHẦN SƠN IHATA VIỆT NAM</b></p><p>- 34/15 Ấp Trung Đông 2, Trung Mỹ Tây, TP. Hồ Chí Minh, Việt Nam.</p><p>- Số tài khoản: ....................................................</p><p>Tel: .................................................................</p></div>
   <div class="order-title">ĐƠN ĐẶT HÀNG</div>
   <div class="order-meta">

@@ -1,4 +1,5 @@
 from functools import wraps
+import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -39,7 +40,16 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('CRM_SECRET_KEY', 'dev-secret')
+secret_key = os.environ.get('CRM_SECRET_KEY')
+is_production = os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('FLASK_ENV') == 'production'
+if not secret_key and is_production:
+    raise RuntimeError('CRM_SECRET_KEY must be configured in production.')
+app.config['SECRET_KEY'] = secret_key or 'dev-secret'
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=is_production,
+)
 
 db = SQLAlchemy(app)
 
@@ -57,7 +67,8 @@ ADMIN_ENDPOINTS = {
     'settings', 'add_setting', 'edit_setting', 'sales_groups',
     'add_sales_group', 'delete_sales_group', 'update_sales_group_link',
     'sync_facebook_customers', 'sync_facebook_status', 'facebook_export',
-    'delete_customer', 'users', 'add_user', 'assign_customer',
+    'delete_customer', 'users', 'add_user', 'toggle_user', 'assign_customer',
+    'facebook_import_legacy',
 }
 
 # Background sync state — single-worker safe
@@ -245,6 +256,11 @@ def current_user():
     return db.session.get(User, user_id) if user_id else None
 
 
+@app.context_processor
+def inject_current_user():
+    return {'current_user': current_user, 'csrf_token': csrf_token}
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -292,7 +308,12 @@ def login():
         user.last_login_at = datetime.utcnow()
         db.session.commit()
         next_url = request.args.get('next') or url_for('index')
-        if not next_url.startswith('/') or next_url.startswith('//'):
+        parsed_next = urlsplit(next_url)
+        if (
+            not next_url.startswith('/') or next_url.startswith('//')
+            or parsed_next.scheme or parsed_next.netloc or '\\' in next_url
+            or any(ord(character) < 32 for character in next_url)
+        ):
             next_url = url_for('index')
         return redirect(next_url)
     return render_template('login.html')
@@ -327,6 +348,19 @@ def add_user():
     return redirect(url_for('users'))
 
 
+@app.route('/admin/users/<int:user_id>/toggle', methods=['POST'])
+@admin_required
+def toggle_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.role == 'admin':
+        flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
+    else:
+        user.is_active = not user.is_active
+        db.session.commit()
+        flash(f"Đã {'mở khóa' if user.is_active else 'khóa'} tài khoản Sales.", 'success')
+    return redirect(url_for('users'))
+
+
 @app.route('/customers/<int:c_id>/assign', methods=['POST'])
 @admin_required
 def assign_customer(c_id):
@@ -349,6 +383,31 @@ def ensure_sales_group_columns():
         db.session.commit()
 
 
+def ensure_user_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
+    new_columns = {'role': "TEXT DEFAULT 'sales'", 'is_active': 'BOOLEAN DEFAULT 1', 'last_login_at': 'DATETIME'}
+    for column_name, column_type in new_columns.items():
+        if column_name not in columns:
+            db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {column_name} {column_type}'))
+    db.session.commit()
+
+
+def csrf_token():
+    token = session.get('_csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf_token'] = token
+    return token
+
+
+def validate_csrf_token():
+    submitted = request.form.get('_csrf_token') or request.headers.get('X-CSRF-Token')
+    expected = session.get('_csrf_token')
+    if not expected or not submitted or not secrets.compare_digest(submitted, expected):
+        return 'CSRF token không hợp lệ.', 400
+    return None
+
+
 @app.before_request
 def require_authentication():
     if request.endpoint in {'login', 'static'}:
@@ -359,6 +418,8 @@ def require_authentication():
         return redirect(url_for('login', next=request.full_path))
     if request.endpoint in ADMIN_ENDPOINTS and user.role != 'admin':
         return 'Bạn không có quyền thực hiện thao tác này.', 403
+    if request.method == 'POST':
+        return validate_csrf_token()
     return None
 
 
@@ -953,11 +1014,14 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 def init_db():
     with app.app_context():
         db.create_all()
+        ensure_user_columns()
         ensure_customer_columns()
         ensure_order_columns()
         ensure_sales_group_columns()
         admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
         admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
+        if admin_username and len(admin_password) < 8:
+            raise RuntimeError('CRM_ADMIN_PASSWORD must be at least 8 characters.')
         if admin_username and admin_password and not User.query.filter_by(role='admin').first():
             db.session.add(User(
                 username=admin_username,
@@ -1098,7 +1162,8 @@ def customer_detail(c_id):
     c = get_visible_customer(c_id)
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
-    return render_template('customer_detail.html', c=c, sales_groups=groups, handoffs=handoffs)
+    sales_users = User.query.filter_by(role='sales', is_active=True).order_by(User.username).all()
+    return render_template('customer_detail.html', c=c, sales_groups=groups, handoffs=handoffs, sales_users=sales_users)
 
 
 @app.route('/customers/<int:c_id>/handoff-zalo', methods=['POST'])

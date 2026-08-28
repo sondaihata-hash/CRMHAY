@@ -12,6 +12,12 @@ services:
         fromDatabase:
           name: crmhay-db
           property: connectionString
+      - key: CRM_SECRET_KEY
+        sync: false
+      - key: CRM_ADMIN_USERNAME
+        sync: false
+      - key: CRM_ADMIN_PASSWORD
+        sync: false
   - type: cron
     name: crmhay-facebook-sync
     env: python

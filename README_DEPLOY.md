@@ -37,7 +37,27 @@ git push
 
 **Checkpoint**: Mở `https://your-service-name.onrender.com` trong trình duyệt → kiểm tra CRM chạy được chưa.
 
-### 1.4 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
+### 1.4 Tạo tài khoản Admin lần đầu
+
+Trước khi deploy, thêm các biến môi trường sau trong Render Web Service:
+
+```text
+CRM_SECRET_KEY=<chuỗi ngẫu nhiên dài, tối thiểu 32 ký tự>
+CRM_ADMIN_USERNAME=<tên đăng nhập Admin>
+CRM_ADMIN_PASSWORD=<mật khẩu mạnh, tối thiểu 8 ký tự>
+```
+
+Lần khởi động đầu tiên sẽ tạo tài khoản Admin từ các biến này. Mật khẩu chỉ
+được lưu dưới dạng hash trong database. Sau khi đăng nhập và tạo các tài khoản
+Sales, có thể xoá hoặc thay đổi biến `CRM_ADMIN_PASSWORD`; ứng dụng không ghi
+đè tài khoản Admin đã tồn tại.
+
+Sales đăng nhập tại cùng địa chỉ CRM. Admin vào **Tài khoản Sales** để tạo,
+khóa/mở khóa tài khoản và vào hồ sơ khách để phân công. Khách chưa phân công
+chỉ hiển thị cho Admin; khi chuyển khách, Sales cũ mất quyền xem khách và các
+đơn hàng lịch sử của khách đó.
+
+### 1.5 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
 
 CRM luôn ưu tiên nơi ở khách tự ghi trong tin nhắn. Với khách không ghi nơi ở,
 có thể bật fallback từ Facebook Profile API bằng biến môi trường:
@@ -169,7 +189,7 @@ Khi muốn đổi domain mới (VD: crmhay.vn):
 
 - [ ] Deploy xong, kiểm tra trên https://www.sslshopper.com/ssl-checker.html để xác nhận certificate
 - [ ] Kiểm tra PostgreSQL `crmhay-db` và cron `crmhay-facebook-sync` đã được tạo từ Blueprint
-- [ ] Thêm authentication/login nếu muốn (bảo vệ CRM)
+- [ ] Kiểm tra đăng nhập Admin và tạo tài khoản Sales
 - [ ] Tích hợp Facebook API khi sẵn sàng
 
 ---

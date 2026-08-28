@@ -9,6 +9,7 @@
   <div class="card-body">
     <h5 class="card-title">1. Import từ dữ liệu JSON / paste tin nhắn</h5>
     <form method="post">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="source" value="manual">
       <div class="mb-3">
         <label class="form-label">Dữ liệu JSON</label>
@@ -24,6 +25,7 @@
     <h5 class="card-title">2. Import từ token người dùng hệ thống / managed pages</h5>
     {% if configured %}
       <form method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="source" value="page">
         <button class="btn btn-outline-info">Lấy dữ liệu khách hàng từ Facebook app/managed pages</button>
       </form>

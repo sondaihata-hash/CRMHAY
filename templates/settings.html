@@ -9,6 +9,7 @@
 
   <div class="panel p-3 p-md-4 mb-4">
     <form class="row g-3 align-items-end" action="/settings/add" method="post">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="col-md-4">
         <label class="form-label fw-semibold">Key</label>
         <input name="key" class="form-control" placeholder="Ví dụ: FACEBOOK_SYSTEM_USER_ACCESS_TOKEN">
@@ -48,6 +49,7 @@
               <div class="d-flex gap-2">
                 <a class="btn btn-sm btn-outline-secondary action-btn" href="/settings/{{ s.id }}/edit">Sửa</a>
                 <form action="/settings/{{ s.id }}/delete" method="post" onsubmit="return confirm('Xóa cài đặt này?')">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                   <button class="btn btn-sm btn-danger action-btn">Xóa</button>
                 </form>
               </div>

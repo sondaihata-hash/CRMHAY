@@ -190,6 +190,7 @@
                 <a class="btn btn-sm btn-outline-primary action-btn" href="/customers/{{ c.id }}">Xem</a>
                 <a class="btn btn-sm btn-outline-secondary action-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
                 <form action="/customers/{{ c.id }}/delete" method="post" onsubmit="return confirm('Xóa khách hàng này?')" style="display:inline;">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                   <button class="btn btn-sm btn-danger action-btn">Xóa</button>
                 </form>
               </div>
