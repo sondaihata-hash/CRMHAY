@@ -24,7 +24,7 @@ def test_sync_facebook_returns_immediately():
         with _sync_lock:
             _sync_state['running'] = False
         t0 = time.time()
-        resp = client.get('/customers/sync-facebook')
+        resp = client.post('/customers/sync-facebook', data={'_csrf_token': csrf_token(client, '/customers')})
         elapsed = time.time() - t0
         assert resp.status_code == 302, "Should redirect"
         assert elapsed < 2.0, f"Route took {elapsed:.2f}s — must be instant"
