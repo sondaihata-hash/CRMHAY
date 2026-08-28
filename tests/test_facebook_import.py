@@ -59,6 +59,43 @@ def test_extract_phone_numbers_from_message():
     assert "02499999999" in numbers or "024 9999 9999" in text
 
 
+def test_extract_customer_phone_numbers_ignores_page_messages_and_hotlines():
+    from app import extract_customer_phone_numbers
+
+    messages = [
+        {'from': {'id': 'PAGE'}, 'message': 'Hotline 0909123456'},
+        {'from': {'id': 'CUSTOMER'}, 'message': 'Số của tôi 0912345678'},
+        {'from': {'id': 'PAGE'}, 'message': 'Gọi lại hotline 0911111111'},
+    ]
+
+    with mock.patch.dict('os.environ', {'CRM_HOTLINE_NUMBERS': '0912345678'}, clear=False):
+        assert extract_customer_phone_numbers(messages, 'PAGE') == []
+
+    with mock.patch.dict('os.environ', {'CRM_HOTLINE_NUMBERS': '0909123456,0911111111'}, clear=False):
+        assert extract_customer_phone_numbers(messages, 'PAGE') == ['0912345678']
+
+
+def test_existing_facebook_phone_is_cleared_when_rescan_has_no_customer_phone():
+    from app import Customer, db, import_facebook_messages
+
+    with app.app_context():
+        customer = Customer(
+            name='Rescan Customer', facebook_id='RESCAN_001', source='facebook',
+            phone='0909123456', conversation_id='RESCAN_CONV',
+        )
+        db.session.add(customer)
+        db.session.commit()
+
+        import_facebook_messages([{
+            'name': 'Rescan Customer', 'facebook_id': 'RESCAN_001',
+            'conversation_id': 'RESCAN_CONV', 'message': 'Xin chào',
+        }])
+
+        assert customer.phone is None or customer.phone == ''
+        db.session.delete(customer)
+        db.session.commit()
+
+
 def test_extract_location_from_message():
     text = "Mình ở quận 7, thành phố Hồ Chí Minh, cần tư vấn gói dịch vụ"
     location = extract_location(text)
@@ -478,7 +515,7 @@ def test_fetch_managed_facebook_messages_scans_all_managed_pages_by_default():
     assert {result["page_name"] for result in results} == {page["name"] for page in pages}
 
 
-def test_fetch_managed_facebook_messages_skips_conversations_without_phone():
+def test_fetch_managed_facebook_messages_returns_conversations_without_phone_for_rescan():
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
 
@@ -505,7 +542,9 @@ def test_fetch_managed_facebook_messages_skips_conversations_without_phone():
          mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=10)
 
-    assert results == []
+    assert len(results) == 1
+    assert results[0]['facebook_id'] == 'CUST_X'
+    assert results[0]['phone'] == ''
 
 
 def test_sync_does_not_request_customer_profiles_by_default():
