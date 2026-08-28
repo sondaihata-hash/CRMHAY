@@ -385,7 +385,11 @@
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/orders') %}active{% endif %}" {% if request.path.startswith('/orders') %}aria-current="page"{% endif %} href="/orders">Đơn hàng</a></li>
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/sales-groups') %}active{% endif %}" {% if request.path.startswith('/sales-groups') %}aria-current="page"{% endif %} href="/sales-groups">Nhóm Sales</a></li>
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/settings') %}active{% endif %}" {% if request.path.startswith('/settings') %}aria-current="page"{% endif %} href="/settings">Settings</a></li>
+            {% if current_user and current_user().role == 'admin' %}
+              <li class="nav-item"><a class="nav-link {% if request.path.startswith('/admin/users') %}active{% endif %}" {% if request.path.startswith('/admin/users') %}aria-current="page"{% endif %} href="/admin/users">Tài khoản Sales</a></li>
+            {% endif %}
           </ul>
+          {% if current_user %}<form method="post" action="{{ url_for('logout') }}" class="d-flex"><button class="btn btn-sm btn-outline-light action-btn" type="submit">Đăng xuất</button></form>{% endif %}
         </div>
       </div>
     </nav>
