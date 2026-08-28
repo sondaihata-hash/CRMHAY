@@ -472,30 +472,6 @@ def extract_customer_phone_numbers(messages, page_id):
     ]
 
 
-def configured_hotline_numbers():
-    configured = os.environ.get('CRM_HOTLINE_NUMBERS', '')
-    return {
-        number
-        for value in configured.split(',')
-        for number in extract_phone_numbers(value.strip())
-    }
-
-
-def extract_customer_phone_numbers(messages, page_id):
-    customer_texts = [
-        msg.get('message') or msg.get('story') or ''
-        for msg in messages
-        if (msg.get('from') or {}).get('id') != page_id
-    ]
-    hotline_numbers = configured_hotline_numbers()
-    return [
-        number
-        for text_value in customer_texts
-        for number in extract_phone_numbers(text_value)
-        if number not in hotline_numbers
-    ]
-
-
 def normalize_location_name(location):
     if not isinstance(location, str):
         return ''
