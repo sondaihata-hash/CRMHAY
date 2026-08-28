@@ -216,12 +216,15 @@
   </div>
 
   <div class="mt-4">
-    <button id="syncBtn" onclick="syncFacebook()" class="btn success-btn" style="min-width: 200px;">
+    <form method="post" action="/customers/sync-facebook" onsubmit="return syncFacebook(event)">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <button id="syncBtn" class="btn success-btn" style="min-width: 200px;">
       <span id="syncText">Đồng bộ dữ liệu Facebook</span>
       <span id="syncSpinner" style="display:none;" class="ms-2">
         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
       </span>
     </button>
+    </form>
   </div>
 
   <script>
@@ -244,7 +247,8 @@
         .catch(() => window.setTimeout(monitorSync, 5000));
     }
 
-    function syncFacebook() {
+    function syncFacebook(event) {
+      event.preventDefault();
       const btn = document.getElementById('syncBtn');
       const text = document.getElementById('syncText');
       const spinner = document.getElementById('syncSpinner');
@@ -253,9 +257,8 @@
       text.textContent = 'Đang đồng bộ…';
       spinner.style.display = 'inline';
       
-      setTimeout(() => {
-        window.location.href = '/customers/sync-facebook';
-      }, 300);
+      setTimeout(() => event.target.submit(), 300);
+      return false;
     }
 
     function scrollCustomerList(direction) {
@@ -290,7 +293,7 @@
       status.className = 'small mt-3 text-secondary';
       status.textContent = 'Đang chuẩn bị nội dung...';
       try {
-        const response = await fetch(`/customers/${selectedZaloCustomerId}/handoff-zalo`, {method: 'POST', body: new URLSearchParams({group_id: document.getElementById('zaloGroupId').value})});
+        const response = await fetch(`/customers/${selectedZaloCustomerId}/handoff-zalo`, {method: 'POST', headers: {'X-CSRF-Token': '{{ csrf_token() }}'}, body: new URLSearchParams({group_id: document.getElementById('zaloGroupId').value})});
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Không thể chuẩn bị nội dung chuyển khách.');
         try {

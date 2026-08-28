@@ -9,7 +9,7 @@ from app import (
     MAX_API_CALLS_PER_SYNC, MAX_CONVERSATION_PAGES,
     FACEBOOK_API_TIMEOUT,
 )
-from auth_helpers import login_admin
+from auth_helpers import csrf_token, login_admin
 
 
 def test_sync_facebook_returns_immediately():
@@ -42,7 +42,7 @@ def test_sync_facebook_rejects_concurrent():
         db.session.commit()
     try:
         client = login_admin(app.test_client())
-        resp = client.get('/customers/sync-facebook', follow_redirects=True)
+        resp = client.post('/customers/sync-facebook', data={'_csrf_token': csrf_token(client, '/customers')}, follow_redirects=True)
         assert resp.status_code == 200
     finally:
         with app.app_context():

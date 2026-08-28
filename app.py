@@ -1459,7 +1459,7 @@ if celery:
         _run_facebook_sync(job_id)
 
 
-@app.route('/customers/sync-facebook')
+@app.route('/customers/sync-facebook', methods=['POST'])
 def sync_facebook_customers():
     configured = bool(get_facebook_token())
 
