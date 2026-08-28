@@ -66,6 +66,7 @@ def test_extract_customer_phone_numbers_ignores_page_messages_and_hotlines():
         {'from': {'id': 'PAGE'}, 'message': 'Hotline 0909123456'},
         {'from': {'id': 'CUSTOMER'}, 'message': 'Số của tôi 0912345678'},
         {'from': {'id': 'PAGE'}, 'message': 'Gọi lại hotline 0911111111'},
+        {'message': 'System phone 0988888888'},
     ]
 
     with mock.patch.dict('os.environ', {'CRM_HOTLINE_NUMBERS': '0912345678'}, clear=False):
@@ -402,7 +403,7 @@ def test_import_dedup_by_conversation_id():
 
 
 def test_fetch_managed_facebook_messages_uses_safe_default_limit():
-    """Default sync should not process an unbounded conversation list and trigger worker timeouts."""
+    """Default sync scans up to the bounded 100 conversations per Page."""
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
 
@@ -432,7 +433,7 @@ def test_fetch_managed_facebook_messages_uses_safe_default_limit():
          mock.patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "tok"}, clear=False):
         results = fetch_managed_facebook_messages()
 
-    assert len(results) == 25
+    assert len(results) == 60
 
 
 def test_fetch_managed_facebook_messages_scans_multiple_pages_and_filters_phone_and_location():

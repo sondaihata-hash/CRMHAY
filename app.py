@@ -634,7 +634,7 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
         configured_page_limit = os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT')
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
-        configured_conversation_limit = int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '25'))
+        configured_conversation_limit = int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '100'))
 
     page_limit = None
     if configured_page_limit:

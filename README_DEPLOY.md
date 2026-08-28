@@ -64,6 +64,11 @@ phẩy. Khi đồng bộ Facebook, CRM chỉ đọc số trong message có sende
 loại các số trong danh sách hotline. Nếu số hotline thay đổi, cập nhật biến môi
 trường rồi chạy lại **Đồng bộ dữ liệu Facebook** để xoá số cũ bị nhận nhầm.
 
+Để quét lại toàn bộ dữ liệu lớn hơn giới hạn mặc định, đặt thêm
+`FACEBOOK_SYNC_CONVERSATION_LIMIT` (tối đa `100`) và
+`FACEBOOK_SYNC_PAGE_LIMIT` (tối đa `20`) trong Environment. CRM sẽ tự đi qua
+các trang phân trang của Facebook trong mỗi lần đồng bộ.
+
 ### 1.5 Đặt lại mật khẩu Admin trên Render Free
 
 Nếu Admin đã tồn tại và quên mật khẩu, vào **Render → Web Service → Environment**
