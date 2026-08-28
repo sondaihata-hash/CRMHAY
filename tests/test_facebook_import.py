@@ -521,6 +521,47 @@ def test_fetch_managed_facebook_messages_follows_conversation_paging():
     assert results[-1]['facebook_id'] == 'CUST_PAGE_25'
 
 
+def test_fetch_managed_facebook_messages_processes_one_conversation_per_request():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = 'PAGE_SERIAL'
+    calls = []
+
+    def conversation(index):
+        customer_id = f'CUST_SERIAL_{index}'
+        return {
+            'id': f'CONV_SERIAL_{index}',
+            'participants': {'data': [
+                {'id': page_id, 'name': 'My Page'},
+                {'id': customer_id, 'name': f'Customer {index}'},
+            ]},
+            'messages': {'data': [{
+                'from': {'id': customer_id, 'name': f'Customer {index}'},
+                'message': f'Số 09{700000000 + index}',
+            }]},
+        }
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == 'me/accounts':
+            return {'data': [{'id': page_id, 'name': 'My Page', 'access_token': 'tok'}]}
+        if endpoint == f'{page_id}/conversations':
+            calls.append((endpoint, extra_params))
+            return {'data': [conversation(1)], 'paging': {'next': 'serial-next'}}
+        if endpoint == 'serial-next':
+            calls.append((endpoint, extra_params))
+            return {'data': [conversation(2)], 'paging': {}}
+        return {}
+
+    with mock.patch('app.fetch_facebook_json', side_effect=fake_fetch), \
+         mock.patch.dict('os.environ', {'FACEBOOK_PAGE_ACCESS_TOKEN': 'tok'}, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=2)
+
+    assert [call[0] for call in calls] == [f'{page_id}/conversations', 'serial-next']
+    assert all(call[1]['limit'] == '1' for call in calls)
+    assert [result['facebook_id'] for result in results] == ['CUST_SERIAL_1', 'CUST_SERIAL_2']
+
+
 def test_fetch_managed_facebook_messages_scans_all_managed_pages_by_default():
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
