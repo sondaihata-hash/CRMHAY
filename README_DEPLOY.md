@@ -67,7 +67,10 @@ trường rồi chạy lại **Đồng bộ dữ liệu Facebook** để xoá s�
 Để quét lại toàn bộ dữ liệu lớn hơn giới hạn mặc định, đặt thêm
 `FACEBOOK_SYNC_CONVERSATION_LIMIT` (tối đa `100`) và
 `FACEBOOK_SYNC_PAGE_LIMIT` (tối đa `20`) trong Environment. CRM sẽ tự đi qua
-các trang phân trang của Facebook trong mỗi lần đồng bộ.
+các trang phân trang của Facebook trong mỗi lần đồng bộ. Bộ quét xử lý tuần tự:
+mỗi request chỉ lấy một conversation, xử lý xong mới chuyển sang conversation
+tiếp theo và Page tiếp theo; không chạy song song. Vì vậy thời gian chờ có thể
+dài khi dữ liệu lớn nhưng giảm nguy cơ bỏ sót hoặc quá tải API.
 
 ### 1.5 Đặt lại mật khẩu Admin trên Render Free
 

@@ -86,8 +86,8 @@ _sync_lock = threading.Lock()
 
 # Hard caps to prevent runaway API usage
 MAX_API_CALLS_PER_SYNC = 100
-MAX_CONVERSATION_PAGES = 20
-MAX_PAGE_PAGINATION_ROUNDS = 5
+MAX_CONVERSATION_PAGES = 100
+MAX_PAGE_PAGINATION_ROUNDS = 20
 FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
 
@@ -429,6 +429,8 @@ def extract_phone_numbers(text_value):
 
     patterns = [
         r'(?<!\d)(?:\+?84\d{9,10}|0\d{9,10})(?!\d)',
+        r'(?<!\d)\+?84[\s.-]?\d{3}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)',
+        r'(?<!\d)\+?84[\s.-]?\d{2}[\s.-]?\d{4}[\s.-]?\d{4}(?!\d)',
         r'(?<!\d)0\d{3}[\s.-]?\d{3}[\s.-]?\d{3,4}(?!\d)',
     ]
 
@@ -442,6 +444,8 @@ def extract_phone_numbers(text_value):
         cleaned = re.sub(r'[\s.-]', '', value)
         if cleaned.startswith('+84'):
             cleaned = '0' + cleaned[3:]
+        elif cleaned.startswith('84') and len(cleaned) in {11, 12}:
+            cleaned = '0' + cleaned[2:]
         if 10 <= len(cleaned) <= 12 and cleaned not in normalized:
             normalized.append(cleaned)
 
@@ -897,6 +901,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
             endpoint = f'{page_id}/conversations'
             next_url = None
             collected_for_page = 0
+            scanned_for_page = 0
             pagination_round = 0
 
             while pagination_round < MAX_CONVERSATION_PAGES:
@@ -915,11 +920,21 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                 if API_RATE_DELAY:
                     time.sleep(API_RATE_DELAY)
 
-                for conversation in conversations:
-                    if collected_for_page >= conversation_limit:
+                for conversation in conversations[:1]:
+                    if scanned_for_page >= conversation_limit:
                         break
+                    scanned_for_page += 1
                     participants = conversation.get('participants', {}).get('data', [])
-                    messages = conversation.get('messages', {}).get('data', [])
+                    messages_payload = conversation.get('messages', {})
+                    messages = list(messages_payload.get('data', []))
+                    message_next_url = (messages_payload.get('paging') or {}).get('next')
+                    while message_next_url and api_call_count < MAX_API_CALLS_PER_SYNC:
+                        message_payload = fetch_facebook_json(message_next_url, page_token)
+                        api_call_count += 1
+                        messages.extend(message_payload.get('data', []))
+                        message_next_url = (message_payload.get('paging') or {}).get('next')
+                    if message_next_url:
+                        continue
                     if not messages:
                         continue
                     latest_message = messages[0]
@@ -1020,7 +1035,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 
                 paging = payload.get('paging', {})
                 next_page = paging.get('next')
-                if collected_for_page >= conversation_limit or not next_page:
+                if scanned_for_page >= conversation_limit or not next_page:
                     break
                 next_url = next_page
 

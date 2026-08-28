@@ -59,6 +59,18 @@ def test_extract_phone_numbers_from_message():
     assert "02499999999" in numbers or "024 9999 9999" in text
 
 
+def test_extract_phone_numbers_normalizes_country_code_without_plus():
+    assert extract_phone_numbers('Gọi 84987654321') == ['0987654321']
+
+
+def test_extract_phone_numbers_normalizes_formatted_country_code():
+    assert extract_phone_numbers('Gọi +84 987 654 321') == ['0987654321']
+
+
+def test_extract_phone_numbers_normalizes_formatted_country_code_landline():
+    assert extract_phone_numbers('Gọi +84 24 9999 9999') == ['02499999999']
+
+
 def test_extract_customer_phone_numbers_ignores_page_messages_and_hotlines():
     from app import extract_customer_phone_numbers
 
@@ -264,7 +276,9 @@ def test_fetch_managed_excludes_page_id_from_customer():
         if endpoint == "me/accounts":
             return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
         if endpoint == f"{page_id}/conversations":
-            return conversations_response
+            return {"data": [conversations_response["data"][0]], "paging": {"next": "customer-next"}}
+        if endpoint == "customer-next":
+            return {"data": [conversations_response["data"][1]], "paging": {}}
         if endpoint == page_id:
             return {"id": page_id, "name": "My Page", "access_token": "tok"}
         return {}
@@ -426,7 +440,10 @@ def test_fetch_managed_facebook_messages_uses_safe_default_limit():
         if endpoint == "me/accounts":
             return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
         if endpoint == f"{page_id}/conversations":
-            return {"data": conversations, "paging": {}}
+            return {"data": [conversations[0]], "paging": {"next": "safe-next-1"}}
+        if endpoint.startswith("safe-next-"):
+            index = int(endpoint.rsplit("-", 1)[1])
+            return {"data": [conversations[index]], "paging": {"next": f"safe-next-{index + 1}"} if index < 59 else {}}
         return {}
 
     with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
@@ -501,23 +518,20 @@ def test_fetch_managed_facebook_messages_follows_conversation_paging():
             }]},
         }
 
-    first_page = [conversation(index) for index in range(25)]
-    second_page = [conversation(25)]
-
     def fake_fetch(endpoint, token, extra_params=None):
         if endpoint == 'me/accounts':
             return {'data': [{'id': page_id, 'name': 'My Page', 'access_token': 'tok'}]}
         if endpoint == f'{page_id}/conversations':
-            return {'data': first_page, 'paging': {'next': 'paging-next-url'}}
+            return {'data': [conversation(0)], 'paging': {'next': 'paging-next-url'}}
         if endpoint == 'paging-next-url':
-            return {'data': second_page, 'paging': {}}
+            return {'data': [conversation(25)], 'paging': {}}
         return {}
 
     with mock.patch('app.fetch_facebook_json', side_effect=fake_fetch), \
          mock.patch.dict('os.environ', {'FACEBOOK_PAGE_ACCESS_TOKEN': 'tok'}, clear=False):
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=100)
 
-    assert len(results) == 26
+    assert len(results) == 2
     assert results[-1]['facebook_id'] == 'CUST_PAGE_25'
 
 
@@ -768,7 +782,10 @@ def test_sync_counts_failed_profile_requests_against_api_limit():
         if endpoint == "me/accounts":
             return {"data": [{"id": page_id, "name": "My Page", "access_token": "tok"}]}
         if endpoint == f"{page_id}/conversations":
-            return {"data": conversations, "paging": {}}
+            return {"data": [conversations[0]], "paging": {"next": "profile-next-1"}}
+        if endpoint.startswith("profile-next-"):
+            index = int(endpoint.rsplit("-", 1)[1])
+            return {"data": [conversations[index]], "paging": {"next": f"profile-next-{index + 1}"} if index < MAX_API_CALLS_PER_SYNC + 4 else {}}
         profile_calls += 1
         raise HTTPError(endpoint, 403, "Forbidden", {}, None)
 
@@ -780,7 +797,7 @@ def test_sync_counts_failed_profile_requests_against_api_limit():
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=500)
 
     assert profile_calls + 1 <= MAX_API_CALLS_PER_SYNC
-    assert len(results) == MAX_API_CALLS_PER_SYNC
+    assert len(results) == MAX_API_CALLS_PER_SYNC // 2
 
 
 def test_sync_ignores_malformed_customer_profile_response():

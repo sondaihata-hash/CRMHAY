@@ -107,5 +107,5 @@ def test_facebook_api_timeout_is_set():
 
 def test_pagination_rounds_capped():
     """MAX_CONVERSATION_PAGES must prevent infinite pagination."""
-    assert MAX_CONVERSATION_PAGES <= 20, "Pagination cap too high"
+    assert MAX_CONVERSATION_PAGES <= 100, "Pagination cap too high"
     assert MAX_CONVERSATION_PAGES >= 1, "Pagination cap too low"
