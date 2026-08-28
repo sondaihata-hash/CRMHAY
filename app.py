@@ -53,6 +53,13 @@ if CELERY_BROKER_URL and Celery:
 
 logger = logging.getLogger(__name__)
 
+ADMIN_ENDPOINTS = {
+    'settings', 'add_setting', 'edit_setting', 'sales_groups',
+    'add_sales_group', 'delete_sales_group', 'update_sales_group_link',
+    'sync_facebook_customers', 'sync_facebook_status', 'facebook_export',
+    'delete_customer', 'users', 'add_user', 'assign_customer',
+}
+
 # Background sync state — single-worker safe
 # ponytail: upgrade to Redis/Celery when moving to multi-worker
 _sync_state = {
@@ -298,11 +305,61 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/admin/users')
+@admin_required
+def users():
+    return render_template('users.html', users=User.query.order_by(User.role, User.username).all())
+
+
+@app.route('/admin/users/add', methods=['POST'])
+@admin_required
+def add_user():
+    username = (request.form.get('username') or '').strip().lower()
+    password = request.form.get('password') or ''
+    if not username or len(password) < 8:
+        flash('Tên đăng nhập và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
+    elif User.query.filter_by(username=username).first():
+        flash('Tên đăng nhập đã tồn tại.', 'warning')
+    else:
+        db.session.add(User(username=username, password_hash=generate_password_hash(password), role='sales'))
+        db.session.commit()
+        flash('Đã tạo tài khoản Sales.', 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/customers/<int:c_id>/assign', methods=['POST'])
+@admin_required
+def assign_customer(c_id):
+    customer = Customer.query.get_or_404(c_id)
+    user_id = request.form.get('assigned_user_id', type=int)
+    user = db.session.get(User, user_id) if user_id else None
+    if user_id and (not user or user.role != 'sales' or not user.is_active):
+        flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
+    else:
+        customer.assigned_user_id = user.id if user else None
+        db.session.commit()
+        flash('Đã cập nhật Sales phụ trách.', 'success')
+    return redirect(url_for('customer_detail', c_id=customer.id))
+
+
 def ensure_sales_group_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('sales_group')}
     if 'zalo_url' not in columns:
         db.session.execute(text('ALTER TABLE sales_group ADD COLUMN zalo_url TEXT'))
         db.session.commit()
+
+
+@app.before_request
+def require_authentication():
+    if request.endpoint in {'login', 'static'}:
+        return None
+    user = current_user()
+    if not user or not user.is_active:
+        session.clear()
+        return redirect(url_for('login', next=request.full_path))
+    if request.endpoint in ADMIN_ENDPOINTS and user.role != 'admin':
+        return 'Bạn không có quyền thực hiện thao tác này.', 403
+    return None
 
 
 def extract_phone_numbers(text_value):
@@ -899,6 +956,15 @@ def init_db():
         ensure_customer_columns()
         ensure_order_columns()
         ensure_sales_group_columns()
+        admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
+        admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
+        if admin_username and admin_password and not User.query.filter_by(role='admin').first():
+            db.session.add(User(
+                username=admin_username,
+                password_hash=generate_password_hash(admin_password),
+                role='admin',
+            ))
+            db.session.commit()
         if not Customer.query.first():
             sample = Customer(
                 name='Nguyen Van A',
@@ -947,21 +1013,23 @@ def is_valid_zalo_group_url(value):
 def index():
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
-    customer_count = Customer.query.count()
-    phone_count = Customer.query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
-    order_count = Order.query.count()
-    revenue = db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).scalar() or 0
-    month_revenue = db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).filter(
+    customer_query = visible_customer_query()
+    order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
+    customer_count = customer_query.count()
+    phone_count = customer_query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
+    order_count = order_query.count()
+    revenue = order_query.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).scalar() or 0
+    month_revenue = order_query.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).filter(
         Order.created_at >= month_start,
     ).scalar() or 0
-    status_summary = db.session.query(
+    status_summary = order_query.with_entities(
         Order.status, func.count(Order.id).label('total'),
     ).group_by(Order.status).order_by(func.count(Order.id).desc()).all()
-    source_summary = db.session.query(
+    source_summary = customer_query.with_entities(
         Customer.source, func.count(Customer.id).label('total'),
     ).group_by(Customer.source).order_by(func.count(Customer.id).desc()).all()
-    recent_customers = Customer.query.order_by(Customer.created_at.desc()).limit(7).all()
-    recent_orders = Order.query.order_by(Order.created_at.desc()).limit(7).all()
+    recent_customers = customer_query.order_by(Customer.created_at.desc()).limit(7).all()
+    recent_orders = order_query.order_by(Order.created_at.desc()).limit(7).all()
     return render_template(
         'dashboard.html', customer_count=customer_count, phone_count=phone_count,
         order_count=order_count, revenue=revenue, month_revenue=month_revenue,
@@ -975,7 +1043,7 @@ def customers():
     q = request.args.get('q', '')
     sync_job_id = request.args.get('sync_job', '')
     if q:
-        items = Customer.query.filter(
+        items = visible_customer_query().filter(
             db.or_(
                 Customer.name.contains(q),
                 Customer.phone.contains(q),
@@ -985,8 +1053,8 @@ def customers():
             )
         ).all()
     else:
-        items = Customer.query.order_by(Customer.created_at.desc()).all()
-    customer_stats = db.session.query(
+        items = visible_customer_query().order_by(Customer.created_at.desc()).all()
+    customer_stats = visible_customer_query().with_entities(
         Customer.source,
         Customer.page_name,
         func.count(Customer.id).label('total_customers'),
@@ -1017,7 +1085,7 @@ def add_customer():
         if not name:
             flash('Tên là bắt buộc', 'danger')
             return redirect(url_for('add_customer'))
-        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone, notes=notes, location=location, tags=tags)
+        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone, notes=notes, location=location, tags=tags, assigned_user_id=current_user().id if current_user().role == 'sales' else None)
         db.session.add(c)
         db.session.commit()
         flash('Đã thêm khách hàng', 'success')
@@ -1027,7 +1095,7 @@ def add_customer():
 
 @app.route('/customers/<int:c_id>')
 def customer_detail(c_id):
-    c = Customer.query.get_or_404(c_id)
+    c = get_visible_customer(c_id)
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
     return render_template('customer_detail.html', c=c, sales_groups=groups, handoffs=handoffs)
@@ -1035,7 +1103,7 @@ def customer_detail(c_id):
 
 @app.route('/customers/<int:c_id>/handoff-zalo', methods=['POST'])
 def handoff_customer_to_zalo(c_id):
-    customer = Customer.query.get_or_404(c_id)
+    customer = get_visible_customer(c_id)
     group_id = request.form.get('group_id', type=int)
     group = db.session.get(SalesGroup, group_id) if group_id else None
     if not group:
@@ -1118,7 +1186,7 @@ def update_sales_group_link(group_id):
 def orders():
     status = (request.args.get('status') or '').strip()
     q = (request.args.get('q') or '').strip()
-    query = Order.query.join(Customer)
+    query = Order.query.join(Customer).filter(Customer.id.in_(visible_customer_query().with_entities(Customer.id)))
     if status:
         query = query.filter(Order.status == status)
     if q:
@@ -1130,7 +1198,7 @@ def orders():
 
 @app.route('/orders/create/<int:customer_id>', methods=['GET', 'POST'])
 def create_order(customer_id):
-    customer = Customer.query.get_or_404(customer_id)
+    customer = get_visible_customer(customer_id)
     if request.method == 'POST':
         try:
             discount_amount = float(request.form.get('discount_amount') or 0)
@@ -1171,7 +1239,10 @@ def create_order(customer_id):
 
 @app.route('/orders/<int:order_id>')
 def order_document(order_id):
-    order = db.session.get(Order, order_id)
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first()
     if not order:
         return 'Không tìm thấy đơn hàng.', 404
     return render_template('order_document.html', order=order)
@@ -1179,7 +1250,10 @@ def order_document(order_id):
 
 @app.route('/orders/<int:order_id>/export.pdf')
 def export_order_pdf(order_id):
-    order = db.session.get(Order, order_id)
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first()
     if not order:
         return 'Không tìm thấy đơn hàng.', 404
     from order_pdf import build_order_pdf
@@ -1188,7 +1262,7 @@ def export_order_pdf(order_id):
 
 @app.route('/customers/<int:c_id>/edit', methods=['GET', 'POST'])
 def edit_customer(c_id):
-    c = Customer.query.get_or_404(c_id)
+    c = get_visible_customer(c_id)
     if request.method == 'POST':
         c.name = request.form.get('name')
         c.facebook_id = request.form.get('facebook_id')

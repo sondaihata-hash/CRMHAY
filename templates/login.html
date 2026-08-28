@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="row justify-content-center py-5">
+    <div class="col-12 col-sm-8 col-md-5 col-lg-4">
+      <section class="panel p-4 p-md-5">
+        <p class="kpi-label mb-2">Không gian làm việc chung</p>
+        <h1 class="page-title fs-2">Đăng nhập CRM</h1>
+        <p class="text-secondary mt-2">Đăng nhập để làm việc với khách hàng và đơn hàng của bạn.</p>
+        <form method="post" class="mt-4">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="username">Tên đăng nhập</label>
+            <input class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="password">Mật khẩu</label>
+            <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button class="btn primary-btn w-100" type="submit">Đăng nhập</button>
+        </form>
+      </section>
+    </div>
+  </div>
+{% endblock %}

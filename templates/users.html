@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="section-header">
+    <div><p class="kpi-label mb-2">Quản trị đội ngũ</p><h1 class="page-title">Tài khoản Sales</h1></div>
+  </div>
+  <section class="panel p-3 p-md-4 mb-4">
+    <h2 class="section-title mb-3">Tạo tài khoản Sales</h2>
+    <form action="{{ url_for('add_user') }}" method="post" class="row g-3 align-items-end">
+      <div class="col-md-5"><label class="form-label fw-semibold" for="username">Tên đăng nhập</label><input class="form-control" id="username" name="username" required></div>
+      <div class="col-md-5"><label class="form-label fw-semibold" for="password">Mật khẩu tạm thời</label><input class="form-control" id="password" name="password" type="password" minlength="8" required></div>
+      <div class="col-md-2 d-grid"><button class="btn primary-btn" type="submit">Tạo Sales</button></div>
+    </form>
+  </section>
+  <section class="panel table-card">
+    <div class="customer-list-toolbar"><span>Danh sách tài khoản</span><span class="text-secondary">Sales chỉ thấy khách được giao</span></div>
+    <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Tài khoản</th><th>Vai trò</th><th>Trạng thái</th><th>Lần đăng nhập cuối</th></tr></thead><tbody>
+      {% for user in users %}<tr><td class="fw-semibold">{{ user.username }}</td><td><span class="badge-soft">{{ user.role|upper }}</span></td><td>{{ 'Đang hoạt động' if user.is_active else 'Đã khóa' }}</td><td>{{ user.last_login_at.strftime('%d/%m/%Y %H:%M') if user.last_login_at else 'Chưa đăng nhập' }}</td></tr>{% else %}<tr><td colspan="4" class="text-center text-secondary py-4">Chưa có tài khoản.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+{% endblock %}
