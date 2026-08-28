@@ -57,7 +57,23 @@ khóa/mở khóa tài khoản và vào hồ sơ khách để phân công. Khách
 chỉ hiển thị cho Admin; khi chuyển khách, Sales cũ mất quyền xem khách và các
 đơn hàng lịch sử của khách đó.
 
-### 1.5 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
+### 1.5 Đặt lại mật khẩu Admin
+
+Nếu Admin đã tồn tại và quên mật khẩu, mở **Render → Web Service → Shell** rồi
+chạy:
+
+```bash
+python reset_admin.py <ten-dang-nhap-admin>
+```
+
+Nhập mật khẩu mới khi được hỏi. Mật khẩu không xuất hiện trên màn hình hoặc
+trong command history. Ví dụ nếu username là `admin`:
+
+```bash
+python reset_admin.py admin
+```
+
+### 1.6 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
 
 CRM luôn ưu tiên nơi ở khách tự ghi trong tin nhắn. Với khách không ghi nơi ở,
 có thể bật fallback từ Facebook Profile API bằng biến môi trường:
