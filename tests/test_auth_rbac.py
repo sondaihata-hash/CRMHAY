@@ -63,7 +63,7 @@ def test_sales_cannot_access_admin_area_or_assign_customer():
         assert client.get('/admin/users').status_code == 403
         assert client.post(
             f'/customers/{customer_id}/assign',
-            data={'assigned_user_id': sales_id, '_csrf_token': csrf_token(client, f'/customers/{customer_id}')},
+            data={'assigned_user_id': sales_id, '_csrf_token': csrf_token(client, '/customers')},
         ).status_code == 403
     finally:
         with app.app_context():
