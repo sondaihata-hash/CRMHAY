@@ -86,7 +86,7 @@ _sync_lock = threading.Lock()
 
 # Hard caps to prevent runaway API usage
 MAX_API_CALLS_PER_SYNC = 100
-MAX_CONVERSATION_PAGES = 10
+MAX_CONVERSATION_PAGES = 20
 MAX_PAGE_PAGINATION_ROUNDS = 5
 FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
@@ -905,7 +905,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     logger.warning("Hit MAX_API_CALLS=%d, stopping sync", MAX_API_CALLS_PER_SYNC)
                     break
 
-                params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '25'}
+                params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '1'}
                 payload = fetch_facebook_json(next_url or endpoint, page_token, params)
                 api_call_count += 1
                 conversations = payload.get('data', [])
