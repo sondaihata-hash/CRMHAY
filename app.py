@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy import text, inspect, func
+from werkzeug.security import check_password_hash, generate_password_hash
 try:
     from celery import Celery
 except ImportError:  # Allows local development before optional worker deps install.
@@ -92,7 +94,19 @@ class Customer(db.Model):
     source = db.Column(db.String(50), default='manual')
     message_count = db.Column(db.Integer, default=0)
     tags = db.Column(db.String(500), nullable=True)
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='sales')
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    customers = db.relationship('Customer', backref='assigned_user', lazy=True)
 
 
 class Setting(db.Model):
