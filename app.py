@@ -461,7 +461,7 @@ def extract_customer_phone_numbers(messages, page_id):
     customer_texts = [
         msg.get('message') or msg.get('story') or ''
         for msg in messages
-        if (msg.get('from') or {}).get('id') != page_id
+        if (msg.get('from') or {}).get('id') and (msg.get('from') or {}).get('id') != page_id
     ]
     hotline_numbers = configured_hotline_numbers()
     return [
@@ -699,7 +699,7 @@ def import_facebook_messages(messages):
             customer = Customer.query.filter(Customer.name == payload['name'], Customer.source == 'facebook').first()
 
         if customer is None:
-            if not payload['phone']:
+            if not payload['phone'] and item.get('from_facebook_sync'):
                 continue
             customer = Customer(
                 name=payload['name'],
@@ -949,7 +949,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     latest_message = messages[0]
                     customer_messages = [
                         msg for msg in messages
-                        if (msg.get('from') or {}).get('id') != page_id
+                        if (msg.get('from') or {}).get('id') and (msg.get('from') or {}).get('id') != page_id
                     ]
                     if not customer_messages:
                         continue
@@ -1038,6 +1038,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                         'message_date': latest_customer_message.get('created_time'),
                         'page_name': page_name,
                         'message_count': message_count,
+                        'from_facebook_sync': True,
                     })
                     collected_for_page += 1
 

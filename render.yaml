@@ -16,3 +16,5 @@ services:
         sync: false
       - key: CRM_ADMIN_PASSWORD
         sync: false
+      - key: CRM_HOTLINE_NUMBERS
+        sync: false

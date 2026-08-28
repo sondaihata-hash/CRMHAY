@@ -46,6 +46,7 @@ Trước khi deploy, thêm các biến môi trường sau trong Render Web Servi
 CRM_SECRET_KEY=<chuỗi ngẫu nhiên dài, tối thiểu 32 ký tự>
 CRM_ADMIN_USERNAME=<tên đăng nhập Admin>
 CRM_ADMIN_PASSWORD=<mật khẩu mạnh, tối thiểu 8 ký tự>
+CRM_HOTLINE_NUMBERS=0901234567,0281234567
 ```
 
 Lần khởi động đầu tiên sẽ tạo tài khoản Admin từ các biến này. Mật khẩu chỉ
@@ -57,6 +58,11 @@ Sales đăng nhập tại cùng địa chỉ CRM. Admin vào **Tài khoản Sale
 khóa/mở khóa tài khoản và vào hồ sơ khách để phân công. Khách chưa phân công
 chỉ hiển thị cho Admin; khi chuyển khách, Sales cũ mất quyền xem khách và các
 đơn hàng lịch sử của khách đó.
+
+`CRM_HOTLINE_NUMBERS` là danh sách số tổng đài/số cửa hàng, phân cách bằng dấu
+phẩy. Khi đồng bộ Facebook, CRM chỉ đọc số trong message có sender là khách và
+loại các số trong danh sách hotline. Nếu số hotline thay đổi, cập nhật biến môi
+trường rồi chạy lại **Đồng bộ dữ liệu Facebook** để xoá số cũ bị nhận nhầm.
 
 ### 1.5 Đặt lại mật khẩu Admin trên Render Free
 
