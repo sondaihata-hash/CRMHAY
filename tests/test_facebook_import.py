@@ -480,6 +480,47 @@ def test_fetch_managed_facebook_messages_scans_multiple_pages_and_filters_phone_
     assert any(r["phone"] == "0911222333" and "đà nẵng" in (r["location"] or '').lower() for r in results)
 
 
+def test_fetch_managed_facebook_messages_follows_conversation_paging():
+    import unittest.mock as mock
+    from app import fetch_managed_facebook_messages
+
+    page_id = 'PAGE_PAGING'
+
+    def conversation(index):
+        customer_id = f'CUST_PAGE_{index}'
+        return {
+            'id': f'CONV_PAGE_{index}',
+            'participants': {'data': [
+                {'id': page_id, 'name': 'My Page'},
+                {'id': customer_id, 'name': f'Customer {index}'},
+            ]},
+            'messages': {'data': [{
+                'from': {'id': customer_id, 'name': f'Customer {index}'},
+                'message': f'Số 09{700000000 + index}',
+                'created_time': '2026-08-01T10:00:00+0000',
+            }]},
+        }
+
+    first_page = [conversation(index) for index in range(25)]
+    second_page = [conversation(25)]
+
+    def fake_fetch(endpoint, token, extra_params=None):
+        if endpoint == 'me/accounts':
+            return {'data': [{'id': page_id, 'name': 'My Page', 'access_token': 'tok'}]}
+        if endpoint == f'{page_id}/conversations':
+            return {'data': first_page, 'paging': {'next': 'paging-next-url'}}
+        if endpoint == 'paging-next-url':
+            return {'data': second_page, 'paging': {}}
+        return {}
+
+    with mock.patch('app.fetch_facebook_json', side_effect=fake_fetch), \
+         mock.patch.dict('os.environ', {'FACEBOOK_PAGE_ACCESS_TOKEN': 'tok'}, clear=False):
+        results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=100)
+
+    assert len(results) == 26
+    assert results[-1]['facebook_id'] == 'CUST_PAGE_25'
+
+
 def test_fetch_managed_facebook_messages_scans_all_managed_pages_by_default():
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
