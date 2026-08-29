@@ -61,8 +61,10 @@ chỉ hiển thị cho Admin; khi chuyển khách, Sales cũ mất quyền xem k
 
 `CRM_HOTLINE_NUMBERS` là danh sách số tổng đài/số cửa hàng, phân cách bằng dấu
 phẩy. Khi đồng bộ Facebook, CRM chỉ đọc số trong message có sender là khách và
-loại các số trong danh sách hotline. Nếu số hotline thay đổi, cập nhật biến môi
-trường rồi chạy lại **Đồng bộ dữ liệu Facebook** để xoá số cũ bị nhận nhầm.
+loại các số trong danh sách hotline. Mỗi lần ứng dụng khởi động, CRM cũng tự
+dọn các số hotline từng bị lưu nhầm trên hồ sơ khách. Nếu số hotline thay đổi,
+cập nhật biến môi trường rồi khởi động lại dịch vụ hoặc chạy lại **Đồng bộ dữ
+liệu Facebook**.
 
 Để quét lại toàn bộ dữ liệu lớn hơn giới hạn mặc định, đặt thêm
 `FACEBOOK_SYNC_CONVERSATION_LIMIT` (tối đa `100`) và

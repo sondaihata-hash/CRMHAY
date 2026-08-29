@@ -185,6 +185,29 @@ def test_build_customer_from_message_rejects_hotline_phone():
     assert build_customer_from_message(payload)['phone'] == ''
 
 
+def test_hotline_cleanup_removes_existing_formatted_company_number():
+    from app import Customer, clear_configured_hotlines_from_customers, db
+
+    with app.app_context():
+        customer = Customer(
+            name='Stale Hotline Customer', phone='+84 707 866 676', source='facebook',
+        )
+        db.session.add(customer)
+        db.session.commit()
+
+        assert clear_configured_hotlines_from_customers() == 1
+        assert customer.phone == ''
+
+        db.session.delete(customer)
+        db.session.commit()
+
+
+def test_build_customer_from_message_rejects_formatted_hotline_phone():
+    assert build_customer_from_message({
+        'name': 'Khách hàng', 'phone': '+84 707 866 676',
+    })['phone'] == ''
+
+
 def test_resolve_page_access_tokens_falls_back_to_page_lookup_without_page_id():
     pages = [{"id": "101", "name": "Page One"}, {"id": "202", "name": "Page Two"}]
 

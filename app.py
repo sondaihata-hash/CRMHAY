@@ -462,6 +462,34 @@ def configured_hotline_numbers():
     }
 
 
+def is_configured_hotline_number(phone):
+    """Return whether a stored or submitted phone value is one of our hotlines."""
+    if not phone:
+        return False
+    return any(number in configured_hotline_numbers()
+               for number in extract_phone_numbers(str(phone)))
+
+
+def sanitize_customer_phone(phone):
+    """Never persist a company hotline as a customer's phone number."""
+    return '' if is_configured_hotline_number(phone) else phone
+
+
+def clear_configured_hotlines_from_customers():
+    """Remove stale company hotline values saved before the phone filter existed."""
+    affected = 0
+    for customer in Customer.query.filter(
+        Customer.phone.isnot(None), Customer.phone != ''
+    ).all():
+        if is_configured_hotline_number(customer.phone):
+            customer.phone = ''
+            affected += 1
+    if affected:
+        db.session.commit()
+        logger.info('Cleared configured hotline from %d customer record(s)', affected)
+    return affected
+
+
 def extract_customer_phone_numbers(messages, page_id):
     customer_texts = [
         msg.get('message') or msg.get('story') or ''
@@ -522,9 +550,7 @@ def build_customer_from_message(payload):
     message = payload.get('message') or payload.get('content') or payload.get('text') or ''
     raw_name = payload.get('name') or payload.get('customer_name') or payload.get('sender_name') or 'Khách hàng Facebook'
     raw_page_name = payload.get('page_name') or payload.get('page') or payload.get('page_title') or ''
-    phone = payload.get('phone') or ''
-    if phone in configured_hotline_numbers():
-        phone = ''
+    phone = sanitize_customer_phone(payload.get('phone') or '')
     if not phone:
         numbers = extract_phone_numbers(message)
         phone = next((number for number in numbers if number not in configured_hotline_numbers()), '')
@@ -1069,6 +1095,7 @@ def init_db():
         ensure_customer_columns()
         ensure_order_columns()
         ensure_sales_group_columns()
+        clear_configured_hotlines_from_customers()
         admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
         admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
         admin_reset_password = os.environ.get('CRM_ADMIN_RESET_PASSWORD', '')
@@ -1200,7 +1227,7 @@ def add_customer():
         name = request.form.get('name')
         facebook_id = request.form.get('facebook_id')
         email = request.form.get('email')
-        phone = request.form.get('phone')
+        phone = sanitize_customer_phone(request.form.get('phone'))
         notes = request.form.get('notes')
         location = request.form.get('location')
         tags = request.form.get('tags')
@@ -1390,7 +1417,7 @@ def edit_customer(c_id):
         c.name = request.form.get('name')
         c.facebook_id = request.form.get('facebook_id')
         c.email = request.form.get('email')
-        c.phone = request.form.get('phone')
+        c.phone = sanitize_customer_phone(request.form.get('phone'))
         c.notes = request.form.get('notes')
         c.location = request.form.get('location')
         c.tags = request.form.get('tags')
