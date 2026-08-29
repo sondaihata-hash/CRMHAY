@@ -460,8 +460,8 @@ def test_import_dedup_by_conversation_id():
         db.session.commit()
 
 
-def test_fetch_managed_facebook_messages_uses_safe_default_limit():
-    """Default sync scans up to the bounded 100 conversations per Page."""
+def test_fetch_managed_facebook_messages_uses_high_default_limit():
+    """Default sync is sized for a real inbox, not only the first 100 chats."""
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
 
@@ -495,6 +495,12 @@ def test_fetch_managed_facebook_messages_uses_safe_default_limit():
         results = fetch_managed_facebook_messages()
 
     assert len(results) == 60
+
+
+def test_sync_default_limit_allows_thousands_of_conversations():
+    from app import get_facebook_sync_limits
+
+    assert get_facebook_sync_limits() == (None, 5000)
 
 
 def test_fetch_managed_facebook_messages_scans_multiple_pages_and_filters_phone_and_location():
@@ -579,7 +585,7 @@ def test_fetch_managed_facebook_messages_follows_conversation_paging():
     assert results[-1]['facebook_id'] == 'CUST_PAGE_25'
 
 
-def test_fetch_managed_facebook_messages_processes_one_conversation_per_request():
+def test_fetch_managed_facebook_messages_batches_conversations_per_request():
     import unittest.mock as mock
     from app import fetch_managed_facebook_messages
 
@@ -616,7 +622,7 @@ def test_fetch_managed_facebook_messages_processes_one_conversation_per_request(
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=2)
 
     assert [call[0] for call in calls] == [f'{page_id}/conversations', 'serial-next']
-    assert all(call[1]['limit'] == '1' for call in calls)
+    assert all(call[1]['limit'] == '25' for call in calls)
     assert [result['facebook_id'] for result in results] == ['CUST_SERIAL_1', 'CUST_SERIAL_2']
 
 
@@ -807,6 +813,7 @@ def test_sync_counts_failed_profile_requests_against_api_limit():
     from urllib.error import HTTPError
 
     page_id = "PAGE_PROFILE_FAILURES"
+    api_limit = 10
     conversations = [{
         "id": f"CONV_PROFILE_FAILURE_{index}",
         "participants": {"data": [
@@ -818,7 +825,7 @@ def test_sync_counts_failed_profile_requests_against_api_limit():
             "message": f"Số điện thoại 09876543{index:02d}",
             "created_time": "2026-08-01T10:00:00+0000",
         }]},
-    } for index in range(MAX_API_CALLS_PER_SYNC + 5)]
+    } for index in range(api_limit + 5)]
     profile_calls = 0
 
     def fake_fetch(endpoint, token, extra_params=None):
@@ -829,19 +836,20 @@ def test_sync_counts_failed_profile_requests_against_api_limit():
             return {"data": [conversations[0]], "paging": {"next": "profile-next-1"}}
         if endpoint.startswith("profile-next-"):
             index = int(endpoint.rsplit("-", 1)[1])
-            return {"data": [conversations[index]], "paging": {"next": f"profile-next-{index + 1}"} if index < MAX_API_CALLS_PER_SYNC + 4 else {}}
+            return {"data": [conversations[index]], "paging": {"next": f"profile-next-{index + 1}"} if index < api_limit + 4 else {}}
         profile_calls += 1
         raise HTTPError(endpoint, 403, "Forbidden", {}, None)
 
     with mock.patch("app.fetch_facebook_json", side_effect=fake_fetch), \
          mock.patch.dict("os.environ", {
-             "FACEBOOK_PAGE_ACCESS_TOKEN": "tok",
-             "FACEBOOK_FETCH_PROFILE": "true",
-         }, clear=False):
+            "FACEBOOK_PAGE_ACCESS_TOKEN": "tok",
+            "FACEBOOK_FETCH_PROFILE": "true",
+            "FACEBOOK_SYNC_API_CALL_LIMIT": str(api_limit),
+        }, clear=False):
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=500)
 
-    assert profile_calls + 1 <= MAX_API_CALLS_PER_SYNC
-    assert len(results) == MAX_API_CALLS_PER_SYNC // 2
+    assert profile_calls + 1 <= api_limit
+    assert len(results) == api_limit // 2
 
 
 def test_sync_ignores_malformed_customer_profile_response():

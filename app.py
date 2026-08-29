@@ -84,12 +84,16 @@ _sync_state = {
 }
 _sync_lock = threading.Lock()
 
-# Hard caps to prevent runaway API usage
-MAX_API_CALLS_PER_SYNC = 100
-MAX_CONVERSATION_PAGES = 100
+# Bounded high-water marks: enough for a full historical import while still
+# preventing a broken Facebook pagination cursor from running forever.
+MAX_API_CALLS_PER_SYNC = 10000
+MAX_CONVERSATION_PAGES = 1000
 MAX_PAGE_PAGINATION_ROUNDS = 20
 FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
+DEFAULT_SYNC_CONVERSATION_LIMIT = 5000
+MAX_SYNC_CONVERSATION_LIMIT = 10000
+CONVERSATIONS_PER_REQUEST = 25
 DEFAULT_HOTLINE_NUMBERS = frozenset({'0707866676'})
 
 
@@ -667,13 +671,26 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
         configured_page_limit = os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT')
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
-        configured_conversation_limit = int(os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT', '100'))
+        configured_conversation_limit = os.environ.get(
+            'FACEBOOK_SYNC_CONVERSATION_LIMIT',
+            str(DEFAULT_SYNC_CONVERSATION_LIMIT),
+        )
 
     page_limit = None
     if configured_page_limit:
         page_limit = max(1, min(int(configured_page_limit), 20))
-    conversation_limit = max(1, min(int(configured_conversation_limit), 100))
+    conversation_limit = max(
+        1, min(int(configured_conversation_limit), MAX_SYNC_CONVERSATION_LIMIT)
+    )
     return page_limit, conversation_limit
+
+
+def get_facebook_api_call_limit():
+    """Allow a deployment to reduce one sync's budget without capping it at 100."""
+    configured_limit = os.environ.get('FACEBOOK_SYNC_API_CALL_LIMIT')
+    if not configured_limit:
+        return MAX_API_CALLS_PER_SYNC
+    return max(1, min(int(configured_limit), MAX_API_CALLS_PER_SYNC))
 
 
 def should_fetch_facebook_profiles():
@@ -914,6 +931,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 
         facebook_messages = []
         api_call_count = 0
+        api_call_limit = get_facebook_api_call_limit()
         t_sync_start = time.time()
 
         pages_to_sync = page_data if page_limit is None else page_data[:page_limit]
@@ -935,11 +953,14 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 
             while pagination_round < MAX_CONVERSATION_PAGES:
                 pagination_round += 1
-                if api_call_count >= MAX_API_CALLS_PER_SYNC:
-                    logger.warning("Hit MAX_API_CALLS=%d, stopping sync", MAX_API_CALLS_PER_SYNC)
+                if api_call_count >= api_call_limit:
+                    logger.warning("Hit API call limit=%d, stopping sync", api_call_limit)
                     break
 
-                params = {'fields': 'participants{id,name},messages{from{id,name},message,created_time}', 'limit': '1'}
+                params = {
+                    'fields': 'participants{id,name},messages.limit(100){from{id,name},message,created_time}',
+                    'limit': str(CONVERSATIONS_PER_REQUEST),
+                }
                 payload = fetch_facebook_json(next_url or endpoint, page_token, params)
                 api_call_count += 1
                 conversations = payload.get('data', [])
@@ -949,7 +970,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                 if API_RATE_DELAY:
                     time.sleep(API_RATE_DELAY)
 
-                for conversation in conversations[:1]:
+                for conversation in conversations:
                     if scanned_for_page >= conversation_limit:
                         break
                     scanned_for_page += 1
@@ -957,7 +978,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     messages_payload = conversation.get('messages', {})
                     messages = list(messages_payload.get('data', []))
                     message_next_url = (messages_payload.get('paging') or {}).get('next')
-                    while message_next_url and api_call_count < MAX_API_CALLS_PER_SYNC:
+                    while message_next_url and api_call_count < api_call_limit:
                         message_payload = fetch_facebook_json(message_next_url, page_token)
                         api_call_count += 1
                         messages.extend(message_payload.get('data', []))
@@ -1012,7 +1033,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     locale = ''
                     profile_location = ''
                     if (customer_id and should_fetch_facebook_profiles()
-                            and api_call_count < MAX_API_CALLS_PER_SYNC):
+                            and api_call_count < api_call_limit):
                         api_call_count += 1
                         try:
                             profile = fetch_facebook_json(
@@ -1071,7 +1092,7 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
             logger.info("END sync page %s collected=%d in %.2fs api_calls=%d",
                         page_name, collected_for_page, time.time() - t_page_start, api_call_count)
 
-            if api_call_count >= MAX_API_CALLS_PER_SYNC:
+            if api_call_count >= api_call_limit:
                 break
 
         logger.info("END Facebook sync total=%d api_calls=%d time=%.2fs",

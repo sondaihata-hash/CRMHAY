@@ -88,7 +88,9 @@ def test_api_call_cap_stops_pagination():
         return {'first_name': 'Test'}
 
     with mock.patch('app.fetch_facebook_json', side_effect=fake_fetch), \
-         mock.patch.dict('os.environ', {'FACEBOOK_PAGE_ACCESS_TOKEN': 'tok'}), \
+         mock.patch.dict('os.environ', {
+             'FACEBOOK_PAGE_ACCESS_TOKEN': 'tok', 'FACEBOOK_SYNC_API_CALL_LIMIT': '10',
+         }), \
          mock.patch('app.API_RATE_DELAY', 0), \
          mock.patch('app.time') as mock_time:
         mock_time.time = time.time
@@ -96,7 +98,7 @@ def test_api_call_cap_stops_pagination():
         results = fetch_managed_facebook_messages(max_pages=1, max_conversations_per_page=999)
 
     # Should have stopped, not run forever
-    assert call_count <= MAX_API_CALLS_PER_SYNC + 5, f"API calls ({call_count}) exceeded cap"
+    assert call_count <= 15, f"API calls ({call_count}) exceeded cap"
 
 
 def test_facebook_api_timeout_is_set():
@@ -107,5 +109,5 @@ def test_facebook_api_timeout_is_set():
 
 def test_pagination_rounds_capped():
     """MAX_CONVERSATION_PAGES must prevent infinite pagination."""
-    assert MAX_CONVERSATION_PAGES <= 100, "Pagination cap too high"
+    assert MAX_CONVERSATION_PAGES <= 1000, "Pagination cap too high"
     assert MAX_CONVERSATION_PAGES >= 1, "Pagination cap too low"

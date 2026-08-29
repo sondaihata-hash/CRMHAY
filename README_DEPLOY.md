@@ -66,13 +66,13 @@ dọn các số hotline từng bị lưu nhầm trên hồ sơ khách. Nếu s�
 cập nhật biến môi trường rồi khởi động lại dịch vụ hoặc chạy lại **Đồng bộ dữ
 liệu Facebook**.
 
-Để quét lại toàn bộ dữ liệu lớn hơn giới hạn mặc định, đặt thêm
-`FACEBOOK_SYNC_CONVERSATION_LIMIT` (tối đa `100`) và
-`FACEBOOK_SYNC_PAGE_LIMIT` (tối đa `20`) trong Environment. CRM sẽ tự đi qua
-các trang phân trang của Facebook trong mỗi lần đồng bộ. Bộ quét xử lý tuần tự:
-mỗi request chỉ lấy một conversation, xử lý xong mới chuyển sang conversation
-tiếp theo và Page tiếp theo; không chạy song song. Vì vậy thời gian chờ có thể
-dài khi dữ liệu lớn nhưng giảm nguy cơ bỏ sót hoặc quá tải API.
+Mặc định mỗi Page sẽ quét tối đa 5.000 cuộc hội thoại (tối đa cấu hình 10.000),
+và CRM tự đi qua tất cả các trang phân trang của Facebook. Có thể đặt
+`FACEBOOK_SYNC_CONVERSATION_LIMIT` và `FACEBOOK_SYNC_PAGE_LIMIT` (tối đa 20)
+trong Environment. CRM lấy 25 cuộc hội thoại mỗi lượt gọi API để quét nhanh dữ
+liệu lớn; các tin nhắn trong từng hội thoại vẫn được phân trang đầy đủ. Nếu cần
+giới hạn một lần chạy vì quota Facebook, đặt `FACEBOOK_SYNC_API_CALL_LIMIT`
+(từ 1 đến 10.000; mặc định 10.000).
 
 ### 1.5 Đặt lại mật khẩu Admin trên Render Free
 
