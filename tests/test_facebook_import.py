@@ -302,7 +302,7 @@ def test_customers_sort_route_supports_date_newest_and_page():
         date_resp = client.get('/customers?sort=date')
         assert date_resp.status_code == 200
         date_html = date_resp.get_data(as_text=True)
-        assert date_html.index('Sort Gamma') < date_html.index('Sort Alpha') < date_html.index('Sort Beta')
+        assert date_html.index('Sort Beta') < date_html.index('Sort Alpha') < date_html.index('Sort Gamma')
 
         newest_resp = client.get('/customers?sort=newest')
         assert newest_resp.status_code == 200
