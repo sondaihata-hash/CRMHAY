@@ -1327,6 +1327,9 @@ def is_valid_zalo_group_url(value):
 
 @app.route('/')
 def index():
+    if not current_user():
+        return render_template('landing.html')
+
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
     customer_query = visible_customer_query()
