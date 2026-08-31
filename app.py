@@ -223,6 +223,21 @@ class SalesHandoff(db.Model):
     group = db.relationship('SalesGroup', backref=db.backref('handoffs', lazy=True))
 
 
+class Reminder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    note = db.Column(db.Text, nullable=True)
+    due_at = db.Column(db.DateTime, nullable=True)
+    priority = db.Column(db.String(20), nullable=False, default='medium')
+    status = db.Column(db.String(20), nullable=False, default='pending', index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    customer = db.relationship('Customer', backref=db.backref('reminders', lazy=True, cascade='all, delete-orphan'))
+    assigned_user = db.relationship('User', backref=db.backref('reminders', lazy=True))
+
+
 def write_customer_snapshot():
     """Atomically save imported customer data to a JSON recovery file."""
     customers = Customer.query.order_by(Customer.id).all()
@@ -1225,11 +1240,18 @@ def index():
     ).group_by(Customer.source).order_by(func.count(Customer.id).desc()).all()
     recent_customers = customer_query.order_by(Customer.created_at.desc()).limit(7).all()
     recent_orders = order_query.order_by(Order.created_at.desc()).limit(7).all()
+    reminder_count = 0
+    pending_reminders = []
+    if 'reminder' in inspect(db.engine).get_table_names():
+        reminder_query = visible_reminder_query().filter(Reminder.status == 'pending')
+        reminder_count = reminder_query.count()
+        pending_reminders = reminder_query.order_by(Reminder.due_at.is_(None), Reminder.due_at.asc(), Reminder.created_at.desc()).limit(5).all()
     return render_template(
         'dashboard.html', customer_count=customer_count, phone_count=phone_count,
         order_count=order_count, revenue=revenue, month_revenue=month_revenue,
         status_summary=status_summary, source_summary=source_summary,
         recent_customers=recent_customers, recent_orders=recent_orders,
+        reminder_count=reminder_count, pending_reminders=pending_reminders,
     )
 
 
@@ -1240,6 +1262,26 @@ def customer_sort_order(sort_key):
     if sort_key == 'page':
         return [Customer.page_name.asc(), Customer.name.asc(), Customer.id.desc()]
     return [Customer.created_at.desc(), Customer.id.desc()]
+
+
+@app.route('/reminders')
+def reminders():
+    query = visible_reminder_query().order_by(Reminder.due_at.is_(None), Reminder.due_at.asc(), Reminder.created_at.desc())
+    reminder_stats = {
+        'pending': query.filter(Reminder.status == 'pending').count(),
+        'done': query.filter(Reminder.status == 'done').count(),
+    }
+    return render_template('reminders.html', reminders=query.all(), reminder_stats=reminder_stats)
+
+
+@app.route('/reminders/<int:reminder_id>/complete', methods=['POST'])
+def complete_reminder(reminder_id):
+    reminder = visible_reminder_query().filter(Reminder.id == reminder_id).first_or_404()
+    reminder.status = 'done' if reminder.status != 'done' else 'pending'
+    reminder.completed_at = datetime.utcnow() if reminder.status == 'done' else None
+    db.session.commit()
+    flash('Đã cập nhật trạng thái nhắc việc.', 'success')
+    return redirect(request.referrer or url_for('reminders'))
 
 
 @app.route('/customers')
@@ -1338,6 +1380,37 @@ def ensure_order_columns():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
     db.session.commit()
+
+
+def ensure_reminder_columns():
+    tables = {table_name for table_name in inspect(db.engine).get_table_names()}
+    if 'reminder' not in tables:
+        db.session.execute(text('CREATE TABLE reminder (id INTEGER NOT NULL, customer_id INTEGER NOT NULL, assigned_user_id INTEGER, title VARCHAR(200) NOT NULL, note TEXT, due_at DATETIME, priority VARCHAR(20) NOT NULL DEFAULT "medium", status VARCHAR(20) NOT NULL DEFAULT "pending", created_at DATETIME NOT NULL, completed_at DATETIME, PRIMARY KEY (id), FOREIGN KEY(customer_id) REFERENCES customer (id), FOREIGN KEY(assigned_user_id) REFERENCES "user" (id))'))
+        db.session.commit()
+    columns = {column['name'] for column in inspect(db.engine).get_columns('reminder')}
+    required_columns = {
+        'customer_id': 'INTEGER',
+        'assigned_user_id': 'INTEGER',
+        'title': 'VARCHAR(200)',
+        'note': 'TEXT',
+        'due_at': 'DATETIME',
+        'priority': 'VARCHAR(20)',
+        'status': 'VARCHAR(20)',
+        'created_at': 'DATETIME',
+        'completed_at': 'DATETIME',
+    }
+    for column_name, column_type in required_columns.items():
+        if column_name not in columns:
+            db.session.execute(text(f'ALTER TABLE reminder ADD COLUMN {column_name} {column_type}'))
+    db.session.commit()
+
+
+def visible_reminder_query():
+    query = Reminder.query.join(Customer).filter(Customer.id.in_(visible_customer_query().with_entities(Customer.id)))
+    user = current_user()
+    if user and user.role != 'admin':
+        query = query.filter(db.or_(Reminder.assigned_user_id == user.id, Reminder.assigned_user_id.is_(None)))
+    return query
 
 
 @app.route('/sales-groups')
@@ -1486,6 +1559,35 @@ def edit_customer(c_id):
         flash('Đã cập nhật khách hàng', 'success')
         return redirect(url_for('customer_detail', c_id=c.id))
     return render_template('customer_form.html', action='edit', c=c)
+
+
+@app.route('/customers/<int:c_id>/reminders/add', methods=['POST'])
+def add_customer_reminder(c_id):
+    customer = get_visible_customer(c_id)
+    title = (request.form.get('title') or '').strip()
+    note = (request.form.get('note') or '').strip()
+    due_at_raw = (request.form.get('due_at') or '').strip()
+    priority = (request.form.get('priority') or 'medium').strip().lower()
+    if not title:
+        flash('Tên nhắc việc là bắt buộc.', 'danger')
+        return redirect(url_for('customer_detail', c_id=customer.id))
+    try:
+        due_at = datetime.fromisoformat(due_at_raw) if due_at_raw else datetime.utcnow() + timedelta(days=1)
+    except ValueError:
+        due_at = datetime.utcnow() + timedelta(days=1)
+    reminder = Reminder(
+        customer_id=customer.id,
+        assigned_user_id=current_user().id if current_user() else None,
+        title=title,
+        note=note or None,
+        due_at=due_at,
+        priority=priority if priority in {'low', 'medium', 'high'} else 'medium',
+        status='pending',
+    )
+    db.session.add(reminder)
+    db.session.commit()
+    flash('Đã thêm nhắc việc cho khách hàng.', 'success')
+    return redirect(url_for('customer_detail', c_id=customer.id))
 
 
 @app.route('/customers/<int:c_id>/delete', methods=['POST'])
