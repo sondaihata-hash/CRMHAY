@@ -29,23 +29,21 @@ def ensure_user_identity():
 def commit_and_push():
     ensure_user_identity()
 
+    status_result = run(["git", "status", "--porcelain"])
+    if status_result.stdout.strip():
+        add_result = run(["git", "add", "."])
+        if add_result.returncode != 0:
+            print("git add failed:", add_result.stderr)
+            return
+
+        commit_result = run(["git", "commit", "-m", COMMIT_MESSAGE])
+        if commit_result.returncode != 0 and "nothing to commit" not in commit_result.stderr.lower():
+            print("git commit failed:", commit_result.stderr)
+            return
+
     pull_result = run(["git", "pull", "--rebase", "origin", "HEAD"])
     if pull_result.returncode != 0 and "No remote repository specified" not in pull_result.stderr:
         print("git pull --rebase failed:", pull_result.stderr)
-
-    add_result = run(["git", "add", "."])
-    if add_result.returncode != 0:
-        print("git add failed:", add_result.stderr)
-        return
-
-    status_result = run(["git", "status", "--porcelain"])
-    if not status_result.stdout.strip():
-        return
-
-    commit_result = run(["git", "commit", "-m", COMMIT_MESSAGE])
-    if commit_result.returncode != 0:
-        print("git commit failed:", commit_result.stderr)
-        return
 
     push_result = run(["git", "push", "origin", "HEAD"])
     if push_result.returncode != 0:
