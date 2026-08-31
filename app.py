@@ -466,7 +466,7 @@ def validate_csrf_token():
 
 @app.before_request
 def require_authentication():
-    if request.endpoint in {'login', 'static'}:
+    if request.endpoint in {'login', 'index', 'static'}:
         return None
     user = current_user()
     if not user or not user.is_active:
