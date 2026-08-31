@@ -28,6 +28,11 @@ def ensure_user_identity():
 
 def commit_and_push():
     ensure_user_identity()
+
+    pull_result = run(["git", "pull", "--rebase", "origin", "HEAD"])
+    if pull_result.returncode != 0 and "No remote repository specified" not in pull_result.stderr:
+        print("git pull --rebase failed:", pull_result.stderr)
+
     add_result = run(["git", "add", "."])
     if add_result.returncode != 0:
         print("git add failed:", add_result.stderr)
