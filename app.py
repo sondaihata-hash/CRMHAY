@@ -1230,7 +1230,7 @@ def index():
 def customer_sort_order(sort_key):
     sort_key = (sort_key or 'newest').lower()
     if sort_key == 'date':
-        return [Customer.last_message_date.asc(), Customer.created_at.desc(), Customer.id.desc()]
+        return [Customer.last_message_date.desc(), Customer.created_at.desc(), Customer.id.desc()]
     if sort_key == 'page':
         return [Customer.page_name.asc(), Customer.name.asc(), Customer.id.desc()]
     return [Customer.created_at.desc(), Customer.id.desc()]
