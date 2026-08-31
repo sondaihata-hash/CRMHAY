@@ -5,7 +5,7 @@ import secrets
 import werkzeug
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import text, inspect, func
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -87,7 +87,7 @@ ADMIN_ENDPOINTS = {
     'add_sales_group', 'delete_sales_group', 'update_sales_group_link',
     'sync_facebook_customers', 'sync_facebook_status', 'facebook_export',
     'delete_customer', 'users', 'add_user', 'toggle_user', 'assign_customer',
-    'facebook_import_legacy',
+    'facebook_import_legacy', 'reminders', 'complete_reminder',
 }
 
 # Background sync state — single-worker safe
@@ -1155,6 +1155,7 @@ def init_db():
         ensure_user_columns()
         ensure_customer_columns()
         ensure_order_columns()
+        ensure_reminder_columns()
         ensure_sales_group_columns()
         clear_configured_hotlines_from_customers()
         admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
