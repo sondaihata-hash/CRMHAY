@@ -100,6 +100,15 @@ def test_extract_customer_phone_numbers_always_ignores_company_hotline():
         assert extract_customer_phone_numbers(messages, 'PAGE') == []
 
 
+def test_default_hotline_numbers_include_new_company_numbers():
+    from app import DEFAULT_HOTLINE_NUMBERS
+
+    assert '0794753133' in DEFAULT_HOTLINE_NUMBERS
+    assert '0918374251' in DEFAULT_HOTLINE_NUMBERS
+    assert '0918374257' in DEFAULT_HOTLINE_NUMBERS
+    assert '0978587075' in DEFAULT_HOTLINE_NUMBERS
+
+
 def test_existing_facebook_phone_is_cleared_when_rescan_has_no_customer_phone():
     from app import Customer, db, import_facebook_messages
 
