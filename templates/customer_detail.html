@@ -131,6 +131,67 @@
   </div>
 
   <div class="panel p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+      <div>
+        <div class="kpi-label">Nhắc việc</div>
+        <h2 class="section-title mb-0">Theo dõi follow-up</h2>
+      </div>
+      <a class="btn btn-sm secondary-btn" href="/reminders">Xem tất cả nhắc việc</a>
+    </div>
+
+    <form action="{{ url_for('add_customer_reminder', c_id=c.id) }}" method="post" class="row g-3 align-items-end">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-5">
+        <label class="form-label fw-semibold" for="reminder-title">Tiêu đề</label>
+        <input id="reminder-title" class="form-control" type="text" name="title" placeholder="Ví dụ: Gọi lại khách nếu chưa phản hồi" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold" for="reminder-due_at">Hạn hoàn thành</label>
+        <input id="reminder-due_at" class="form-control" type="datetime-local" name="due_at">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold" for="reminder-priority">Mức độ</label>
+        <select id="reminder-priority" class="form-select" name="priority">
+          <option value="low">Thấp</option>
+          <option value="medium" selected>Vừa</option>
+          <option value="high">Cao</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn primary-btn" type="submit">Thêm nhắc việc</button>
+      </div>
+      <div class="col-12">
+        <label class="form-label fw-semibold" for="reminder-note">Ghi chú</label>
+        <textarea id="reminder-note" class="form-control" name="note" rows="2" placeholder="Nội dung cần lưu ý khi follow-up..."></textarea>
+      </div>
+    </form>
+
+    {% set customer_reminders = c.reminders|selectattr('status', 'equalto', 'pending')|list %}
+    {% if customer_reminders %}
+      <div class="mt-4">
+        {% for reminder in customer_reminders %}
+          <div class="d-flex justify-content-between align-items-start gap-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div>
+              <strong>{{ reminder.title }}</strong>
+              <div class="small text-secondary">
+                {% if reminder.due_at %}{{ reminder.due_at.strftime('%d/%m/%Y %H:%M') }}{% else %}Không có thời hạn{% endif %}
+                · {{ reminder.priority|title }}
+              </div>
+              {% if reminder.note %}<div class="small text-secondary mt-1">{{ reminder.note }}</div>{% endif %}
+            </div>
+            <form method="post" action="{{ url_for('complete_reminder', reminder_id=reminder.id) }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm success-btn" type="submit">Hoàn tất</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-secondary mt-3 mb-0">Chưa có nhắc việc nào cho khách này.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel p-4 mt-4">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
       <div>
         <div class="kpi-label">Chuyển khách cho Sales qua Zalo</div>

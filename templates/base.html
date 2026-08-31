@@ -383,6 +383,7 @@
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <li class="nav-item"><a class="nav-link {% if request.path == '/' %}active{% endif %}" {% if request.path == '/' %}aria-current="page"{% endif %} href="/">Tổng quan</a></li>
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/customers') %}active{% endif %}" {% if request.path.startswith('/customers') %}aria-current="page"{% endif %} href="/customers">Khách hàng</a></li>
+            <li class="nav-item"><a class="nav-link {% if request.path.startswith('/reminders') %}active{% endif %}" {% if request.path.startswith('/reminders') %}aria-current="page"{% endif %} href="/reminders">Nhắc việc</a></li>
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/orders') %}active{% endif %}" {% if request.path.startswith('/orders') %}aria-current="page"{% endif %} href="/orders">Đơn hàng</a></li>
             {% if user and user.role == 'admin' %}
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/sales-groups') %}active{% endif %}" {% if request.path.startswith('/sales-groups') %}aria-current="page"{% endif %} href="/sales-groups">Nhóm Sales</a></li>
