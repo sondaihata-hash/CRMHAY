@@ -1,4 +1,6 @@
 from functools import wraps
+import importlib.util
+import pkgutil
 import secrets
 import werkzeug
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
@@ -6,6 +8,14 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy import text, inspect, func
 from werkzeug.security import check_password_hash, generate_password_hash
+
+if not hasattr(pkgutil, 'get_loader'):
+    def _compat_get_loader(module_name):
+        spec = importlib.util.find_spec(module_name)
+        if spec is None:
+            return None
+        return spec.loader
+    pkgutil.get_loader = _compat_get_loader
 
 if not hasattr(werkzeug, '__version__'):
     werkzeug.__version__ = '3.0.0'
