@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 import tempfile
 import unittest.mock as mock
@@ -267,6 +268,45 @@ def test_fetch_facebook_json_keeps_pagination_query_string_valid():
     assert captured['url'].count('?') == 1
     assert 'after=abc' in captured['url']
     assert 'access_token=token_123' in captured['url']
+
+
+def test_customers_sort_route_supports_date_newest_and_page():
+    from app import db, Customer
+
+    with app.app_context():
+        names = ["Sort Alpha", "Sort Beta", "Sort Gamma"]
+        Customer.query.filter(Customer.name.in_(names)).delete()
+        db.session.commit()
+
+        now = datetime.utcnow()
+        customers = [
+            Customer(name="Sort Gamma", source="facebook", page_name="Page B", last_message_date=now - timedelta(days=3), created_at=now - timedelta(days=5)),
+            Customer(name="Sort Beta", source="facebook", page_name="Page A", last_message_date=now - timedelta(days=1), created_at=now - timedelta(days=2)),
+            Customer(name="Sort Alpha", source="facebook", page_name="Page C", last_message_date=now - timedelta(days=2), created_at=now - timedelta(days=4)),
+        ]
+        for customer in customers:
+            db.session.add(customer)
+        db.session.commit()
+
+        client = app.test_client()
+
+        date_resp = client.get('/customers?sort=date')
+        assert date_resp.status_code == 200
+        date_html = date_resp.get_data(as_text=True)
+        assert date_html.index('Sort Gamma') < date_html.index('Sort Alpha') < date_html.index('Sort Beta')
+
+        newest_resp = client.get('/customers?sort=newest')
+        assert newest_resp.status_code == 200
+        newest_html = newest_resp.get_data(as_text=True)
+        assert newest_html.index('Sort Beta') < newest_html.index('Sort Alpha') < newest_html.index('Sort Gamma')
+
+        page_resp = client.get('/customers?sort=page')
+        assert page_resp.status_code == 200
+        page_html = page_resp.get_data(as_text=True)
+        assert page_html.index('Sort Beta') < page_html.index('Sort Gamma') < page_html.index('Sort Alpha')
+
+        Customer.query.filter(Customer.name.in_(names)).delete()
+        db.session.commit()
 
 
 def test_resolve_facebook_pages_accepts_page_access_token_without_me_accounts():

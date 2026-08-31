@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from functools import wraps
 import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
@@ -5,6 +6,16 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy import text, inspect, func
 from werkzeug.security import check_password_hash, generate_password_hash
+=======
+import werkzeug
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+from sqlalchemy import text, inspect, func
+
+if not hasattr(werkzeug, '__version__'):
+    werkzeug.__version__ = '3.0.0'
+>>>>>>> 3291c9b (chore: auto-commit on code change)
 try:
     from celery import Celery
 except ImportError:  # Allows local development before optional worker deps install.
@@ -1208,12 +1219,29 @@ def index():
     )
 
 
+def customer_sort_order(sort_key):
+    sort_key = (sort_key or 'newest').lower()
+    if sort_key == 'date':
+        return [Customer.last_message_date.asc(), Customer.created_at.desc(), Customer.id.desc()]
+    if sort_key == 'page':
+        return [Customer.page_name.asc(), Customer.name.asc(), Customer.id.desc()]
+    return [Customer.created_at.desc(), Customer.id.desc()]
+
+
 @app.route('/customers')
 def customers():
     q = request.args.get('q', '')
+    sort = request.args.get('sort', 'newest')
+    if sort not in {'date', 'newest', 'page'}:
+        sort = 'newest'
     sync_job_id = request.args.get('sync_job', '')
+    query = Customer.query
     if q:
+<<<<<<< HEAD
         items = visible_customer_query().filter(
+=======
+        query = query.filter(
+>>>>>>> 3291c9b (chore: auto-commit on code change)
             db.or_(
                 Customer.name.contains(q),
                 Customer.phone.contains(q),
@@ -1221,10 +1249,16 @@ def customers():
                 Customer.email.contains(q),
                 Customer.tags.contains(q),
             )
+<<<<<<< HEAD
         ).all()
     else:
         items = visible_customer_query().order_by(Customer.created_at.desc()).all()
     customer_stats = visible_customer_query().with_entities(
+=======
+        )
+    items = query.order_by(*customer_sort_order(sort)).all()
+    customer_stats = db.session.query(
+>>>>>>> 3291c9b (chore: auto-commit on code change)
         Customer.source,
         Customer.page_name,
         func.count(Customer.id).label('total_customers'),
@@ -1237,8 +1271,12 @@ def customers():
     ).all()
     return render_template(
         'customers.html', customers=items, customer_stats=customer_stats,
+<<<<<<< HEAD
         q=q, sync_job_id=sync_job_id,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
+=======
+        q=q, sync_job_id=sync_job_id, sort=sort,
+>>>>>>> 3291c9b (chore: auto-commit on code change)
     )
 
 
@@ -1606,7 +1644,7 @@ def sync_facebook_status():
             'finished_at': job.finished_at.isoformat() if job.finished_at else None}
 
 
-@app.route('/facebook/import')
+@app.route('/facebook/import', methods=['GET', 'POST'])
 def facebook_import_legacy():
     flash('Chức năng đồng bộ Facebook đã được chuyển sang tab Khách hàng.', 'info')
     return redirect(url_for('customers'))
