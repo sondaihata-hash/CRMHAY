@@ -297,7 +297,7 @@ def test_customers_sort_route_supports_date_newest_and_page():
             db.session.add(customer)
         db.session.commit()
 
-        client = app.test_client()
+        client = login_admin(app.test_client())
 
         date_resp = client.get('/customers?sort=date')
         assert date_resp.status_code == 200
