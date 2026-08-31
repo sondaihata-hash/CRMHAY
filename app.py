@@ -11,7 +11,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 if not hasattr(pkgutil, 'get_loader'):
     def _compat_get_loader(module_name):
-        spec = importlib.util.find_spec(module_name)
+        if module_name == '__main__':
+            return None
+        try:
+            spec = importlib.util.find_spec(module_name)
+        except (ImportError, ValueError, AttributeError):
+            return None
         if spec is None:
             return None
         return spec.loader
