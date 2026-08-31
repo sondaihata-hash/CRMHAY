@@ -223,6 +223,17 @@ class SalesHandoff(db.Model):
     group = db.relationship('SalesGroup', backref=db.backref('handoffs', lazy=True))
 
 
+class MessageLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    sender_type = db.Column(db.String(30), nullable=False, default='customer')
+    channel = db.Column(db.String(30), nullable=False, default='zalo')
+    message = db.Column(db.Text, nullable=False)
+    external_message_id = db.Column(db.String(200), nullable=True)
+    sent_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    customer = db.relationship('Customer', backref=db.backref('message_logs', lazy=True, cascade='all, delete-orphan'))
+
+
 class Reminder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
@@ -1200,6 +1211,100 @@ def build_zalo_handoff_message(customer):
     ])
 
 
+def normalize_zalo_sender_id(value):
+    if value is None:
+        return ''
+    if isinstance(value, dict):
+        value = value.get('id') or value.get('user_id') or value.get('phone') or value.get('sender_id') or ''
+    return str(value).strip()
+
+
+def sync_zalo_customer_message(payload):
+    """Map an incoming Zalo/Facebook message into the CRM customer and return that customer."""
+    if not isinstance(payload, dict):
+        return None
+    text = payload.get('message') or payload.get('text') or payload.get('content') or payload.get('msg') or ''
+    sender_id = normalize_zalo_sender_id(payload.get('sender_id') or payload.get('user_id') or payload.get('from_user_id') or payload.get('from'))
+    phone = sanitize_customer_phone(payload.get('phone') or payload.get('customer_phone') or payload.get('user_phone') or '')
+    name = (payload.get('name') or payload.get('customer_name') or payload.get('sender_name') or '').strip() or 'Khách hàng Zalo'
+    message_time = payload.get('sent_at') or payload.get('created_at') or payload.get('timestamp')
+    customer = None
+
+    if phone:
+        customer = Customer.query.filter(Customer.phone == phone).first()
+    if customer is None and sender_id:
+        customer = Customer.query.filter(db.or_(Customer.facebook_id == sender_id, Customer.conversation_id == sender_id)).first()
+    if customer is None and name:
+        customer = Customer.query.filter(Customer.name == name, Customer.source.in_(['facebook', 'zalo', 'manual'])).first()
+    if customer is None:
+        customer = Customer(
+            name=name,
+            phone=phone or None,
+            facebook_id=sender_id or None,
+            source='zalo',
+            page_name=payload.get('page_name') or 'Zalo',
+            message_count=1,
+        )
+        db.session.add(customer)
+        db.session.flush()
+
+    customer.name = customer.name or name
+    if phone:
+        customer.phone = phone
+    if sender_id and not customer.facebook_id:
+        customer.facebook_id = sender_id
+    customer.source = 'zalo'
+    customer.page_name = customer.page_name or payload.get('page_name') or 'Zalo'
+    customer.message_count = (customer.message_count or 0) + 1
+    customer.message_excerpt = (text or customer.message_excerpt or '')[:500]
+    if message_time:
+        try:
+            if isinstance(message_time, str) and message_time.endswith('Z'):
+                message_time = message_time[:-1] + '+00:00'
+            customer.last_message_date = datetime.fromisoformat(message_time)
+        except ValueError:
+            pass
+    if not customer.last_message_date:
+        customer.last_message_date = datetime.utcnow()
+
+    db.session.add(MessageLog(
+        customer_id=customer.id,
+        sender_type='customer',
+        channel='zalo',
+        message=text or 'Không có nội dung',
+        external_message_id=str(payload.get('message_id') or payload.get('id') or ''),
+        sent_at=datetime.utcnow(),
+    ))
+    db.session.commit()
+    return customer
+
+
+def send_zalo_message(customer, text):
+    """Send a customer message over Zalo when an OA token is configured. Without token, keep it as a safe local mock."""
+    token = os.environ.get('ZALO_OA_ACCESS_TOKEN') or os.environ.get('ZALO_ACCESS_TOKEN')
+    if not text or not customer:
+        return None
+    if not token:
+        logger.info('Zalo send mocked for customer %s: %s', customer.id, text)
+        return f'mock-zalo-{uuid.uuid4().hex[:10]}'
+
+    endpoint = 'https://openapi.zalo.me/v3.0/oa/message/send'
+    payload = {
+        'recipient': {'user_id': customer.facebook_id or customer.phone or str(customer.id)},
+        'message': {'text': text},
+    }
+    data = json.dumps(payload).encode('utf-8')
+    request = Request(endpoint, data=data, headers={'Content-Type': 'application/json', 'access_token': token})
+    try:
+        with urlopen(request, timeout=15) as response:
+            body = response.read().decode('utf-8')
+        logger.info('Zalo send ok: %s', body)
+        return json.loads(body).get('data', {}).get('message_id') or body
+    except Exception as exc:
+        logger.warning('Zalo send failed: %s', exc)
+        return f'failed-zalo-{uuid.uuid4().hex[:10]}'
+
+
 def is_valid_zalo_group_url(value):
     if not value:
         return True
@@ -1589,6 +1694,41 @@ def add_customer_reminder(c_id):
     db.session.commit()
     flash('Đã thêm nhắc việc cho khách hàng.', 'success')
     return redirect(url_for('customer_detail', c_id=customer.id))
+
+
+@app.route('/customers/<int:c_id>/send-zalo', methods=['POST'])
+@login_required
+def send_customer_zalo(c_id):
+    customer = get_visible_customer(c_id)
+    message = (request.form.get('zalo_message') or '').strip()
+    if not message:
+        flash('Nội dung tin nhắn không được để trống.', 'danger')
+        return redirect(url_for('customer_detail', c_id=customer.id))
+    external_message_id = send_zalo_message(customer, message)
+    db.session.add(MessageLog(
+        customer_id=customer.id,
+        sender_type='sales',
+        channel='zalo',
+        message=message,
+        external_message_id=external_message_id,
+        sent_at=datetime.utcnow(),
+    ))
+    customer.last_message_date = datetime.utcnow()
+    customer.message_excerpt = message[:500]
+    db.session.commit()
+    flash('Đã gửi tin nhắn qua Zalo từ CRM.', 'success')
+    return redirect(url_for('customer_detail', c_id=customer.id))
+
+
+@app.route('/api/zalo/webhook', methods=['GET', 'POST'])
+def zalo_webhook():
+    if request.method == 'GET':
+        return {'ok': True, 'status': 'ready'}
+    payload = request.get_json(silent=True) or {}
+    if not payload:
+        payload = request.form.to_dict(flat=True)
+    customer = sync_zalo_customer_message(payload)
+    return {'ok': True, 'customer_id': customer.id if customer else None}
 
 
 @app.route('/customers/<int:c_id>/delete', methods=['POST'])
