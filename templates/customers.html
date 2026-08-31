@@ -102,18 +102,18 @@
       </div>
     </div>
     <div id="customerList" class="table-responsive customer-list-scroll">
-      <table class="table mb-0 align-middle">
+      <table class="table mb-0 align-middle customer-table-fixed" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th>#</th>
-            <th style="min-width: 200px;">Tên Khách</th>
-            <th>Nơi ở</th>
-            <th>Page</th>
-            <th>Số điện thoại</th>
-            <th>Tin nhắn</th>
-            <th>Ngày nhắn</th>
-            <th>Nguồn</th>
-            <th>Thao tác</th>
+            <th style="width: 56px;">#</th>
+            <th style="width: 24%; min-width: 180px;">Tên Khách</th>
+            <th style="width: 12%; min-width: 110px;">Nơi ở</th>
+            <th style="width: 14%; min-width: 110px;">Page</th>
+            <th style="width: 12%; min-width: 110px;">Số điện thoại</th>
+            <th style="width: 7%; min-width: 70px;">Tin nhắn</th>
+            <th style="width: 12%; min-width: 110px;">Ngày nhắn</th>
+            <th style="width: 9%; min-width: 80px;">Nguồn</th>
+            <th style="width: 18%; min-width: 180px;">Thao tác</th>
           </tr>
         </thead>
         <tbody>
@@ -151,9 +151,9 @@
             </td>
             <td>
               {% if c.location %}
-                <small class="text-muted">{{ c.location }}</small>
+                <small class="text-muted customer-location-cell">{{ c.location }}</small>
               {% else %}
-                <small class="text-muted">—</small>
+                <small class="text-muted customer-location-cell">—</small>
               {% endif %}
             </td>
             <td>
@@ -210,6 +210,33 @@
       </table>
     </div>
   </div>
+
+  <style>
+    .customer-table-fixed th,
+    .customer-table-fixed td {
+      vertical-align: middle;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .customer-location-cell {
+      display: block;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .customer-table-fixed .action-btn {
+      white-space: nowrap;
+    }
+
+    @media (max-width: 1200px) {
+      .customer-table-fixed {
+        min-width: 1100px;
+      }
+    }
+  </style>
 
   <div class="zalo-modal" id="zaloHandoffModal" role="dialog" aria-labelledby="zaloHandoffTitle" aria-modal="true" hidden>
     <div class="zalo-modal-backdrop" data-close-zalo-modal></div>
