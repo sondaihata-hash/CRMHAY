@@ -333,6 +333,30 @@ def test_resolve_facebook_pages_accepts_page_access_token_without_me_accounts():
     assert calls[0][0] == "me"
 
 
+def test_sync_zalo_customer_message_handles_local_personal_chat():
+    from app import Customer, MessageLog, db, sync_zalo_customer_message
+
+    with app.app_context():
+        customer = Customer(name='Zalo Personal Test', phone='0909000001', source='manual')
+        db.session.add(customer)
+        db.session.commit()
+
+        payload = {
+            'sender_id': 'zalo-user-777',
+            'customer_phone': '0909000001',
+            'message': 'Mình muốn hỏi thêm về sản phẩm.',
+            'sent_at': '2026-08-31T09:00:00Z',
+        }
+
+        synced = sync_zalo_customer_message(payload)
+        assert synced is not None
+        assert synced.id == customer.id
+        assert MessageLog.query.filter_by(customer_id=customer.id, sender_type='customer').count() >= 1
+
+        db.session.delete(customer)
+        db.session.commit()
+
+
 def test_fetch_managed_excludes_page_id_from_customer():
     """When latest message sender is the page, customer should come from participants."""
     import unittest.mock as mock
