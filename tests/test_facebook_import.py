@@ -43,6 +43,17 @@ def test_dashboard_route_exposes_crm_summary():
         db.session.commit()
 
 
+def test_homepage_shows_marketing_and_docs_for_unauthed_users():
+    response = app.test_client().get('/')
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'CRM HAY' in body
+    assert 'Hướng dẫn sử dụng' in body
+    assert 'Sales' in body
+    assert 'Admin' in body
+
+
 def test_customer_snapshot_is_written_as_json():
     snapshot_path = Path(tempfile.gettempdir()) / 'crmhay-customer-snapshot-test.json'
     with app.app_context(), mock.patch('app.CUSTOMER_SNAPSHOT_PATH', str(snapshot_path)):
