@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="section-header">
+    <div>
+      <p class="kpi-label mb-2">Theo dõi công việc</p>
+      <h1 class="page-title">Nhắc việc</h1>
+    </div>
+    <div class="toolbar">
+      <a class="btn secondary-btn" href="/">Về tổng quan</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="kpi-card metric-card">
+        <div class="metric-icon metric-amber">Đ</div>
+        <div>
+          <div class="kpi-label">Đang chờ</div>
+          <div class="kpi-value">{{ reminder_stats.pending }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="kpi-card metric-card">
+        <div class="metric-icon metric-teal">✓</div>
+        <div>
+          <div class="kpi-label">Đã hoàn tất</div>
+          <div class="kpi-value">{{ reminder_stats.done }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="panel p-4">
+    {% if reminders %}
+      <div class="list-group list-group-flush">
+        {% for reminder in reminders %}
+          <div class="d-flex justify-content-between align-items-start gap-3 py-3 {% if not loop.last %}border-bottom{% endif %}">
+            <div>
+              <div class="fw-bold">{{ reminder.title }}</div>
+              <div class="small text-secondary mt-1">
+                Khách: <a href="/customers/{{ reminder.customer.id }}">{{ reminder.customer.name }}</a>
+                · {{ reminder.priority|title }}
+                · {% if reminder.due_at %}{{ reminder.due_at.strftime('%d/%m/%Y %H:%M') }}{% else %}Không có thời hạn{% endif %}
+              </div>
+              {% if reminder.note %}<div class="small text-secondary mt-2">{{ reminder.note }}</div>{% endif %}
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="badge-soft">{{ 'Đang chờ' if reminder.status == 'pending' else 'Hoàn tất' }}</span>
+              {% if reminder.status != 'done' %}
+                <form method="post" action="{{ url_for('complete_reminder', reminder_id=reminder.id) }}">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm success-btn" type="submit">Hoàn tất</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-secondary mb-0">Chưa có nhắc việc nào.</p>
+    {% endif %}
+  </section>
+{% endblock %}
