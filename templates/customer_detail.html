@@ -220,6 +220,41 @@
     {% endif %}
   </div>
 
+  <div class="panel p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+      <div>
+        <div class="kpi-label">Gửi tin nhắn qua Zalo</div>
+        <h2 class="section-title mb-0">Phản hồi từ CRM</h2>
+      </div>
+      <span class="badge-soft">Zalo sync</span>
+    </div>
+    <form action="{{ url_for('send_customer_zalo', c_id=c.id) }}" method="post" class="row g-3 align-items-end">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-10">
+        <label class="form-label fw-semibold" for="zalo_message">Nội dung trả lời</label>
+        <textarea id="zalo_message" class="form-control" name="zalo_message" rows="3" placeholder="Nhập tin nhắn gửi tới khách qua Zalo..."></textarea>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn primary-btn" type="submit">Gửi qua Zalo</button>
+      </div>
+    </form>
+  </div>
+
+  {% if c.message_logs %}
+  <div class="panel p-4 mt-4">
+    <div class="kpi-label mb-2">Lịch sử tương tác Zalo / CRM</div>
+    {% for log in c.message_logs|sort(attribute='sent_at', reverse=True)[:8] %}
+      <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <div class="d-flex justify-content-between gap-3 flex-wrap">
+          <strong>{{ 'Khách hàng' if log.sender_type == 'customer' else 'Sales' }}</strong>
+          <span class="text-secondary">{{ log.sent_at.strftime('%d/%m/%Y %H:%M') }}</span>
+        </div>
+        <div class="text-secondary mt-1">{{ log.message }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if handoffs %}
   <div class="panel p-4 mt-4">
     <div class="kpi-label mb-2">Lịch sử chuyển Sales</div>
