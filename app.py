@@ -466,7 +466,7 @@ def validate_csrf_token():
 
 @app.before_request
 def require_authentication():
-    if request.endpoint in {'login', 'index', 'static'}:
+    if request.endpoint in {'login', 'index', 'static'} or (request.endpoint or '').startswith('api_'):
         return None
     user = current_user()
     if not user or not user.is_active:
@@ -1928,6 +1928,240 @@ def facebook_export():
 
     csv_data = output.getvalue()
     return Response(csv_data, mimetype='text/csv', headers={'Content-Disposition': 'attachment; filename=facebook_customers.csv'})
+
+
+# ---------------------------------------------------------------------------
+# Mobile REST API — token-based auth, no CSRF
+# ---------------------------------------------------------------------------
+
+class ApiToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user = db.relationship('User', backref=db.backref('api_tokens', lazy=True))
+
+
+def api_login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        auth = request.headers.get('Authorization', '')
+        if not auth.startswith('Bearer '):
+            return {'error': 'Token bắt buộc.'}, 401
+        token_str = auth[7:]
+        token_obj = ApiToken.query.filter_by(token=token_str).first()
+        if not token_obj or not token_obj.user.is_active:
+            return {'error': 'Token không hợp lệ hoặc tài khoản bị khóa.'}, 401
+        request._api_user = token_obj.user
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def api_current_user():
+    return getattr(request, '_api_user', None)
+
+
+def api_visible_customer_query():
+    user = api_current_user()
+    query = Customer.query
+    if user.role != 'admin':
+        query = query.filter(Customer.assigned_user_id == user.id)
+    return query
+
+
+def serialize_customer(c):
+    return {
+        'id': c.id, 'name': c.name, 'first_name': c.first_name,
+        'last_name': c.last_name, 'facebook_id': c.facebook_id,
+        'email': c.email, 'phone': c.phone, 'notes': c.notes,
+        'location': c.location, 'page_name': c.page_name,
+        'tags': c.tags, 'source': c.source,
+        'profile_pic': c.profile_pic,
+        'message_count': c.message_count or 0,
+        'message_excerpt': c.message_excerpt,
+        'last_message_date': c.last_message_date.isoformat() if c.last_message_date else None,
+        'created_at': c.created_at.isoformat() if c.created_at else None,
+        'assigned_user_id': c.assigned_user_id,
+    }
+
+
+def serialize_order(o):
+    return {
+        'id': o.id, 'code': o.code, 'total_amount': o.total_amount,
+        'status': o.status, 'note': o.note,
+        'delivery_address': o.delivery_address,
+        'discount_amount': o.discount_amount, 'vat_amount': o.vat_amount,
+        'payment_details': o.payment_details,
+        'customer_name': o.customer.name if o.customer else None,
+        'customer_id': o.customer_id,
+        'created_at': o.created_at.isoformat() if o.created_at else None,
+        'items': [{
+            'id': item.id, 'product_code': item.product_code,
+            'product_name': item.product_name, 'unit': item.unit,
+            'quantity': item.quantity, 'unit_price': item.unit_price,
+        } for item in o.items],
+    }
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip().lower()
+    password = data.get('password') or ''
+    user = User.query.filter_by(username=username, is_active=True).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return {'error': 'Tên đăng nhập hoặc mật khẩu không đúng.'}, 401
+    token_str = secrets.token_urlsafe(48)
+    db.session.add(ApiToken(token=token_str, user_id=user.id))
+    user.last_login_at = datetime.utcnow()
+    db.session.commit()
+    return {'token': token_str, 'user': {'id': user.id, 'username': user.username, 'role': user.role}}
+
+
+@app.route('/api/logout', methods=['POST'])
+@api_login_required
+def api_logout():
+    auth = request.headers.get('Authorization', '')[7:]
+    ApiToken.query.filter_by(token=auth).delete()
+    db.session.commit()
+    return {'ok': True}
+
+
+@app.route('/api/dashboard')
+@api_login_required
+def api_dashboard():
+    user = api_current_user()
+    # Temporarily set session user for visible_customer_query reuse
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+    cq = api_visible_customer_query()
+    oq = Order.query.join(Customer).filter(Customer.id.in_(cq.with_entities(Customer.id)))
+    return {
+        'customer_count': cq.count(),
+        'phone_count': cq.filter(Customer.phone.isnot(None), Customer.phone != '').count(),
+        'order_count': oq.count(),
+        'revenue': float(oq.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).scalar() or 0),
+        'month_revenue': float(oq.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).filter(
+            Order.created_at >= month_start).scalar() or 0),
+        'status_summary': [{'status': s, 'count': c} for s, c in oq.with_entities(
+            Order.status, func.count(Order.id)).group_by(Order.status).all()],
+    }
+
+
+@app.route('/api/customers')
+@api_login_required
+def api_customers():
+    q = request.args.get('q', '')
+    query = api_visible_customer_query()
+    if q:
+        query = query.filter(db.or_(
+            Customer.name.contains(q), Customer.phone.contains(q),
+            Customer.facebook_id.contains(q), Customer.email.contains(q),
+            Customer.tags.contains(q),
+        ))
+    items = query.order_by(Customer.created_at.desc()).limit(200).all()
+    return {'customers': [serialize_customer(c) for c in items]}
+
+
+@app.route('/api/customers/<int:c_id>')
+@api_login_required
+def api_customer_detail(c_id):
+    c = api_visible_customer_query().filter(Customer.id == c_id).first()
+    if not c:
+        return {'error': 'Không tìm thấy khách hàng.'}, 404
+    orders_list = Order.query.filter_by(customer_id=c.id).order_by(Order.created_at.desc()).all()
+    return {'customer': serialize_customer(c), 'orders': [serialize_order(o) for o in orders_list]}
+
+
+@app.route('/api/customers/<int:c_id>', methods=['PUT'])
+@api_login_required
+def api_update_customer(c_id):
+    c = api_visible_customer_query().filter(Customer.id == c_id).first()
+    if not c:
+        return {'error': 'Không tìm thấy khách hàng.'}, 404
+    data = request.get_json(silent=True) or {}
+    for field in ('name', 'phone', 'email', 'notes', 'location', 'tags', 'facebook_id'):
+        if field in data:
+            setattr(c, field, data[field])
+    db.session.commit()
+    return {'customer': serialize_customer(c)}
+
+
+@app.route('/api/customers', methods=['POST'])
+@api_login_required
+def api_add_customer():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return {'error': 'Tên là bắt buộc.'}, 400
+    user = api_current_user()
+    c = Customer(
+        name=name,
+        facebook_id=data.get('facebook_id'),
+        email=data.get('email'),
+        phone=data.get('phone'),
+        notes=data.get('notes'),
+        location=data.get('location'),
+        tags=data.get('tags'),
+        assigned_user_id=user.id if user.role == 'sales' else None,
+    )
+    db.session.add(c)
+    db.session.commit()
+    return {'customer': serialize_customer(c)}, 201
+
+
+@app.route('/api/orders')
+@api_login_required
+def api_orders():
+    cq = api_visible_customer_query()
+    query = Order.query.join(Customer).filter(Customer.id.in_(cq.with_entities(Customer.id)))
+    status = request.args.get('status', '').strip()
+    if status:
+        query = query.filter(Order.status == status)
+    items = query.order_by(Order.created_at.desc()).limit(200).all()
+    return {'orders': [serialize_order(o) for o in items]}
+
+
+@app.route('/api/orders', methods=['POST'])
+@api_login_required
+def api_create_order():
+    data = request.get_json(silent=True) or {}
+    customer_id = data.get('customer_id')
+    c = api_visible_customer_query().filter(Customer.id == customer_id).first()
+    if not c:
+        return {'error': 'Khách hàng không hợp lệ.'}, 400
+    raw_items = data.get('items', [])
+    if not raw_items:
+        return {'error': 'Cần ít nhất một sản phẩm.'}, 400
+    items = []
+    for ri in raw_items:
+        try:
+            item = OrderItem(
+                product_code=(ri.get('product_code') or '').strip(),
+                product_name=(ri.get('product_name') or '').strip(),
+                unit=(ri.get('unit') or '').strip(),
+                quantity=max(float(ri.get('quantity') or 0), 0),
+                unit_price=max(float(ri.get('unit_price') or 0), 0),
+            )
+        except (ValueError, TypeError):
+            return {'error': 'Số lượng / đơn giá không hợp lệ.'}, 400
+        items.append(item)
+    discount = max(float(data.get('discount_amount') or 0), 0)
+    vat = max(float(data.get('vat_amount') or 0), 0)
+    total = max(sum(i.quantity * i.unit_price for i in items) - discount + vat, 0)
+    order = Order(
+        customer_id=c.id,
+        code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{c.id}",
+        total_amount=total, status=data.get('status') or 'Mới',
+        note=(data.get('note') or '').strip(),
+        delivery_address=(data.get('delivery_address') or '').strip(),
+        payment_details=(data.get('payment_details') or '').strip(),
+        discount_amount=discount, vat_amount=vat,
+    )
+    db.session.add(order)
+    order.items.extend(items)
+    db.session.commit()
+    return {'order': serialize_order(order)}, 201
 
 
 if __name__ == '__main__':
