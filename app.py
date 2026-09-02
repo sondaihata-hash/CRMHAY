@@ -60,7 +60,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 secret_key = os.environ.get('CRM_SECRET_KEY')
-is_production = os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('FLASK_ENV') == 'production'
+is_production = os.environ.get('KOYEB', '').lower() == 'true' or os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('FLASK_ENV') == 'production'
 if not secret_key and is_production:
     raise RuntimeError('CRM_SECRET_KEY must be configured in production.')
 app.config['SECRET_KEY'] = secret_key or 'dev-secret'

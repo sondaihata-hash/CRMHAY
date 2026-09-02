@@ -1,0 +1,20 @@
+type: api/v1alpha1
+name: crm-hay
+service:
+  name: crm-hay
+  dockerfile: Dockerfile
+  ports:
+    - port: 8000
+      path: /
+  routes:
+    - path: /
+      port: 8000
+  regions:
+    - sin
+  env:
+    - key: FLASK_ENV
+      value: production
+    - key: KOYEB
+      value: "true"
+    - key: PORT
+      value: "8000"
