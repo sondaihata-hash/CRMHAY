@@ -68,6 +68,10 @@
           <div class="fs-5 fw-semibold">{{ c.locale }}</div>
         </div>
         {% endif %}
+        <div class="mb-3">
+          <div class="kpi-label">Điểm tích lũy</div>
+          <div class="fs-5 fw-semibold text-warning">⭐ {{ c.points or 0 }} điểm</div>
+        </div>
       </div>
       <div class="col-md-6">
         <div class="mb-3">
@@ -243,7 +247,7 @@
   {% if c.message_logs %}
   <div class="panel p-4 mt-4">
     <div class="kpi-label mb-2">Lịch sử tương tác Zalo / CRM</div>
-    {% for log in c.message_logs|sort(attribute='sent_at', reverse=True)[:8] %}
+    {% for log in (c.message_logs|sort(attribute='sent_at', reverse=True))[:8] %}
       <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
         <div class="d-flex justify-content-between gap-3 flex-wrap">
           <strong>{{ 'Khách hàng' if log.sender_type == 'customer' else 'Sales' }}</strong>

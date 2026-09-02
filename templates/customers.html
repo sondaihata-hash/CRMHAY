@@ -113,6 +113,7 @@
             <th style="width: 7%; min-width: 70px;">Tin nhắn</th>
             <th style="width: 12%; min-width: 110px;">Ngày nhắn</th>
             <th style="width: 9%; min-width: 80px;">Nguồn</th>
+            <th style="width: 7%; min-width: 70px;">Điểm</th>
             <th style="width: 18%; min-width: 180px;">Thao tác</th>
           </tr>
         </thead>
@@ -155,6 +156,9 @@
               {% else %}
                 <small class="text-muted customer-location-cell">—</small>
               {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-warning text-dark">⭐ {{ c.points or 0 }}</span>
             </td>
             <td>
               {% if c.page_name %}

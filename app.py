@@ -142,6 +142,7 @@ class Customer(db.Model):
     source = db.Column(db.String(50), default='manual')
     message_count = db.Column(db.Integer, default=0)
     tags = db.Column(db.String(500), nullable=True)
+    points = db.Column(db.Integer, nullable=False, default=0)
     assigned_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -186,6 +187,7 @@ class Order(db.Model):
     discount_amount = db.Column(db.Float, nullable=False, default=0)
     vat_amount = db.Column(db.Float, nullable=False, default=0)
     payment_details = db.Column(db.String(400), nullable=True)
+    points_awarded = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
 
@@ -299,6 +301,7 @@ def ensure_customer_columns():
         'locale': 'TEXT',
         'message_count': 'INTEGER DEFAULT 0',
         'tags': 'TEXT',
+        'points': 'INTEGER DEFAULT 0',
         'assigned_user_id': 'INTEGER',
     }
     for column_name, column_type in new_columns.items():
@@ -1484,11 +1487,30 @@ def handoff_customer_to_zalo(c_id):
 
 def ensure_order_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
-    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT'}
+    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'points_awarded': 'INTEGER DEFAULT 0'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
     db.session.commit()
+
+
+def update_customer_points(customer_id):
+    c = db.session.get(Customer, customer_id)
+    if not c:
+        return
+    completed_orders = Order.query.filter_by(customer_id=c.id, status='Hoàn tất').all()
+    total_pts = 0
+    for o in completed_orders:
+        pts = int((o.total_amount or 0) // 1000000)
+        o.points_awarded = pts
+        total_pts += pts
+    c.points = total_pts
+    db.session.commit()
+
+
+def recalculate_all_points():
+    for c in Customer.query.all():
+        update_customer_points(c.id)
 
 
 def ensure_reminder_columns():
@@ -1625,9 +1647,27 @@ def create_order(customer_id):
         db.session.add(order)
         order.items.extend(items)
         db.session.commit()
+        update_customer_points(customer.id)
         flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
         return redirect(url_for('order_document', order_id=order.id))
     return render_template('order_form.html', customer=customer, now=datetime.utcnow)
+
+
+
+
+@app.route('/orders/<int:order_id>/status', methods=['POST'])
+def update_order_status(order_id):
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first_or_404()
+    new_status = request.form.get('status', '').strip()
+    if new_status:
+        order.status = new_status
+        db.session.commit()
+        update_customer_points(order.customer_id)
+        flash(f'Đã cập nhật trạng thái đơn {order.code} thành "{new_status}".', 'success')
+    return redirect(request.referrer or url_for('orders'))
 
 
 @app.route('/orders/<int:order_id>')
@@ -1979,6 +2019,7 @@ def serialize_customer(c):
         'profile_pic': c.profile_pic,
         'message_count': c.message_count or 0,
         'message_excerpt': c.message_excerpt,
+        'points': c.points or 0,
         'last_message_date': c.last_message_date.isoformat() if c.last_message_date else None,
         'created_at': c.created_at.isoformat() if c.created_at else None,
         'assigned_user_id': c.assigned_user_id,
@@ -1992,6 +2033,7 @@ def serialize_order(o):
         'delivery_address': o.delivery_address,
         'discount_amount': o.discount_amount, 'vat_amount': o.vat_amount,
         'payment_details': o.payment_details,
+        'points_awarded': o.points_awarded or 0,
         'customer_name': o.customer.name if o.customer else None,
         'customer_id': o.customer_id,
         'created_at': o.created_at.isoformat() if o.created_at else None,
@@ -2161,6 +2203,7 @@ def api_create_order():
     db.session.add(order)
     order.items.extend(items)
     db.session.commit()
+    update_customer_points(c.id)
     return {'order': serialize_order(order)}, 201
 
 
