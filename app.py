@@ -741,7 +741,7 @@ def get_setting_value(key, default=None):
 
 def get_facebook_token():
     return (
-        or get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
+        get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
         or get_setting_value('FACEBOOK_PAGE_ACCESS_TOKEN')
         or get_setting_value('FACEBOOK_APP_ACCESS_TOKEN')
     )
