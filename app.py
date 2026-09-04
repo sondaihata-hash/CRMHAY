@@ -89,7 +89,7 @@ logger = logging.getLogger(__name__)
 ADMIN_ENDPOINTS = {
     'settings', 'add_setting', 'edit_setting', 'sales_groups',
     'add_sales_group', 'delete_sales_group', 'update_sales_group_link',
-    'sync_facebook_customers', 'sync_facebook_status', 'facebook_export',
+    'sync_facebook_customers', 'sync_facebook_status', 'save_facebook_token', 'facebook_export',
     'delete_customer', 'users', 'add_user', 'toggle_user', 'assign_customer',
     'facebook_import_legacy', 'reminders', 'complete_reminder',
 }
@@ -740,6 +740,12 @@ def get_setting_value(key, default=None):
 
 
 def get_facebook_token():
+    with app.app_context():
+        saved_token = Setting.query.filter_by(
+            key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN'
+        ).first()
+        if saved_token and saved_token.value:
+            return saved_token.value.strip()
     return (
         get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
         or get_setting_value('FACEBOOK_PAGE_ACCESS_TOKEN')
