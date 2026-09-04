@@ -1963,6 +1963,7 @@ def _run_facebook_sync(job_id=None):
                 if job:
                     job.status = 'warning'
                     job.progress = 100
+                    job.total = max(job.total or 0, job.processed or 0)
                     job.processed = job.total
                     job.message = 'Không tìm thấy khách nào đã cung cấp SĐT trong các hội thoại được quét.'
                     job.finished_at = datetime.utcnow()
@@ -1980,6 +1981,7 @@ def _run_facebook_sync(job_id=None):
             if job:
                 job.status = 'success'
                 job.progress = 100
+                job.total = max(job.total or 0, job.processed or 0)
                 job.processed = job.total
                 job.imported = imported
                 job.updated = updated
