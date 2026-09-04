@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, Res
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from sqlalchemy import text, inspect, func
+from sqlalchemy.exc import OperationalError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 if not hasattr(pkgutil, 'get_loader'):
@@ -324,7 +325,12 @@ def ensure_sync_job_columns():
     }
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
-            db.session.execute(text(f'ALTER TABLE sync_job ADD COLUMN {column_name} {column_type}'))
+            try:
+                db.session.execute(text(f'ALTER TABLE sync_job ADD COLUMN {column_name} {column_type}'))
+            except OperationalError as exc:
+                db.session.rollback()
+                if 'duplicate column name' not in str(exc).lower():
+                    raise
     db.session.commit()
 
 
