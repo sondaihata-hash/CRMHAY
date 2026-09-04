@@ -1979,8 +1979,15 @@ def sync_facebook_customers():
 
     active_job = SyncJob.query.filter(SyncJob.status.in_(('queued', 'running'))).first()
     if active_job:
-        flash('Đang có một tác vụ đồng bộ Facebook. Vui lòng chờ hoàn tất.', 'info')
-        return redirect(url_for('customers', sync_job=active_job.id))
+        last_activity = active_job.last_activity_at or active_job.started_at or active_job.created_at
+        if last_activity and (datetime.utcnow() - last_activity).total_seconds() > 120:
+            active_job.status = 'error'
+            active_job.message = 'Tác vụ đồng bộ trước đã bị treo và được đóng tự động.'
+            active_job.finished_at = datetime.utcnow()
+            db.session.commit()
+        else:
+            flash('Đang có một tác vụ đồng bộ Facebook. Vui lòng chờ hoàn tất.', 'info')
+            return redirect(url_for('customers', sync_job=active_job.id))
 
     job = SyncJob(
         id=str(uuid.uuid4()),
