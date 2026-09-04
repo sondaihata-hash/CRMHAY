@@ -76,8 +76,11 @@ db = SQLAlchemy(app)
 # Configure these in Render for durable background jobs.  When absent, the
 # local-thread fallback keeps development/demo deployments usable.
 CELERY_BROKER_URL = os.environ.get('REDIS_URL') or os.environ.get('CELERY_BROKER_URL')
+CELERY_ENABLED = os.environ.get('CRM_USE_CELERY', '').strip().lower() in {
+    '1', 'true', 'yes', 'on'
+}
 celery = None
-if CELERY_BROKER_URL and Celery:
+if CELERY_ENABLED and CELERY_BROKER_URL and Celery:
     celery = Celery(app.import_name, broker=CELERY_BROKER_URL, backend=CELERY_BROKER_URL)
     celery.conf.update(task_track_started=True, task_acks_late=True, worker_prefetch_multiplier=1)
 
@@ -2014,8 +2017,11 @@ def sync_facebook_status():
         and last_activity is not None
         and (datetime.utcnow() - last_activity).total_seconds() > 120
     )
+    message = job.message or ''
+    if stale and job.status == 'queued':
+        message = 'Tác vụ đang chờ worker; CRM chưa bắt đầu quét Facebook. Kiểm tra tiến trình CRM.'
     return {'running': job.status in ('queued', 'running'), 'result': job.status,
-            'message': job.message or '', 'imported': job.imported, 'updated': job.updated,
+            'message': message, 'imported': job.imported, 'updated': job.updated,
             'progress': job.progress or 0, 'processed': job.processed or 0, 'total': job.total or 0,
             'last_activity_at': job.last_activity_at.isoformat() if job.last_activity_at else None,
             'stale': stale,

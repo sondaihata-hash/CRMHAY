@@ -16,4 +16,7 @@ if (-not $env:CRM_SECRET_KEY -or $env:CRM_SECRET_KEY.Length -lt 32) {
 
 $env:FLASK_ENV = 'production'
 $env:PORT = $Port
+if (-not $env:CRM_USE_CELERY) {
+    $env:CRM_USE_CELERY = 'false'
+}
 & '.venv\Scripts\python.exe' -m waitress --listen=127.0.0.1:$Port app:app
