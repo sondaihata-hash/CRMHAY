@@ -971,7 +971,11 @@ def fetch_all_facebook_pages(token, fetcher=None):
     return all_pages
 
 
-def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=None):
+def fetch_managed_facebook_messages(
+    max_pages=None,
+    max_conversations_per_page=None,
+    progress_callback=None,
+):
     token = get_facebook_token()
     if not token:
         return []
@@ -1007,6 +1011,9 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
         t_sync_start = time.time()
 
         pages_to_sync = page_data if page_limit is None else page_data[:page_limit]
+        progress_total = len(pages_to_sync) * conversation_limit
+        if progress_callback:
+            progress_callback(0, progress_total, 'Đã kết nối Facebook, bắt đầu quét dữ liệu...')
         for page_index, page in enumerate(pages_to_sync):
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
@@ -1046,6 +1053,12 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
                     if scanned_for_page >= conversation_limit:
                         break
                     scanned_for_page += 1
+                    if progress_callback:
+                        progress_callback(
+                            (page_index * conversation_limit) + scanned_for_page,
+                            progress_total,
+                            f'Đang quét Page {page_index + 1}/{len(pages_to_sync)}: {scanned_for_page}/{conversation_limit} hội thoại',
+                        )
                     participants = conversation.get('participants', {}).get('data', [])
                     messages_payload = conversation.get('messages', {})
                     messages = list(messages_payload.get('data', []))
@@ -1854,11 +1867,32 @@ def _run_facebook_sync(job_id=None):
                 job.status = 'running'
                 job.started_at = datetime.utcnow()
                 job.message = 'Đang đồng bộ Facebook...'
+                job.progress = 0
+                job.processed = 0
+                job.total = 0
+                job.last_activity_at = datetime.utcnow()
                 db.session.commit()
             t0 = time.time()
             logger.info("START background Facebook sync")
+            last_progress_write = [0]
+
+            def update_progress(processed, total, message):
+                if not job:
+                    return
+                now = time.time()
+                if processed < total and processed - last_progress_write[0] < 10 and now - t0 < 5:
+                    return
+                last_progress_write[0] = processed
+                job.processed = processed
+                job.total = total
+                job.progress = min(99, int(processed * 100 / total)) if total else 1
+                job.message = message
+                job.last_activity_at = datetime.utcnow()
+                db.session.commit()
+
             messages = fetch_managed_facebook_messages(
                 *get_facebook_sync_limits(),
+                progress_callback=update_progress,
             )
             if not messages:
                 # Still refresh the recovery copy: an empty API result must
@@ -1869,8 +1903,11 @@ def _run_facebook_sync(job_id=None):
                     logger.exception('Could not write customer snapshot')
                 if job:
                     job.status = 'warning'
+                    job.progress = 100
+                    job.processed = job.total
                     job.message = 'Không tìm thấy khách nào đã cung cấp SĐT trong các hội thoại được quét.'
                     job.finished_at = datetime.utcnow()
+                    job.last_activity_at = datetime.utcnow()
                     db.session.commit()
                 logger.info("END background Facebook sync: no customers (%.2fs)", time.time() - t0)
                 return
@@ -1883,10 +1920,13 @@ def _run_facebook_sync(job_id=None):
                 logger.exception('Could not write customer snapshot')
             if job:
                 job.status = 'success'
+                job.progress = 100
+                job.processed = job.total
                 job.imported = imported
                 job.updated = updated
                 job.message = f'Đã đồng bộ {imported} khách mới và cập nhật {updated} khách.'
                 job.finished_at = datetime.utcnow()
+                job.last_activity_at = datetime.utcnow()
                 db.session.commit()
             logger.info("END background Facebook sync: imported=%d updated=%d (%.2fs)",
                         imported, updated, time.time() - t0)
@@ -1898,8 +1938,10 @@ def _run_facebook_sync(job_id=None):
                 job = db.session.get(SyncJob, job_id)
                 if job:
                     job.status = 'error'
+                    job.progress = min(job.progress or 0, 99)
                     job.message = f'Đồng bộ thất bại: {exc}'
                     job.finished_at = datetime.utcnow()
+                    job.last_activity_at = datetime.utcnow()
                     db.session.commit()
 
 
@@ -1922,7 +1964,14 @@ def sync_facebook_customers():
         flash('Đang có một tác vụ đồng bộ Facebook. Vui lòng chờ hoàn tất.', 'info')
         return redirect(url_for('customers', sync_job=active_job.id))
 
-    job = SyncJob(id=str(uuid.uuid4()), status='queued', message='Đang xếp hàng đồng bộ Facebook...')
+    job = SyncJob(
+        id=str(uuid.uuid4()),
+        status='queued',
+        message='Đang xếp hàng đồng bộ Facebook...',
+        progress=0,
+        processed=0,
+        total=0,
+    )
     db.session.add(job)
     db.session.commit()
 
@@ -1946,6 +1995,8 @@ def sync_facebook_status():
         return {'running': False, 'result': None, 'message': ''}
     return {'running': job.status in ('queued', 'running'), 'result': job.status,
             'message': job.message or '', 'imported': job.imported, 'updated': job.updated,
+            'progress': job.progress or 0, 'processed': job.processed or 0, 'total': job.total or 0,
+            'last_activity_at': job.last_activity_at.isoformat() if job.last_activity_at else None,
             'started_at': job.started_at.isoformat() if job.started_at else None,
             'finished_at': job.finished_at.isoformat() if job.finished_at else None}
 
