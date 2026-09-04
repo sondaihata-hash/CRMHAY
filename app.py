@@ -968,14 +968,17 @@ def fetch_all_facebook_pages(token, fetcher=None):
         payload = fetcher('me/accounts', token, {'fields': 'id,name,access_token', 'limit': '100'})
     except (HTTPError, URLError, ValueError, KeyError):
         return []
-    rounds = 0
-    while payload and rounds < MAX_PAGE_PAGINATION_ROUNDS:
-        rounds += 1
+    seen_next_urls = set()
+    while payload:
         for page in (payload.get('data') or []):
             all_pages.append(page)
         next_url = (payload.get('paging') or {}).get('next')
         if not next_url:
             break
+        if next_url in seen_next_urls:
+            logger.warning("Facebook returned a repeated page list URL; stopping page discovery")
+            break
+        seen_next_urls.add(next_url)
         try:
             payload = fetcher(next_url, token)
         except (HTTPError, URLError, ValueError, KeyError):
