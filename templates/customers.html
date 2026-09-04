@@ -289,20 +289,19 @@
           progressBar.style.width = progress + '%';
           progressBar.textContent = progress + '%';
           status.querySelector('.progress').setAttribute('aria-valuenow', progress);
+          let activityMessage = '';
           if (data.total) {
-            document.getElementById('syncActivity').textContent =
-              `${data.processed || 0}/${data.total} hội thoại đã xử lý` +
-              (data.last_activity_at ? ` · cập nhật ${new Date(data.last_activity_at).toLocaleTimeString()}` : '');
+            activityMessage = `${data.processed || 0}/${data.total} hội thoại đã xử lý`;
           } else if (data.last_activity_at) {
-            document.getElementById('syncActivity').textContent =
-              `Đang chờ phản hồi từ Facebook · cập nhật ${new Date(data.last_activity_at).toLocaleTimeString()}`;
+            activityMessage = `Đang chờ phản hồi từ Facebook · cập nhật ${new Date(data.last_activity_at).toLocaleTimeString()}`;
           }
+          if (data.stale) {
+            activityMessage += (activityMessage ? ' · ' : '') +
+              'Chưa có hoạt động mới hơn 2 phút; kiểm tra log CRM.';
+          }
+          document.getElementById('syncActivity').textContent = activityMessage;
           status.classList.toggle('alert-warning', Boolean(data.stale));
           status.classList.toggle('alert-info', !data.stale);
-          if (data.stale) {
-            document.getElementById('syncActivity').textContent +=
-              ' · Chưa có hoạt động mới hơn 2 phút; kiểm tra log CRM.';
-          }
           if (data.running) {
             window.setTimeout(monitorSync, 3000);
           } else {
