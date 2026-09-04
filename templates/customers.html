@@ -167,9 +167,6 @@
               {% endif %}
             </td>
             <td>
-              <span class="badge bg-warning text-dark">⭐ {{ c.points or 0 }}</span>
-            </td>
-            <td>
               {% if c.page_name %}
                 <small class="text-muted" style="max-width: 150px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ c.page_name }}">{{ c.page_name }}</small>
               {% else %}
@@ -202,6 +199,9 @@
               {% endif %}
             </td>
             <td>
+              <span class="badge bg-warning text-dark">⭐ {{ c.points or 0 }}</span>
+            </td>
+            <td>
               <div class="d-flex gap-2">
                 <a class="btn btn-sm btn-success action-btn" href="/orders/create/{{ c.id }}">Tạo đơn</a>
                 <button class="btn btn-sm btn-outline-success action-btn customer-zalo-button" type="button" data-customer-id="{{ c.id }}" data-customer-name="{{ c.name }}">Gửi Zalo</button>
@@ -216,7 +216,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="9" class="text-center text-muted py-4">Không có khách hàng nào.</td>
+            <td colspan="10" class="text-center text-muted py-4">Không có khách hàng nào.</td>
           </tr>
           {% endfor %}
         </tbody>
