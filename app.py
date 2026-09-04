@@ -107,14 +107,11 @@ _sync_state = {
 }
 _sync_lock = threading.Lock()
 
-# Bounded high-water marks: enough for a full historical import while still
-# preventing a broken Facebook pagination cursor from running forever.
+# Optional deployment limits. When unset, Facebook pagination runs until the
+# API reports that there is no next page.
 MAX_API_CALLS_PER_SYNC = 10000
-MAX_CONVERSATION_PAGES = 1000
-MAX_PAGE_PAGINATION_ROUNDS = 20
 FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
-DEFAULT_SYNC_CONVERSATION_LIMIT = 5000
 MAX_SYNC_CONVERSATION_LIMIT = 10000
 CONVERSATIONS_PER_REQUEST = 25
 DEFAULT_HOTLINE_NUMBERS = frozenset({
@@ -759,25 +756,24 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
         configured_page_limit = os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT')
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
-        configured_conversation_limit = os.environ.get(
-            'FACEBOOK_SYNC_CONVERSATION_LIMIT',
-            str(DEFAULT_SYNC_CONVERSATION_LIMIT),
-        )
+            configured_conversation_limit = os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT')
 
     page_limit = None
     if configured_page_limit:
         page_limit = max(1, min(int(configured_page_limit), 20))
-    conversation_limit = max(
-        1, min(int(configured_conversation_limit), MAX_SYNC_CONVERSATION_LIMIT)
-    )
+    conversation_limit = None
+    if configured_conversation_limit:
+        conversation_limit = max(
+            1, min(int(configured_conversation_limit), MAX_SYNC_CONVERSATION_LIMIT)
+        )
     return page_limit, conversation_limit
 
 
 def get_facebook_api_call_limit():
-    """Allow a deployment to reduce one sync's budget without capping it at 100."""
+    """Return an optional API budget for deployments that need one."""
     configured_limit = os.environ.get('FACEBOOK_SYNC_API_CALL_LIMIT')
     if not configured_limit:
-        return MAX_API_CALLS_PER_SYNC
+        return None
     return max(1, min(int(configured_limit), MAX_API_CALLS_PER_SYNC))
 
 
