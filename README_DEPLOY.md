@@ -2,6 +2,56 @@
 
 Hướng dẫn chi tiết deploy CRM lên Render và cấu hình domain `crmhay.cloud`.
 
+## Chạy CRM trên chính PC Windows
+
+PC cần bật liên tục, không sleep, và nên dùng Cloudflare Tunnel để domain
+truy cập được từ Internet mà không phải mở port trên router.
+
+### 1. Cài và chạy ứng dụng cục bộ
+
+Mở PowerShell tại thư mục dự án:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+$env:CRM_SECRET_KEY = '<chuoi-ngau-nhien-it-nhat-32-ky-tu>'
+$env:CRM_ADMIN_USERNAME = '<tai-khoan-admin>'
+$env:CRM_ADMIN_PASSWORD = '<mat-khau-manh>'
+.\scripts\start-vps.ps1
+```
+
+Kiểm tra trên PC bằng `http://127.0.0.1:5000`. Script dùng Waitress thay cho
+`gunicorn` vì gunicorn không chạy native trên Windows.
+
+### 2. Đưa domain về PC bằng Cloudflare Tunnel
+
+1. Cài `cloudflared` trên PC và đăng nhập: `cloudflared tunnel login`.
+2. Tạo tunnel: `cloudflared tunnel create crmhay`.
+3. Tạo file cấu hình `C:\Users\<user>\.cloudflared\config.yml`:
+
+```yaml
+tunnel: <tunnel-uuid>
+credentials-file: C:\Users\<user>\.cloudflared\<tunnel-uuid>.json
+ingress:
+  - hostname: crmhay.cloud
+    service: http://127.0.0.1:5000
+  - hostname: www.crmhay.cloud
+    service: http://127.0.0.1:5000
+  - service: http_status:404
+```
+
+4. Trỏ DNS tunnel:
+
+```powershell
+cloudflared tunnel route dns crmhay crmhay.cloud
+cloudflared tunnel route dns crmhay www.crmhay.cloud
+cloudflared tunnel run crmhay
+```
+
+Trong DNS provider hiện tại, xóa record `www` đang trỏ tới
+`crmhay.onrender.com`; Cloudflare sẽ tạo CNAME tới tunnel. Chỉ đổi DNS sau khi
+ứng dụng đã chạy và kiểm tra được ở `127.0.0.1:5000`.
+
 ## Bước 1: Deploy lên Render
 
 > Bản `render.yaml` chỉ tạo Web Service để tương thích Render Free. Hãy dùng
