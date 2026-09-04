@@ -317,11 +317,12 @@ def ensure_customer_columns():
 
 def ensure_sync_job_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('sync_job')}
+    timestamp_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
     new_columns = {
         'progress': 'INTEGER DEFAULT 0',
         'processed': 'INTEGER DEFAULT 0',
         'total': 'INTEGER DEFAULT 0',
-        'last_activity_at': 'DATETIME',
+        'last_activity_at': timestamp_type,
     }
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
