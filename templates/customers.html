@@ -10,7 +10,16 @@
     </div>
   </div>
 
-  <div id="syncStatus" class="alert alert-info" style="display:none;" role="status"></div>
+  <div id="syncStatus" class="alert alert-info" style="display:none;" role="status">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span id="syncMessage">Đang đồng bộ Facebook...</span>
+      <strong id="syncPercent">0%</strong>
+    </div>
+    <div class="progress" role="progressbar" aria-label="Tiến độ đồng bộ Facebook" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="syncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%;">0%</div>
+    </div>
+    <small id="syncActivity" class="text-muted d-block mt-2"></small>
+  </div>
 
   <div class="row g-3 mb-4">
     <div class="col-md-4">
@@ -273,7 +282,18 @@
         .then(response => response.json())
         .then(data => {
           status.style.display = 'block';
-          status.textContent = data.message || 'Đang đồng bộ Facebook...';
+          const progress = Math.max(0, Math.min(100, Number(data.progress) || 0));
+          document.getElementById('syncMessage').textContent = data.message || 'Đang đồng bộ Facebook...';
+          document.getElementById('syncPercent').textContent = progress + '%';
+          const progressBar = document.getElementById('syncProgressBar');
+          progressBar.style.width = progress + '%';
+          progressBar.textContent = progress + '%';
+          status.querySelector('.progress').setAttribute('aria-valuenow', progress);
+          if (data.total) {
+            document.getElementById('syncActivity').textContent =
+              `${data.processed || 0}/${data.total} hội thoại đã xử lý` +
+              (data.last_activity_at ? ` · cập nhật ${new Date(data.last_activity_at).toLocaleTimeString()}` : '');
+          }
           if (data.running) {
             window.setTimeout(monitorSync, 3000);
           } else {

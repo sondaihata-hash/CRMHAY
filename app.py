@@ -1202,6 +1202,7 @@ def init_db():
         ensure_order_columns()
         ensure_reminder_columns()
         ensure_sales_group_columns()
+        ensure_sync_job_columns()
         clear_configured_hotlines_from_customers()
         admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
         admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
