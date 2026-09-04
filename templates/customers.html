@@ -293,6 +293,15 @@
             document.getElementById('syncActivity').textContent =
               `${data.processed || 0}/${data.total} hội thoại đã xử lý` +
               (data.last_activity_at ? ` · cập nhật ${new Date(data.last_activity_at).toLocaleTimeString()}` : '');
+          } else if (data.last_activity_at) {
+            document.getElementById('syncActivity').textContent =
+              `Đang chờ phản hồi từ Facebook · cập nhật ${new Date(data.last_activity_at).toLocaleTimeString()}`;
+          }
+          status.classList.toggle('alert-warning', Boolean(data.stale));
+          status.classList.toggle('alert-info', !data.stale);
+          if (data.stale) {
+            document.getElementById('syncActivity').textContent +=
+              ' · Chưa có hoạt động mới hơn 2 phút; kiểm tra log CRM.';
           }
           if (data.running) {
             window.setTimeout(monitorSync, 3000);

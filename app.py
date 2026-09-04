@@ -988,6 +988,8 @@ def fetch_managed_facebook_messages(
         return []
 
     try:
+        if progress_callback:
+            progress_callback(0, 0, 'Đang kết nối và xác thực Facebook...')
         page_data = []
         try:
             all_account_pages = fetch_all_facebook_pages(token)
@@ -1020,7 +1022,7 @@ def fetch_managed_facebook_messages(
         pages_to_sync = page_data if page_limit is None else page_data[:page_limit]
         progress_total = len(pages_to_sync) * conversation_limit
         if progress_callback:
-            progress_callback(0, progress_total, 'Đã kết nối Facebook, bắt đầu quét dữ liệu...')
+            progress_callback(0, progress_total, f'Đã kết nối Facebook, tìm thấy {len(pages_to_sync)} Page. Bắt đầu quét dữ liệu...')
         for page_index, page in enumerate(pages_to_sync):
             page_id = page.get('id')
             page_name = page.get('name') or os.environ.get('FACEBOOK_PAGE_NAME', 'Facebook Page')
@@ -1898,6 +1900,11 @@ def _run_facebook_sync(job_id=None):
                 job.last_activity_at = datetime.utcnow()
                 db.session.commit()
 
+            if job:
+                job.last_activity_at = datetime.utcnow()
+                job.message = 'Đang chuẩn bị kết nối Facebook...'
+                db.session.commit()
+
             messages = fetch_managed_facebook_messages(
                 *get_facebook_sync_limits(),
                 progress_callback=update_progress,
@@ -2001,10 +2008,17 @@ def sync_facebook_status():
     job = db.session.get(SyncJob, job_id) if job_id else SyncJob.query.order_by(SyncJob.created_at.desc()).first()
     if not job:
         return {'running': False, 'result': None, 'message': ''}
+    last_activity = job.last_activity_at or job.started_at or job.created_at
+    stale = (
+        job.status in ('queued', 'running')
+        and last_activity is not None
+        and (datetime.utcnow() - last_activity).total_seconds() > 120
+    )
     return {'running': job.status in ('queued', 'running'), 'result': job.status,
             'message': job.message or '', 'imported': job.imported, 'updated': job.updated,
             'progress': job.progress or 0, 'processed': job.processed or 0, 'total': job.total or 0,
             'last_activity_at': job.last_activity_at.isoformat() if job.last_activity_at else None,
+            'stale': stale,
             'started_at': job.started_at.isoformat() if job.started_at else None,
             'finished_at': job.finished_at.isoformat() if job.finished_at else None}
 
