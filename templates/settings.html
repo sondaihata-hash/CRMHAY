@@ -28,6 +28,35 @@
     </form>
   </div>
 
+  <div class="panel p-3 p-md-4 mb-4">
+    <h2 class="section-title mb-2">Kết nối Facebook</h2>
+    <p class="text-secondary small mb-3">
+      Dán System User Token từ Meta Business vào đây. Token được lưu trong cơ sở dữ liệu
+      của CRM và sẽ được dùng khi bấm đồng bộ Facebook.
+    </p>
+    <form action="/settings/facebook-token" method="post" class="row g-3 align-items-end">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-9">
+        <label class="form-label fw-semibold" for="facebookSystemUserToken">System User Token</label>
+        <input
+          id="facebookSystemUserToken"
+          name="facebook_system_user_token"
+          type="password"
+          class="form-control"
+          autocomplete="new-password"
+          placeholder="{{ 'Đã có token — nhập token mới để thay thế' if facebook_token_configured else 'Dán token vào đây' }}"
+          required
+        >
+      </div>
+      <div class="col-md-3 d-grid">
+        <button class="btn primary-btn" type="submit">Lưu token Facebook</button>
+      </div>
+    </form>
+    {% if facebook_token_configured %}
+      <small class="text-success d-block mt-2">Đã cấu hình System User Token.</small>
+    {% endif %}
+  </div>
+
   <div class="panel table-card">
     <div class="table-responsive">
       <table class="table mb-0 align-middle">
@@ -43,7 +72,13 @@
           {% for s in items %}
           <tr>
             <td><span class="badge-soft">{{ s.key }}</span></td>
-            <td>{{ s.value or '—' }}</td>
+            <td>
+              {% if 'TOKEN' in s.key or 'SECRET' in s.key or 'PASSWORD' in s.key %}
+                <span class="text-muted">Đã cấu hình</span>
+              {% else %}
+                {{ s.value or '—' }}
+              {% endif %}
+            </td>
             <td>{{ s.description or '—' }}</td>
             <td>
               <div class="d-flex gap-2">

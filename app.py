@@ -741,8 +741,8 @@ def get_setting_value(key, default=None):
 
 def get_facebook_token():
     return (
-        get_setting_value('FACEBOOK_PAGE_ACCESS_TOKEN')
         or get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
+        or get_setting_value('FACEBOOK_PAGE_ACCESS_TOKEN')
         or get_setting_value('FACEBOOK_APP_ACCESS_TOKEN')
     )
 
@@ -1833,7 +1833,34 @@ def delete_customer(c_id):
 @app.route('/settings')
 def settings():
     items = Setting.query.order_by(Setting.key).all()
-    return render_template('settings.html', items=items)
+    facebook_token = get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
+    return render_template(
+        'settings.html',
+        items=items,
+        facebook_token_configured=bool(facebook_token),
+    )
+
+
+@app.route('/settings/facebook-token', methods=['POST'])
+def save_facebook_token():
+    token = (request.form.get('facebook_system_user_token') or '').strip()
+    if not token:
+        flash('System User Token không được để trống.', 'danger')
+        return redirect(url_for('settings'))
+
+    setting = Setting.query.filter_by(key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN').first()
+    if setting:
+        setting.value = token
+        setting.description = 'Facebook System User access token dùng để đồng bộ inbox.'
+    else:
+        db.session.add(Setting(
+            key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN',
+            value=token,
+            description='Facebook System User access token dùng để đồng bộ inbox.',
+        ))
+    db.session.commit()
+    flash('Đã lưu System User Token. CRM sẽ dùng token này cho lần đồng bộ tiếp theo.', 'success')
+    return redirect(url_for('settings'))
 
 
 @app.route('/settings/add', methods=['POST'])
