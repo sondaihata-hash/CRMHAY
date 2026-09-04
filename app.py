@@ -756,7 +756,7 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
         configured_page_limit = os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT')
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
-            configured_conversation_limit = os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT')
+        configured_conversation_limit = os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT')
 
     page_limit = None
     if configured_page_limit:
@@ -1025,7 +1025,7 @@ def fetch_managed_facebook_messages(
         t_sync_start = time.time()
 
         pages_to_sync = page_data if page_limit is None else page_data[:page_limit]
-        progress_total = len(pages_to_sync) * conversation_limit
+        progress_total = len(pages_to_sync) * conversation_limit if conversation_limit else 0
         if progress_callback:
             progress_callback(0, progress_total, f'Đã kết nối Facebook, tìm thấy {len(pages_to_sync)} Page. Bắt đầu quét dữ liệu...')
         for page_index, page in enumerate(pages_to_sync):
@@ -1044,9 +1044,10 @@ def fetch_managed_facebook_messages(
             scanned_for_page = 0
             pagination_round = 0
 
-            while pagination_round < MAX_CONVERSATION_PAGES:
+            seen_page_urls = set()
+            while True:
                 pagination_round += 1
-                if api_call_count >= api_call_limit:
+                if api_call_limit is not None and api_call_count >= api_call_limit:
                     logger.warning("Hit API call limit=%d, stopping sync", api_call_limit)
                     break
 
@@ -1064,20 +1065,24 @@ def fetch_managed_facebook_messages(
                     time.sleep(API_RATE_DELAY)
 
                 for conversation in conversations:
-                    if scanned_for_page >= conversation_limit:
+                    if conversation_limit and scanned_for_page >= conversation_limit:
                         break
                     scanned_for_page += 1
                     if progress_callback:
                         progress_callback(
-                            (page_index * conversation_limit) + scanned_for_page,
+                            ((page_index * conversation_limit) + scanned_for_page)
+                            if conversation_limit else scanned_for_page,
                             progress_total,
-                            f'Đang quét Page {page_index + 1}/{len(pages_to_sync)}: {scanned_for_page}/{conversation_limit} hội thoại',
+                            f'Đang quét Page {page_index + 1}/{len(pages_to_sync)}: '
+                            f'{scanned_for_page}'
+                            + (f'/{conversation_limit}' if conversation_limit else ' hội thoại'),
                         )
                     participants = conversation.get('participants', {}).get('data', [])
                     messages_payload = conversation.get('messages', {})
                     messages = list(messages_payload.get('data', []))
                     message_next_url = (messages_payload.get('paging') or {}).get('next')
-                    while message_next_url and api_call_count < api_call_limit:
+                    while message_next_url and (
+                            api_call_limit is None or api_call_count < api_call_limit):
                         message_payload = fetch_facebook_json(message_next_url, page_token)
                         api_call_count += 1
                         messages.extend(message_payload.get('data', []))
@@ -1184,14 +1189,18 @@ def fetch_managed_facebook_messages(
 
                 paging = payload.get('paging', {})
                 next_page = paging.get('next')
-                if scanned_for_page >= conversation_limit or not next_page:
+                if (conversation_limit and scanned_for_page >= conversation_limit) or not next_page:
                     break
+                if next_page in seen_page_urls:
+                    logger.warning("Facebook returned a repeated conversation page URL; stopping page scan")
+                    break
+                seen_page_urls.add(next_page)
                 next_url = next_page
 
             logger.info("END sync page %s collected=%d in %.2fs api_calls=%d",
                         page_name, collected_for_page, time.time() - t_page_start, api_call_count)
 
-            if api_call_count >= api_call_limit:
+            if api_call_limit is not None and api_call_count >= api_call_limit:
                 break
 
         logger.info("END Facebook sync total=%d api_calls=%d time=%.2fs",
