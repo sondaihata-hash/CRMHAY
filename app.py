@@ -1370,8 +1370,8 @@ def send_zalo_message(customer, text):
 
 def send_facebook_message(customer, text):
     """Send a Messenger reply using the Page token for the customer's Page."""
-    if not customer or not customer.facebook_id or not customer.conversation_id:
-        raise ValueError('Khách hàng chưa có Facebook ID hoặc Conversation ID để gửi tin.')
+    if not customer or not customer.facebook_id:
+        raise ValueError('Khách hàng chưa có Facebook ID để gửi tin.')
     system_token = get_facebook_token()
     if not system_token:
         raise ValueError('Chưa cấu hình System User Token Facebook.')

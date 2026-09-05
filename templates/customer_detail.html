@@ -142,7 +142,7 @@
       </div>
       <span class="badge-soft">Messenger</span>
     </div>
-    {% if c.conversation_id and c.facebook_id %}
+    {% if c.facebook_id %}
       {% if facebook_reply_window_open %}
       <form action="{{ url_for('send_customer_facebook', c_id=c.id) }}" method="post" class="row g-3 align-items-end">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
