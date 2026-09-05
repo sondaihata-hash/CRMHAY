@@ -1530,8 +1530,14 @@ def sync_facebook_webhook_message(page_id, messaging):
         or ''
     ).strip()
     text = (message.get('text') or '').strip()
-    if not sender_id or sender_id == str(page_id) or not text:
+    attachments = message.get('attachments') or []
+    if not sender_id or sender_id == str(page_id) or (not text and not attachments):
         return None
+    attachment = attachments[0] if attachments else {}
+    attachment_payload = attachment.get('payload') or {}
+    media_url = attachment_payload.get('url') or attachment_payload.get('src')
+    media_type = attachment.get('type')
+    display_text = text or f'[{media_type or "Tệp đính kèm"}]'
 
     customer = Customer.query.filter(Customer.facebook_id == sender_id).first()
     if customer is None and conversation_id:
@@ -1551,7 +1557,7 @@ def sync_facebook_webhook_message(page_id, messaging):
         customer.conversation_id = conversation_id
     customer.source = 'facebook'
     customer.message_count = (customer.message_count or 0) + 1
-    customer.message_excerpt = text[:500]
+    customer.message_excerpt = display_text[:500]
     customer.last_customer_message_at = parse_facebook_timestamp(messaging.get('timestamp')) or datetime.utcnow()
     customer.last_message_date = customer.last_customer_message_at
     message_id = str(message.get('mid') or '').strip()
@@ -1561,7 +1567,9 @@ def sync_facebook_webhook_message(page_id, messaging):
         customer_id=customer.id,
         sender_type='customer',
         channel='facebook',
-        message=text,
+        message=display_text,
+        media_url=media_url,
+        media_type=media_type,
         external_message_id=message_id,
         sent_at=datetime.utcnow(),
     ))
@@ -2035,11 +2043,12 @@ def send_customer_zalo(c_id):
 def send_customer_facebook(c_id):
     customer = get_visible_customer(c_id)
     message = (request.form.get('facebook_message') or '').strip()
-    if not message:
-        flash('Nội dung tin nhắn Facebook không được để trống.', 'danger')
+    media_file = request.files.get('facebook_attachment')
+    if not message and not (media_file and media_file.filename):
+        flash('Hãy nhập nội dung hoặc chọn tệp đính kèm.', 'danger')
         return redirect(url_for('customer_detail', c_id=customer.id))
     try:
-        external_message_id = send_facebook_message(customer, message)
+        external_message_id, media_type = send_facebook_message(customer, message, media_file)
     except ValueError as exc:
         flash(str(exc), 'danger')
         return redirect(url_for('customer_detail', c_id=customer.id))
@@ -2047,7 +2056,8 @@ def send_customer_facebook(c_id):
         customer_id=customer.id,
         sender_type='sales',
         channel='facebook',
-        message=message,
+        message=message or f'[{media_type}]',
+        media_type=media_type,
         external_message_id=external_message_id,
         sent_at=datetime.utcnow(),
     ))
