@@ -40,7 +40,6 @@ import tempfile
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
-from mimetypes import guess_extension
 import time
 import threading
 import uuid
@@ -1382,7 +1381,58 @@ def send_zalo_message(customer, text):
         return f'failed-zalo-{uuid.uuid4().hex[:10]}'
 
 
-def send_facebook_message(customer, text):
+FACEBOOK_MEDIA_TYPES = {
+    'image/': 'image',
+    'video/': 'video',
+    'audio/': 'audio',
+}
+
+
+def facebook_media_type(mimetype):
+    for prefix, media_type in FACEBOOK_MEDIA_TYPES.items():
+        if (mimetype or '').startswith(prefix):
+            return media_type
+    return None
+
+
+def upload_facebook_attachment(page_id, page_token, media_file, media_type):
+    boundary = f'----CRMHAY{uuid.uuid4().hex}'
+    file_data = media_file.read()
+    filename = media_file.filename or f'upload-{uuid.uuid4().hex}'
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="message"\r\n\r\n'
+        f'{{"attachment":{{"type":"{media_type}","payload":{{"is_reusable":false}}}}}}\r\n',
+        f'--{boundary}\r\nContent-Disposition: form-data; name="filedata"; '
+        f'filename="{filename}"\r\nContent-Type: {media_file.mimetype or "application/octet-stream"}\r\n\r\n',
+        file_data,
+        f'\r\n--{boundary}--\r\n',
+    ]
+    body = b''.join(part.encode('utf-8') if isinstance(part, str) else part for part in parts)
+    request = Request(
+        f'https://graph.facebook.com/v19.0/{page_id}/message_attachments',
+        data=body,
+        headers={
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+            'User-Agent': 'CRM-HAY/1.0',
+        },
+    )
+    params = urlencode({'access_token': page_token})
+    try:
+        with urlopen(Request(request.full_url + '?' + params, data=body, headers=dict(request.header_items())), timeout=FACEBOOK_API_TIMEOUT) as response:
+            result = json.loads(response.read().decode('utf-8'))
+    except HTTPError as exc:
+        detail = exc.read().decode('utf-8', errors='replace')
+        logger.error('Facebook attachment upload FAIL page=%s: %s', page_id, detail)
+        raise ValueError('Facebook không nhận được tệp đính kèm.') from exc
+    except (URLError, ValueError) as exc:
+        raise ValueError('Không thể tải tệp lên Facebook.') from exc
+    attachment_id = result.get('attachment_id')
+    if not attachment_id:
+        raise ValueError('Facebook không trả về mã tệp đính kèm.')
+    return attachment_id
+
+
+def send_facebook_message(customer, text, media_file=None):
     """Send a Messenger reply using the Page token for the customer's Page."""
     if not customer or not customer.facebook_id:
         raise ValueError('Khách hàng chưa có Facebook ID để gửi tin.')
@@ -1403,9 +1453,23 @@ def send_facebook_message(customer, text):
     endpoint = f"https://graph.facebook.com/v19.0/{page['id']}/messages"
     payload = {
         'recipient': {'id': customer.facebook_id},
-        'message': {'text': text},
         'messaging_type': 'RESPONSE',
     }
+    media_type = None
+    if media_file and media_file.filename:
+        media_type = facebook_media_type(media_file.mimetype)
+        if not media_type:
+            raise ValueError('Chỉ hỗ trợ tệp hình ảnh, video hoặc âm thanh.')
+        attachment_id = upload_facebook_attachment(
+            page['id'], page['access_token'], media_file, media_type
+        )
+        payload['message'] = {
+            'attachment': {'type': media_type, 'payload': {'attachment_id': attachment_id}}
+        }
+        if text:
+            payload['message']['text'] = text
+    else:
+        payload['message'] = {'text': text}
     params = urlencode({'access_token': page['access_token']})
     request = Request(
         f'{endpoint}?{params}',
@@ -1433,7 +1497,7 @@ def send_facebook_message(customer, text):
         logger.error('Facebook send FAIL customer=%s: %s', customer.id, exc)
         raise ValueError('Không thể kết nối Facebook để gửi tin.') from exc
     logger.info('Facebook send OK customer=%s', customer.id)
-    return result.get('message_id') or result.get('id') or ''
+    return result.get('message_id') or result.get('id') or '', media_type
 
 
 def parse_facebook_timestamp(value):
