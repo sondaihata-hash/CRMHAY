@@ -137,6 +137,31 @@
   <div class="panel p-4 mt-4">
     <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
       <div>
+        <div class="kpi-label">Gửi tin nhắn qua Facebook Page</div>
+        <h2 class="section-title mb-0">Phản hồi khách hàng</h2>
+      </div>
+      <span class="badge-soft">Messenger</span>
+    </div>
+    {% if c.conversation_id and c.facebook_id %}
+      <form action="{{ url_for('send_customer_facebook', c_id=c.id) }}" method="post" class="row g-3 align-items-end">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-10">
+          <label class="form-label fw-semibold" for="facebook_message">Nội dung trả lời</label>
+          <textarea id="facebook_message" class="form-control" name="facebook_message" rows="3" placeholder="Ví dụ: Sản phẩm hiện có giá 500.000đ." required></textarea>
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn primary-btn" type="submit">Gửi qua Facebook</button>
+        </div>
+      </form>
+      <div class="small text-secondary mt-2">Khách sẽ nhận tin nhắn từ Facebook Page, không phải tài khoản cá nhân của Sale.</div>
+    {% else %}
+      <div class="alert alert-warning mb-0">Khách này chưa có đủ Facebook ID và Conversation ID để gửi tin.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+      <div>
         <div class="kpi-label">Nhắc việc</div>
         <h2 class="section-title mb-0">Theo dõi follow-up</h2>
       </div>
@@ -246,7 +271,7 @@
 
   {% if c.message_logs %}
   <div class="panel p-4 mt-4">
-    <div class="kpi-label mb-2">Lịch sử tương tác Zalo / CRM</div>
+    <div class="kpi-label mb-2">Lịch sử tương tác Facebook / Zalo / CRM</div>
     {% for log in (c.message_logs|sort(attribute='sent_at', reverse=True))[:8] %}
       <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
         <div class="d-flex justify-content-between gap-3 flex-wrap">

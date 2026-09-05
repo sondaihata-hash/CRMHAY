@@ -1366,6 +1366,48 @@ def send_zalo_message(customer, text):
         return f'failed-zalo-{uuid.uuid4().hex[:10]}'
 
 
+def send_facebook_message(customer, text):
+    """Send a Messenger reply using the Page token for the customer's Page."""
+    if not customer or not customer.facebook_id or not customer.conversation_id:
+        raise ValueError('Khách hàng chưa có Facebook ID hoặc Conversation ID để gửi tin.')
+    system_token = get_facebook_token()
+    if not system_token:
+        raise ValueError('Chưa cấu hình System User Token Facebook.')
+
+    pages = resolve_page_access_tokens(system_token, fetch_all_facebook_pages(system_token))
+    page = next(
+        (item for item in pages if item.get('name') == customer.page_name),
+        None,
+    )
+    if not page:
+        raise ValueError('Không tìm thấy Page của khách hàng hoặc Page chưa cấp quyền nhắn tin.')
+
+    endpoint = f"https://graph.facebook.com/v19.0/{page['id']}/messages"
+    payload = {
+        'recipient': {'id': customer.facebook_id},
+        'message': {'text': text},
+        'messaging_type': 'RESPONSE',
+    }
+    params = urlencode({'access_token': page['access_token']})
+    request = Request(
+        f'{endpoint}?{params}',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json', 'User-Agent': 'CRM-HAY/1.0'},
+    )
+    try:
+        with urlopen(request, timeout=FACEBOOK_API_TIMEOUT) as response:
+            result = json.loads(response.read().decode('utf-8'))
+    except HTTPError as exc:
+        detail = exc.read().decode('utf-8', errors='replace')
+        logger.error('Facebook send FAIL customer=%s: %s', customer.id, detail)
+        raise ValueError('Facebook từ chối gửi tin. Kiểm tra quyền Page và thời hạn phản hồi.') from exc
+    except (URLError, ValueError) as exc:
+        logger.error('Facebook send FAIL customer=%s: %s', customer.id, exc)
+        raise ValueError('Không thể kết nối Facebook để gửi tin.') from exc
+    logger.info('Facebook send OK customer=%s', customer.id)
+    return result.get('message_id') or result.get('id') or ''
+
+
 def is_valid_zalo_group_url(value):
     if not value:
         return True
@@ -1818,6 +1860,34 @@ def send_customer_zalo(c_id):
     customer.message_excerpt = message[:500]
     db.session.commit()
     flash('Đã gửi tin nhắn qua Zalo từ CRM.', 'success')
+    return redirect(url_for('customer_detail', c_id=customer.id))
+
+
+@app.route('/customers/<int:c_id>/send-facebook', methods=['POST'])
+@login_required
+def send_customer_facebook(c_id):
+    customer = get_visible_customer(c_id)
+    message = (request.form.get('facebook_message') or '').strip()
+    if not message:
+        flash('Nội dung tin nhắn Facebook không được để trống.', 'danger')
+        return redirect(url_for('customer_detail', c_id=customer.id))
+    try:
+        external_message_id = send_facebook_message(customer, message)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('customer_detail', c_id=customer.id))
+    db.session.add(MessageLog(
+        customer_id=customer.id,
+        sender_type='sales',
+        channel='facebook',
+        message=message,
+        external_message_id=external_message_id,
+        sent_at=datetime.utcnow(),
+    ))
+    customer.last_message_date = datetime.utcnow()
+    customer.message_excerpt = message[:500]
+    db.session.commit()
+    flash('Đã gửi tin nhắn qua Facebook Page.', 'success')
     return redirect(url_for('customer_detail', c_id=customer.id))
 
 
