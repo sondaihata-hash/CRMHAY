@@ -1463,11 +1463,11 @@ def send_facebook_message(customer, text, media_file=None):
         attachment_id = upload_facebook_attachment(
             page['id'], page['access_token'], media_file, media_type
         )
+        if text:
+            send_facebook_message(customer, text)
         payload['message'] = {
             'attachment': {'type': media_type, 'payload': {'attachment_id': attachment_id}}
         }
-        if text:
-            logger.info('Facebook attachment message omits caption text for API compatibility')
     else:
         payload['message'] = {'text': text}
     params = urlencode({'access_token': page['access_token']})
