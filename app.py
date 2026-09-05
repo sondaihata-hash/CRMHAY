@@ -1423,6 +1423,14 @@ def parse_facebook_timestamp(value):
     return None
 
 
+def facebook_reply_window_open(customer):
+    last_customer_message = customer.last_customer_message_at
+    return bool(
+        last_customer_message
+        and (datetime.utcnow() - last_customer_message).total_seconds() < 24 * 60 * 60
+    )
+
+
 def sync_facebook_webhook_message(page_id, messaging):
     sender = messaging.get('sender') or {}
     recipient = messaging.get('recipient') or {}
@@ -1628,7 +1636,14 @@ def customer_detail(c_id):
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
     sales_users = User.query.filter_by(role='sales', is_active=True).order_by(User.username).all()
-    return render_template('customer_detail.html', c=c, sales_groups=groups, handoffs=handoffs, sales_users=sales_users)
+    return render_template(
+        'customer_detail.html',
+        c=c,
+        sales_groups=groups,
+        handoffs=handoffs,
+        sales_users=sales_users,
+        facebook_reply_window_open=facebook_reply_window_open(c),
+    )
 
 
 @app.route('/customers/<int:c_id>/handoff-zalo', methods=['POST'])
@@ -1936,6 +1951,9 @@ def send_customer_facebook(c_id):
     if not message:
         flash('Nội dung tin nhắn Facebook không được để trống.', 'danger')
         return redirect(url_for('customer_detail', c_id=customer.id))
+    if not facebook_reply_window_open(customer):
+        flash('Khách chưa nhắn lại trong 24 giờ gần nhất. Hãy chờ khách chủ động nhắn Page để mở lại cuộc trò chuyện.', 'warning')
+        return redirect(url_for('customer_detail', c_id=customer.id))
     try:
         external_message_id = send_facebook_message(customer, message)
     except ValueError as exc:
@@ -1965,6 +1983,30 @@ def zalo_webhook():
         payload = request.form.to_dict(flat=True)
     customer = sync_zalo_customer_message(payload)
     return {'ok': True, 'customer_id': customer.id if customer else None}
+
+
+@app.route('/api/facebook/webhook', methods=['GET', 'POST'])
+def facebook_webhook():
+    if request.method == 'GET':
+        verify_token = get_setting_value('FACEBOOK_WEBHOOK_VERIFY_TOKEN')
+        if (
+            request.args.get('hub.mode') == 'subscribe'
+            and verify_token
+            and request.args.get('hub.verify_token') == verify_token
+        ):
+            return request.args.get('hub.challenge', ''), 200
+        return 'Invalid verification token', 403
+
+    payload = request.get_json(silent=True) or {}
+    if payload.get('object') != 'page':
+        return {'ok': False, 'message': 'Unsupported webhook object.'}, 400
+    processed = 0
+    for entry in payload.get('entry') or []:
+        page_id = str(entry.get('id') or '').strip()
+        for messaging in entry.get('messaging') or []:
+            if sync_facebook_webhook_message(page_id, messaging):
+                processed += 1
+    return {'ok': True, 'processed': processed}
 
 
 @app.route('/customers/<int:c_id>/delete', methods=['POST'])
