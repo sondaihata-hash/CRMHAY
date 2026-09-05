@@ -1379,6 +1379,8 @@ def send_facebook_message(customer, text):
         (item for item in pages if item.get('name') == customer.page_name),
         None,
     )
+    if page is None and len(pages) == 1:
+        page = pages[0]
     if not page:
         raise ValueError('Không tìm thấy Page của khách hàng hoặc Page chưa cấp quyền nhắn tin.')
 
