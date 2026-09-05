@@ -40,6 +40,7 @@ import tempfile
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+from mimetypes import guess_extension
 import time
 import threading
 import uuid
@@ -65,6 +66,7 @@ is_production = os.environ.get('KOYEB', '').lower() == 'true' or os.environ.get(
 if not secret_key and is_production:
     raise RuntimeError('CRM_SECRET_KEY must be configured in production.')
 app.config['SECRET_KEY'] = secret_key or 'dev-secret'
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
@@ -237,6 +239,8 @@ class MessageLog(db.Model):
     sender_type = db.Column(db.String(30), nullable=False, default='customer')
     channel = db.Column(db.String(30), nullable=False, default='zalo')
     message = db.Column(db.Text, nullable=False)
+    media_url = db.Column(db.Text, nullable=True)
+    media_type = db.Column(db.String(30), nullable=True)
     external_message_id = db.Column(db.String(200), nullable=True)
     sent_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('message_logs', lazy=True, cascade='all, delete-orphan'))
@@ -314,6 +318,15 @@ def ensure_customer_columns():
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE customer ADD COLUMN {column_name} {column_type}'))
+    db.session.commit()
+
+
+def ensure_message_log_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('message_log')}
+    media_type = {'media_url': 'TEXT', 'media_type': 'VARCHAR(30)'}
+    for column_name, column_type in media_type.items():
+        if column_name not in columns:
+            db.session.execute(text(f'ALTER TABLE message_log ADD COLUMN {column_name} {column_type}'))
     db.session.commit()
 
 
@@ -1227,6 +1240,7 @@ def init_db():
         db.create_all()
         ensure_user_columns()
         ensure_customer_columns()
+        ensure_message_log_columns()
         ensure_order_columns()
         ensure_reminder_columns()
         ensure_sales_group_columns()
