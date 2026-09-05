@@ -400,7 +400,12 @@ def login():
         user = User.query.filter_by(username=username, is_active=True).first()
         if not user or not check_password_hash(user.password_hash, password):
             flash('Tên đăng nhập hoặc mật khẩu không đúng.', 'danger')
-            return render_template('login.html'), 401
+            return render_template('login.html')
+
+
+@app.route('/privacy-policy')
+def privacy_policy():
+            return render_template('privacy_policy.html'), 401
         session.clear()
         session['user_id'] = user.id
         user.last_login_at = datetime.utcnow()
