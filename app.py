@@ -401,11 +401,6 @@ def login():
         if not user or not check_password_hash(user.password_hash, password):
             flash('Tên đăng nhập hoặc mật khẩu không đúng.', 'danger')
             return render_template('login.html')
-
-
-@app.route('/privacy-policy')
-def privacy_policy():
-            return render_template('privacy_policy.html'), 401
         session.clear()
         session['user_id'] = user.id
         user.last_login_at = datetime.utcnow()
@@ -420,6 +415,11 @@ def privacy_policy():
             next_url = url_for('index')
         return redirect(next_url)
     return render_template('login.html')
+
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
 
 
 @app.route('/logout', methods=['POST'])
