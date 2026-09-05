@@ -1404,7 +1404,17 @@ def send_facebook_message(customer, text):
     except HTTPError as exc:
         detail = exc.read().decode('utf-8', errors='replace')
         logger.error('Facebook send FAIL customer=%s: %s', customer.id, detail)
-        raise ValueError('Facebook từ chối gửi tin. Kiểm tra quyền Page và thời hạn phản hồi.') from exc
+        try:
+            error_payload = json.loads(detail).get('error', {})
+            error_message = error_payload.get('message') or ''
+            error_code = error_payload.get('code')
+        except (TypeError, ValueError):
+            error_message = ''
+            error_code = None
+        if error_message:
+            suffix = f' (mã {error_code})' if error_code is not None else ''
+            raise ValueError(f'Facebook không gửi được tin: {error_message}{suffix}') from exc
+        raise ValueError('Facebook không gửi được tin. Kiểm tra token, quyền Page hoặc thời hạn phản hồi.') from exc
     except (URLError, ValueError) as exc:
         logger.error('Facebook send FAIL customer=%s: %s', customer.id, exc)
         raise ValueError('Không thể kết nối Facebook để gửi tin.') from exc
@@ -1642,7 +1652,6 @@ def customer_detail(c_id):
         sales_groups=groups,
         handoffs=handoffs,
         sales_users=sales_users,
-        facebook_reply_window_open=facebook_reply_window_open(c),
     )
 
 
@@ -1950,9 +1959,6 @@ def send_customer_facebook(c_id):
     message = (request.form.get('facebook_message') or '').strip()
     if not message:
         flash('Nội dung tin nhắn Facebook không được để trống.', 'danger')
-        return redirect(url_for('customer_detail', c_id=customer.id))
-    if not facebook_reply_window_open(customer):
-        flash('Khách chưa nhắn lại trong 24 giờ gần nhất. Hãy chờ khách chủ động nhắn Page để mở lại cuộc trò chuyện.', 'warning')
         return redirect(url_for('customer_detail', c_id=customer.id))
     try:
         external_message_id = send_facebook_message(customer, message)
