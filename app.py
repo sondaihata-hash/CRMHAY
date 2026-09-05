@@ -1412,6 +1412,67 @@ def send_facebook_message(customer, text):
     return result.get('message_id') or result.get('id') or ''
 
 
+def parse_facebook_timestamp(value):
+    if isinstance(value, (int, float)):
+        return datetime.utcfromtimestamp(value / 1000 if value > 10_000_000_000 else value)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=None)
+        except ValueError:
+            return None
+    return None
+
+
+def sync_facebook_webhook_message(page_id, messaging):
+    sender = messaging.get('sender') or {}
+    recipient = messaging.get('recipient') or {}
+    message = messaging.get('message') or {}
+    sender_id = str(sender.get('id') or '').strip()
+    conversation_id = str(
+        messaging.get('conversation', {}).get('id')
+        or messaging.get('thread', {}).get('id')
+        or ''
+    ).strip()
+    text = (message.get('text') or '').strip()
+    if not sender_id or sender_id == str(page_id) or not text:
+        return None
+
+    customer = Customer.query.filter(Customer.facebook_id == sender_id).first()
+    if customer is None and conversation_id:
+        customer = Customer.query.filter(Customer.conversation_id == conversation_id).first()
+    if customer is None:
+        customer = Customer(
+            name='Khách hàng Facebook',
+            facebook_id=sender_id,
+            conversation_id=conversation_id or None,
+            source='facebook',
+            page_name=str(page_id),
+        )
+        db.session.add(customer)
+        db.session.flush()
+    customer.facebook_id = sender_id
+    if conversation_id:
+        customer.conversation_id = conversation_id
+    customer.source = 'facebook'
+    customer.message_count = (customer.message_count or 0) + 1
+    customer.message_excerpt = text[:500]
+    customer.last_customer_message_at = parse_facebook_timestamp(messaging.get('timestamp')) or datetime.utcnow()
+    customer.last_message_date = customer.last_customer_message_at
+    message_id = str(message.get('mid') or '').strip()
+    if message_id and MessageLog.query.filter_by(external_message_id=message_id).first():
+        return customer
+    db.session.add(MessageLog(
+        customer_id=customer.id,
+        sender_type='customer',
+        channel='facebook',
+        message=text,
+        external_message_id=message_id,
+        sent_at=datetime.utcnow(),
+    ))
+    db.session.commit()
+    return customer
+
+
 def is_valid_zalo_group_url(value):
     if not value:
         return True
