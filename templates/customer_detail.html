@@ -143,6 +143,7 @@
       <span class="badge-soft">Messenger</span>
     </div>
     {% if c.conversation_id and c.facebook_id %}
+      {% if facebook_reply_window_open %}
       <form action="{{ url_for('send_customer_facebook', c_id=c.id) }}" method="post" class="row g-3 align-items-end">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="col-md-10">
@@ -153,7 +154,10 @@
           <button class="btn primary-btn" type="submit">Gửi qua Facebook</button>
         </div>
       </form>
-      <div class="small text-secondary mt-2">Khách sẽ nhận tin nhắn từ Facebook Page, không phải tài khoản cá nhân của Sale.</div>
+      <div class="small text-success mt-2">Đang mở khóa: khách đã nhắn Page trong 24 giờ gần nhất. Khách sẽ nhận tin từ Facebook Page.</div>
+      {% else %}
+      <div class="alert alert-warning mb-0">Đã khóa trả lời: khách chưa nhắn lại Page trong 24 giờ gần nhất. Khi khách chủ động nhắn lại, CRM sẽ tự mở khóa cho Sale.</div>
+      {% endif %}
     {% else %}
       <div class="alert alert-warning mb-0">Khách này chưa có đủ Facebook ID và Conversation ID để gửi tin.</div>
     {% endif %}
