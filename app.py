@@ -139,6 +139,7 @@ class Customer(db.Model):
     page_name = db.Column(db.String(200), nullable=True)
     location = db.Column(db.String(200), nullable=True)
     last_message_date = db.Column(db.DateTime, nullable=True)
+    last_customer_message_at = db.Column(db.DateTime, nullable=True)
     message_excerpt = db.Column(db.Text, nullable=True)
     source = db.Column(db.String(50), default='manual')
     message_count = db.Column(db.Integer, default=0)
@@ -296,6 +297,7 @@ def ensure_customer_columns():
         'page_name': 'TEXT',
         'location': 'TEXT',
         'last_message_date': 'DATETIME',
+        'last_customer_message_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME',
         'message_excerpt': 'TEXT',
         'source': 'TEXT',
         'first_name': 'TEXT',
