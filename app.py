@@ -1398,7 +1398,8 @@ def facebook_media_type(mimetype):
 def upload_facebook_attachment(page_id, page_token, media_file, media_type):
     boundary = f'----CRMHAY{uuid.uuid4().hex}'
     file_data = media_file.read()
-    filename = media_file.filename or f'upload-{uuid.uuid4().hex}'
+    filename = os.path.basename(media_file.filename or f'upload-{uuid.uuid4().hex}')
+    filename = filename.replace('"', '')
     parts = [
         f'--{boundary}\r\nContent-Disposition: form-data; name="message"\r\n\r\n'
         f'{{"attachment":{{"type":"{media_type}","payload":{{"is_reusable":false}}}}}}\r\n',
@@ -1408,17 +1409,16 @@ def upload_facebook_attachment(page_id, page_token, media_file, media_type):
         f'\r\n--{boundary}--\r\n',
     ]
     body = b''.join(part.encode('utf-8') if isinstance(part, str) else part for part in parts)
-    request = Request(
-        f'https://graph.facebook.com/v19.0/{page_id}/message_attachments',
-        data=body,
-        headers={
-            'Content-Type': f'multipart/form-data; boundary={boundary}',
-            'User-Agent': 'CRM-HAY/1.0',
-        },
-    )
     params = urlencode({'access_token': page_token})
     try:
-        with urlopen(Request(request.full_url + '?' + params, data=body, headers=dict(request.header_items())), timeout=FACEBOOK_API_TIMEOUT) as response:
+        with urlopen(Request(
+            f'https://graph.facebook.com/v19.0/{page_id}/message_attachments?{params}',
+            data=body,
+            headers={
+                'Content-Type': f'multipart/form-data; boundary={boundary}',
+                'User-Agent': 'CRM-HAY/1.0',
+            },
+        ), timeout=FACEBOOK_API_TIMEOUT) as response:
             result = json.loads(response.read().decode('utf-8'))
     except HTTPError as exc:
         detail = exc.read().decode('utf-8', errors='replace')
@@ -1467,7 +1467,7 @@ def send_facebook_message(customer, text, media_file=None):
             'attachment': {'type': media_type, 'payload': {'attachment_id': attachment_id}}
         }
         if text:
-            payload['message']['text'] = text
+            logger.info('Facebook attachment message omits caption text for API compatibility')
     else:
         payload['message'] = {'text': text}
     params = urlencode({'access_token': page['access_token']})
