@@ -143,11 +143,14 @@
       <span class="badge-soft">Messenger</span>
     </div>
     {% if c.facebook_id %}
-      <form action="{{ url_for('send_customer_facebook', c_id=c.id) }}" method="post" class="row g-3 align-items-end">
+      <form action="{{ url_for('send_customer_facebook', c_id=c.id) }}" method="post" enctype="multipart/form-data" class="row g-3 align-items-end">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="col-md-10">
           <label class="form-label fw-semibold" for="facebook_message">Nội dung trả lời</label>
-          <textarea id="facebook_message" class="form-control" name="facebook_message" rows="3" placeholder="Ví dụ: Sản phẩm hiện có giá 500.000đ." required></textarea>
+          <textarea id="facebook_message" class="form-control" name="facebook_message" rows="3" placeholder="Ví dụ: Sản phẩm hiện có giá 500.000đ."></textarea>
+          <label class="form-label fw-semibold mt-2" for="facebook_attachment">Tệp đính kèm</label>
+          <input id="facebook_attachment" class="form-control" name="facebook_attachment" type="file" accept="image/*,video/*,audio/*">
+          <small class="text-secondary">Hỗ trợ hình ảnh, video, âm thanh; tối đa 25 MB.</small>
         </div>
         <div class="col-md-2 d-grid">
           <button class="btn primary-btn" type="submit">Gửi qua Facebook</button>
@@ -279,6 +282,13 @@
           <span class="text-secondary">{{ log.sent_at.strftime('%d/%m/%Y %H:%M') }}</span>
         </div>
         <div class="text-secondary mt-1">{{ log.message }}</div>
+        {% if log.media_url %}
+          {% if log.media_type == 'image' %}
+            <img src="{{ log.media_url }}" alt="Tệp hình ảnh từ Facebook" style="max-width:320px;max-height:240px;border-radius:8px;" class="mt-2">
+          {% else %}
+            <a href="{{ log.media_url }}" target="_blank" rel="noopener" class="d-inline-block mt-2">Mở tệp {{ log.media_type or 'đính kèm' }}</a>
+          {% endif %}
+        {% endif %}
       </div>
     {% endfor %}
   </div>
