@@ -48,6 +48,18 @@
           required
         >
       </div>
+      <div class="col-md-9">
+        <label class="form-label fw-semibold" for="facebookWebhookVerifyToken">Mã xác thực Webhook</label>
+        <input
+          id="facebookWebhookVerifyToken"
+          name="facebook_webhook_verify_token"
+          type="password"
+          class="form-control"
+          autocomplete="new-password"
+          placeholder="{{ 'Đã có mã — nhập mã mới để thay thế' if webhook_verify_token_configured else 'Tạo một mã bí mật bất kỳ' }}"
+        >
+        <small class="text-secondary">Dùng cùng mã này khi cấu hình Webhook trong Meta, để CRM nhận tin khách nhắn lại.</small>
+      </div>
       <div class="col-md-3 d-grid">
         <button class="btn primary-btn" type="submit">Lưu token Facebook</button>
       </div>

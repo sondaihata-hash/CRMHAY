@@ -2025,32 +2025,47 @@ def delete_customer(c_id):
 def settings():
     items = Setting.query.order_by(Setting.key).all()
     facebook_token = get_setting_value('FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
+    webhook_verify_token = get_setting_value('FACEBOOK_WEBHOOK_VERIFY_TOKEN')
     return render_template(
         'settings.html',
         items=items,
         facebook_token_configured=bool(facebook_token),
+        webhook_verify_token_configured=bool(webhook_verify_token),
     )
 
 
 @app.route('/settings/facebook-token', methods=['POST'])
 def save_facebook_token():
     token = (request.form.get('facebook_system_user_token') or '').strip()
-    if not token:
-        flash('System User Token không được để trống.', 'danger')
+    verify_token = (request.form.get('facebook_webhook_verify_token') or '').strip()
+    if not token and not verify_token:
+        flash('Hãy nhập System User Token hoặc mã xác thực Webhook.', 'danger')
         return redirect(url_for('settings'))
 
-    setting = Setting.query.filter_by(key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN').first()
-    if setting:
-        setting.value = token
-        setting.description = 'Facebook System User access token dùng để đồng bộ inbox.'
-    else:
-        db.session.add(Setting(
-            key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN',
-            value=token,
-            description='Facebook System User access token dùng để đồng bộ inbox.',
-        ))
+    if token:
+        setting = Setting.query.filter_by(key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN').first()
+        if setting:
+            setting.value = token
+            setting.description = 'Facebook System User access token dùng để đồng bộ inbox.'
+        else:
+            db.session.add(Setting(
+                key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN',
+                value=token,
+                description='Facebook System User access token dùng để đồng bộ inbox.',
+            ))
+    if verify_token:
+        setting = Setting.query.filter_by(key='FACEBOOK_WEBHOOK_VERIFY_TOKEN').first()
+        if setting:
+            setting.value = verify_token
+            setting.description = 'Mã xác thực Facebook Webhook.'
+        else:
+            db.session.add(Setting(
+                key='FACEBOOK_WEBHOOK_VERIFY_TOKEN',
+                value=verify_token,
+                description='Mã xác thực Facebook Webhook.',
+            ))
     db.session.commit()
-    flash('Đã lưu System User Token. CRM sẽ dùng token này cho lần đồng bộ tiếp theo.', 'success')
+    flash('Đã lưu cấu hình Facebook. Khi khách nhắn lại Page, CRM sẽ mở lại quyền trả lời trong 24 giờ.', 'success')
     return redirect(url_for('settings'))
 
 
