@@ -2952,6 +2952,13 @@ def api_logout():
     return {'ok': True}
 
 
+@app.route('/api/profile')
+@api_login_required
+def api_profile():
+    user = api_current_user()
+    return {'user': {'id': user.id, 'username': user.username, 'role': user.role}}
+
+
 @app.route('/api/dashboard')
 @api_login_required
 def api_dashboard():
