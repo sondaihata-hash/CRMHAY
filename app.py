@@ -359,7 +359,7 @@ def ensure_customer_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('customer')}
     new_columns = {
         'page_name': 'TEXT',
-        'phone_added_at': 'DATETIME',
+        'phone_added_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME',
         'location': 'TEXT',
         'last_message_date': 'DATETIME',
         'last_customer_message_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME',
