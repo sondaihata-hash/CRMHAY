@@ -15,6 +15,20 @@
 - Bấm "Đăng nhập"
 - Ghim app vào màn hình chính (Add to Home Screen) để dễ dùng
 
+### Dùng trên iPhone
+1. Mở `https://crmhay.cloud` bằng Safari.
+2. Đăng nhập CRM.
+3. Bấm **Chia sẻ** → **Thêm vào Màn hình chính** → **Thêm**.
+4. Mở biểu tượng CRM HAY từ Màn hình chính ở những lần sau.
+
+Đây là app web cài từ trình duyệt, không cần cài app iOS riêng và không cần
+khách hàng cài ứng dụng.
+
+### Dùng trên Android
+- Có thể dùng Chrome và chọn **Thêm vào màn hình chính**.
+- Hoặc cài APK CRM HAY Mobile từ link Admin cung cấp.
+- Trong app, vào **Tài khoản** → **Kiểm tra cập nhật app** để cập nhật phiên bản.
+
 ---
 
 ## 2. Dashboard chính
@@ -54,6 +68,25 @@ Khi đăng nhập, bạn sẽ thấy:
 2. Bấm "Chỉnh sửa"
 3. Sửa thông tin
 4. Bấm "Lưu"
+
+### Gọi điện và ghi nhận nhật ký
+
+#### iPhone
+1. Mở chi tiết khách hàng và bấm **Gọi điện**.
+2. Gọi khách bằng ứng dụng Điện thoại của iPhone.
+3. Quay lại CRM sau khi cuộc gọi kết thúc.
+4. Khi CRM hỏi cuộc gọi đã kết thúc, bấm **OK**.
+
+CRM lưu thời gian bắt đầu và thời gian Sales xác nhận kết thúc. iOS không cho
+CRM đọc Call Log, vì vậy thời gian kết thúc phụ thuộc vào thao tác xác nhận.
+
+#### Android
+1. Mở chi tiết khách hàng và bấm **Gọi điện**.
+2. Cấp quyền đọc nhật ký cuộc gọi khi Android yêu cầu.
+3. Gọi khách và quay lại CRM.
+
+CRM sẽ tự đọc cuộc gọi gần nhất để lưu thời gian bắt đầu, kết thúc, thời lượng
+và trạng thái. Nếu từ chối quyền, CRM chỉ lưu được nhật ký cơ bản.
 
 ---
 
