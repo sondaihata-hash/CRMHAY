@@ -1775,6 +1775,10 @@ def index():
     next_month_start = (month_start + timedelta(days=32)).replace(day=1)
     year_start = datetime(now.year, 1, 1)
     customer_query = visible_customer_query()
+    customer_with_phone_query = customer_query.filter(
+        Customer.phone.isnot(None),
+        Customer.phone != '',
+    )
 
     def customer_period_stat(query, start, end, previous_start, previous_end):
         current = query.filter(Customer.created_at >= start, Customer.created_at < end).count()
@@ -1787,10 +1791,10 @@ def index():
         }
 
     customer_period_stats = {
-        'day': customer_period_stat(customer_query, day_start, tomorrow, day_start - timedelta(days=1), day_start),
-        'week': customer_period_stat(customer_query, week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start),
-        'month': customer_period_stat(customer_query, month_start, next_month_start, month_start - timedelta(days=32), month_start),
-        'year': customer_period_stat(customer_query, year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
+        'day': customer_period_stat(customer_with_phone_query, day_start, tomorrow, day_start - timedelta(days=1), day_start),
+        'week': customer_period_stat(customer_with_phone_query, week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start),
+        'month': customer_period_stat(customer_with_phone_query, month_start, next_month_start, month_start - timedelta(days=32), month_start),
+        'year': customer_period_stat(customer_with_phone_query, year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
     }
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
