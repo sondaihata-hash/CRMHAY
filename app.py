@@ -904,16 +904,13 @@ def get_facebook_token():
 
 
 def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
-    configured_page_limit = max_pages
-    if configured_page_limit is None:
-        configured_page_limit = os.environ.get('FACEBOOK_SYNC_PAGE_LIMIT')
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
         configured_conversation_limit = os.environ.get('FACEBOOK_SYNC_CONVERSATION_LIMIT')
 
-    page_limit = None
-    if configured_page_limit:
-        page_limit = max(1, int(configured_page_limit))
+    # Production sync always scans every page returned by the token. Keep the
+    # explicit argument for focused tests and controlled one-off imports.
+    page_limit = max(1, int(max_pages)) if max_pages else None
     conversation_limit = None
     if configured_conversation_limit:
         conversation_limit = max(1, int(configured_conversation_limit))
