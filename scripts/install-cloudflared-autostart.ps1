@@ -16,7 +16,7 @@ $shortcutPath = Join-Path $startup 'Cloudflare Tunnel CRMHAY.lnk'
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $cloudflared
-$shortcut.Arguments = "tunnel --config `"$TunnelConfig`" run"
+$shortcut.Arguments = "tunnel --edge-ip-version 4 --config `"$TunnelConfig`" run"
 $shortcut.WorkingDirectory = Split-Path -Parent $cloudflared
 $shortcut.WindowStyle = 7
 $shortcut.Save()
