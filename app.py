@@ -1774,6 +1774,7 @@ def index():
     week_start = day_start - timedelta(days=day_start.weekday())
     next_month_start = (month_start + timedelta(days=32)).replace(day=1)
     year_start = datetime(now.year, 1, 1)
+    customer_query = visible_customer_query()
 
     def customer_period_stat(start, end, previous_start, previous_end):
         current = customer_query.filter(Customer.created_at >= start, Customer.created_at < end).count()
@@ -1791,7 +1792,6 @@ def index():
         'month': customer_period_stat(month_start, next_month_start, month_start - timedelta(days=32), month_start),
         'year': customer_period_stat(year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
     }
-    customer_query = visible_customer_query()
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
     phone_count = customer_query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
