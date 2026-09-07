@@ -2972,6 +2972,7 @@ def api_create_order():
         c = Customer(
             name=name,
             phone=normalized_phone,
+            phone_added_at=datetime.utcnow(),
             email=(data.get('customer_email') or '').strip(),
             location=(data.get('customer_location') or '').strip(),
             source='manual',
@@ -2981,7 +2982,7 @@ def api_create_order():
     if not c:
         return {'error': 'Cần chọn khách hàng hoặc nhập số điện thoại.'}, 400
     if normalized_phone:
-        if not c.phone:
+        if not c.phone_added_at:
             c.phone_added_at = datetime.utcnow()
         c.phone = normalized_phone
     if data.get('customer_name'):
