@@ -1851,6 +1851,38 @@ def index():
         func.count(Customer.id).desc(),
         Customer.location.asc(),
     ).limit(10).all()
+    sales_users = User.query.filter_by(role='sales').order_by(User.username.asc()).all()
+    sales_customer_counts = dict(
+        customer_query.filter(Customer.assigned_user_id.isnot(None)).with_entities(
+            Customer.assigned_user_id,
+            func.count(Customer.id),
+        ).group_by(Customer.assigned_user_id).all()
+    )
+    sales_revenues = dict(
+        order_query.join(Customer, Order.customer_id == Customer.id).filter(
+            Customer.assigned_user_id.isnot(None),
+        ).with_entities(
+            Customer.assigned_user_id,
+            func.coalesce(func.sum(Order.total_amount), 0),
+        ).group_by(Customer.assigned_user_id).all()
+    )
+    sales_customer_stats = sorted(
+        [
+            {
+                'name': user.username,
+                'customer_count': sales_customer_counts.get(user.id, 0),
+                'revenue': sales_revenues.get(user.id, 0) or 0,
+            }
+            for user in sales_users
+        ],
+        key=lambda item: item['customer_count'],
+        reverse=True,
+    )
+    sales_revenue_stats = sorted(
+        sales_customer_stats,
+        key=lambda item: item['revenue'],
+        reverse=True,
+    )
     order_count = order_query.count()
     revenue = order_query.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).scalar() or 0
     month_revenue = order_query.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).filter(
@@ -1878,6 +1910,8 @@ def index():
         reminder_count=reminder_count, pending_reminders=pending_reminders,
         customer_period_stats=customer_period_stats,
         location_summary=location_summary,
+        sales_customer_stats=sales_customer_stats,
+        sales_revenue_stats=sales_revenue_stats,
     )
 
 

@@ -52,6 +52,49 @@
   </section>
   {% endif %}
 
+  {% if current_user().role == 'admin' %}
+  <div class="row g-4 mb-4">
+    <div class="col-xl-6">
+      <section class="panel p-4 h-100">
+        <div class="kpi-label">Hiệu quả kinh doanh</div>
+        <h2 class="section-title mb-4">Doanh thu theo Sales</h2>
+        {% for item in sales_revenue_stats %}
+          <div class="distribution-row">
+            <div class="d-flex justify-content-between small mb-2">
+              <span>{{ item.name }}</span>
+              <strong>{{ '{:,.0f}'.format(item.revenue) }} đ</strong>
+            </div>
+            <div class="progress-track">
+              <span style="width: {{ ((item.revenue / (sales_revenue_stats[0].revenue or 1) * 100) if sales_revenue_stats else 0)|round(0) }}%"></span>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">Chưa có dữ liệu Sales.</p>
+        {% endfor %}
+      </section>
+    </div>
+    <div class="col-xl-6">
+      <section class="panel p-4 h-100">
+        <div class="kpi-label">Phân bổ khách hàng</div>
+        <h2 class="section-title mb-4">Khách đang nắm giữ theo Sales</h2>
+        {% for item in sales_customer_stats %}
+          <div class="distribution-row">
+            <div class="d-flex justify-content-between small mb-2">
+              <span>{{ item.name }}</span>
+              <strong>{{ '{:,.0f}'.format(item.customer_count) }} khách</strong>
+            </div>
+            <div class="progress-track">
+              <span style="width: {{ ((item.customer_count / (sales_customer_stats[0].customer_count or 1) * 100) if sales_customer_stats else 0)|round(0) }}%"></span>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">Chưa có dữ liệu Sales.</p>
+        {% endfor %}
+      </section>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row g-4 mb-4">
     <div class="col-xl-7">
       <section class="panel p-4 h-100">
