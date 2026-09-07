@@ -2272,6 +2272,34 @@ def update_order_status(order_id):
     return redirect(request.referrer or url_for('orders'))
 
 
+@app.route('/orders/<int:order_id>/delete', methods=['POST'])
+def delete_order(order_id):
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first_or_404()
+    db.session.delete(order)
+    db.session.commit()
+    flash(f'Đã xóa đơn {order.code}.', 'success')
+    return redirect(url_for('orders'))
+
+
+@app.route('/orders/<int:order_id>/production', methods=['POST'])
+def send_order_to_production(order_id):
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first_or_404()
+    order.production_sent_at = datetime.utcnow()
+    order.status = 'Đã gửi sản xuất'
+    db.session.commit()
+    return render_template(
+        'production_order.html',
+        order=order,
+        production_message=production_order_message(order),
+    )
+
+
 @app.route('/orders/<int:order_id>')
 def order_document(order_id):
     order = Order.query.join(Customer).filter(
