@@ -3050,6 +3050,57 @@ def api_update_customer_activity(c_id, activity_id):
     return {'activity': serialize_activity(activity)}
 
 
+@app.route('/api/customers/<int:c_id>/messages', methods=['POST'])
+@api_login_required
+def api_send_customer_message(c_id):
+    customer = api_visible_customer_query().filter(Customer.id == c_id).first()
+    if not customer:
+        return {'error': 'Không tìm thấy khách hàng hoặc bạn không có quyền.'}, 404
+    data = request.get_json(silent=True) or {}
+    channel = (data.get('channel') or '').strip().lower()
+    message = (data.get('message') or '').strip()
+    if channel not in {'facebook', 'zalo'}:
+        return {'error': 'Kênh nhắn tin phải là facebook hoặc zalo.'}, 400
+    if not message:
+        return {'error': 'Nội dung tin nhắn không được để trống.'}, 400
+    try:
+        if channel == 'facebook':
+            external_id, media_type = send_facebook_message(customer, message, None)
+        else:
+            external_id = send_zalo_message(customer, message)
+            media_type = None
+    except ValueError as exc:
+        return {'error': str(exc)}, 400
+    except Exception:
+        logger.exception('Unable to send %s message for customer %s', channel, customer.id)
+        return {'error': 'Không thể gửi tin nhắn lúc này.'}, 502
+    sent_at = datetime.utcnow()
+    message_log = MessageLog(
+        customer_id=customer.id,
+        sender_type='sales',
+        channel=channel,
+        message=message,
+        media_type=media_type,
+        external_message_id=external_id,
+        sent_at=sent_at,
+    )
+    db.session.add(message_log)
+    db.session.add(CustomerActivity(
+        customer_id=customer.id,
+        user_id=api_current_user().id,
+        activity_type='message',
+        channel=channel,
+        note=message,
+        status='completed',
+        started_at=sent_at,
+        ended_at=sent_at,
+    ))
+    customer.last_message_date = sent_at
+    customer.message_excerpt = message[:500]
+    db.session.commit()
+    return {'message': serialize_message(message_log)}, 201
+
+
 @app.route('/api/customers/<int:c_id>', methods=['PUT'])
 @api_login_required
 def api_update_customer(c_id):
@@ -3093,6 +3144,33 @@ def api_add_customer():
     db.session.add(c)
     db.session.commit()
     return {'customer': serialize_customer(c)}, 201
+
+
+@app.route('/api/admin/users')
+@api_login_required
+def api_admin_users():
+    if api_current_user().role != 'admin':
+        return {'error': 'Chỉ Admin mới có quyền xem danh sách Sales.'}, 403
+    users = User.query.filter_by(role='sales', is_active=True).order_by(User.username.asc()).all()
+    return {'users': [{'id': user.id, 'username': user.username} for user in users]}
+
+
+@app.route('/api/admin/customers/<int:c_id>/assign', methods=['PATCH'])
+@api_login_required
+def api_assign_customer(c_id):
+    if api_current_user().role != 'admin':
+        return {'error': 'Chỉ Admin mới có quyền phân công khách hàng.'}, 403
+    customer = Customer.query.filter_by(id=c_id).first()
+    if not customer:
+        return {'error': 'Không tìm thấy khách hàng.'}, 404
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('assigned_user_id')
+    user = db.session.get(User, user_id) if user_id else None
+    if user_id and (not user or user.role != 'sales' or not user.is_active):
+        return {'error': 'Sales được chọn không hợp lệ hoặc đã bị khóa.'}, 400
+    customer.assigned_user_id = user.id if user else None
+    db.session.commit()
+    return {'customer': serialize_customer(customer)}
 
 
 @app.route('/api/orders')
