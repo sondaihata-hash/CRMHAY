@@ -978,6 +978,7 @@ def import_facebook_messages(messages):
             db.session.add(customer)
             imported += 1
         else:
+            had_phone = bool((customer.phone or '').strip())
             customer.name = payload['name'] or customer.name
             customer.first_name = payload['first_name'] or customer.first_name
             customer.last_name = payload['last_name'] or customer.last_name
@@ -987,6 +988,8 @@ def import_facebook_messages(messages):
             customer.gender = payload['gender'] or customer.gender
             customer.locale = payload['locale'] or customer.locale
             customer.phone = payload['phone']
+            if not had_phone and payload['phone']:
+                customer.phone_added_at = datetime.utcnow()
             customer.location = payload['location'] or customer.location
             customer.page_name = payload['page_name'] or customer.page_name
             customer.last_message_date = payload['last_message_date']
@@ -1930,7 +1933,10 @@ def add_customer():
         if not name:
             flash('Tên là bắt buộc', 'danger')
             return redirect(url_for('add_customer'))
-        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone, notes=notes, location=location, tags=tags, assigned_user_id=current_user().id if current_user().role == 'sales' else None)
+        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone,
+                     phone_added_at=datetime.utcnow() if phone else None,
+                     notes=notes, location=location, tags=tags,
+                     assigned_user_id=current_user().id if current_user().role == 'sales' else None)
         db.session.add(c)
         db.session.commit()
         flash('Đã thêm khách hàng', 'success')
@@ -2904,6 +2910,7 @@ def api_add_customer():
         facebook_id=data.get('facebook_id'),
         email=data.get('email'),
         phone=data.get('phone'),
+        phone_added_at=datetime.utcnow() if (data.get('phone') or '').strip() else None,
         notes=data.get('notes'),
         location=data.get('location'),
         tags=data.get('tags'),
@@ -2958,6 +2965,8 @@ def api_create_order():
     if not c:
         return {'error': 'Cần chọn khách hàng hoặc nhập số điện thoại.'}, 400
     if normalized_phone:
+        if not c.phone:
+            c.phone_added_at = datetime.utcnow()
         c.phone = normalized_phone
     if data.get('customer_name'):
         c.name = data['customer_name'].strip()
