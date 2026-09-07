@@ -73,6 +73,9 @@ báo cho `crmhay.cloud`. Kiểm tra sau khi đăng nhập lại bằng cách m�
 .\scripts\uninstall-cloudflared-autostart.ps1
 ```
 
+Shortcut tunnel được cấu hình dùng IPv4 (`--edge-ip-version 4`) để tránh lỗi
+DNS/IPv6 không ổn định khi cloudflared kết nối tới edge Cloudflare.
+
 Gỡ tự khởi động khi cần:
 
 ```powershell
