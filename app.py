@@ -710,6 +710,7 @@ def clear_configured_hotlines_from_customers():
     ).all():
         if is_configured_hotline_number(customer.phone):
             customer.phone = ''
+            customer.phone_added_at = None
             affected += 1
     if affected:
         db.session.commit()
@@ -966,6 +967,7 @@ def import_facebook_messages(messages):
                 locale=payload['locale'],
                 email=payload['email'],
                 phone=payload['phone'],
+                phone_added_at=datetime.utcnow() if payload['phone'] else None,
                 notes=payload['notes'],
                 page_name=payload['page_name'],
                 location=payload['location'],
@@ -1488,6 +1490,8 @@ def sync_zalo_customer_message(payload):
 
     customer.name = customer.name or name
     if phone:
+        if not customer.phone:
+            customer.phone_added_at = datetime.utcnow()
         customer.phone = phone
     if sender_id and not customer.facebook_id:
         customer.facebook_id = sender_id
@@ -1786,8 +1790,8 @@ def index():
     )
 
     def customer_period_stat(query, start, end, previous_start, previous_end):
-        current = query.filter(Customer.created_at >= start, Customer.created_at < end).count()
-        previous = query.filter(Customer.created_at >= previous_start, Customer.created_at < previous_end).count()
+        current = query.filter(Customer.phone_added_at >= start, Customer.phone_added_at < end).count()
+        previous = query.filter(Customer.phone_added_at >= previous_start, Customer.phone_added_at < previous_end).count()
         return {
             'count': current,
             'previous': previous,
@@ -2212,7 +2216,12 @@ def edit_customer(c_id):
         c.name = request.form.get('name')
         c.facebook_id = request.form.get('facebook_id')
         c.email = request.form.get('email')
+        previous_phone = c.phone
         c.phone = sanitize_customer_phone(request.form.get('phone'))
+        if not previous_phone and c.phone:
+            c.phone_added_at = datetime.utcnow()
+        elif previous_phone and not c.phone:
+            c.phone_added_at = None
         c.notes = request.form.get('notes')
         c.location = request.form.get('location')
         c.tags = request.form.get('tags')
@@ -2892,6 +2901,13 @@ def api_update_customer(c_id):
     data = request.get_json(silent=True) or {}
     for field in ('name', 'phone', 'email', 'notes', 'location', 'tags', 'facebook_id'):
         if field in data:
+            if field == 'phone':
+                previous_phone = c.phone
+                data[field] = sanitize_customer_phone(data[field])
+                if not previous_phone and data[field]:
+                    c.phone_added_at = datetime.utcnow()
+                elif previous_phone and not data[field]:
+                    c.phone_added_at = None
             setattr(c, field, data[field])
     db.session.commit()
     return {'customer': serialize_customer(c)}
