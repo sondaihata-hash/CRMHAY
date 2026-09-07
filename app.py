@@ -990,7 +990,7 @@ def import_facebook_messages(messages):
             customer.gender = payload['gender'] or customer.gender
             customer.locale = payload['locale'] or customer.locale
             customer.phone = payload['phone']
-            if not had_phone and payload['phone']:
+            if payload['phone'] and (not had_phone or not customer.phone_added_at):
                 customer.phone_added_at = datetime.utcnow()
             customer.location = payload['location'] or customer.location
             customer.page_name = payload['page_name'] or customer.page_name
@@ -1491,7 +1491,7 @@ def sync_zalo_customer_message(payload):
 
     customer.name = customer.name or name
     if phone:
-        if not customer.phone:
+        if not customer.phone or not customer.phone_added_at:
             customer.phone_added_at = datetime.utcnow()
         customer.phone = phone
     if sender_id and not customer.facebook_id:
