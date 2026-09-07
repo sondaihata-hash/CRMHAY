@@ -1480,6 +1480,7 @@ def sync_zalo_customer_message(payload):
         customer = Customer(
             name=name,
             phone=phone or None,
+            phone_added_at=datetime.utcnow() if phone else None,
             facebook_id=sender_id or None,
             source='zalo',
             page_name=payload.get('page_name') or 'Zalo',
