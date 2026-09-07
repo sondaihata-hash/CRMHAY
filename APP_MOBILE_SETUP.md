@@ -1,4 +1,103 @@
-# Hướng dẫn tạo App Mobile CRM cho Sales
+# Hướng dẫn sử dụng CRM HAY trên Android và iPhone
+
+## Truy cập CRM trên điện thoại
+
+Mở trình duyệt và truy cập:
+
+```text
+https://crmhay.cloud
+```
+
+Đăng nhập bằng tài khoản Sales được cấp. CRM HAY có hai cách sử dụng:
+
+- **Android:** dùng APK CRM HAY Mobile hoặc mở trực tiếp bằng trình duyệt.
+- **iPhone:** mở bằng Safari và thêm CRM vào Màn hình chính như một app web.
+
+## Cài CRM như app trên iPhone
+
+1. Mở `https://crmhay.cloud` bằng **Safari**.
+2. Đăng nhập CRM.
+3. Bấm nút **Chia sẻ** trên Safari.
+4. Chọn **Thêm vào Màn hình chính**.
+5. Bấm **Thêm**.
+6. Mở biểu tượng CRM HAY từ Màn hình chính ở những lần sau.
+
+Đây là app web/PWA, không phải ứng dụng iOS đóng gói từ App Store. iPhone
+không cần cài app SIP và khách hàng cũng không cần cài ứng dụng nào.
+
+## Cài và cập nhật trên Android
+
+### Cách 1: cập nhật bằng APK CRM HAY Mobile
+
+1. Mở CRM HAY Mobile.
+2. Vào **Tài khoản**.
+3. Bấm **Kiểm tra cập nhật app**.
+4. Xác nhận tải bản mới.
+5. Mở file APK và chọn **Cài đặt/Cập nhật**.
+
+APK hiện tại:
+
+```text
+https://crmhay.cloud/downloads/crmhay-mobile.apk
+```
+
+### Cách 2: dùng trình duyệt
+
+Mở Chrome, truy cập `https://crmhay.cloud`, đăng nhập và có thể chọn
+**Thêm vào màn hình chính**.
+
+## Gọi điện và ghi nhật ký trên iPhone
+
+1. Vào **Khách hàng** và mở khách cần gọi.
+2. Bấm **Gọi điện**.
+3. CRM lưu thời gian bắt đầu rồi mở ứng dụng Điện thoại của iPhone.
+4. Thực hiện cuộc gọi như bình thường.
+5. Quay lại CRM.
+6. Khi CRM hỏi **“Cuộc gọi với khách hàng đã kết thúc?”**, chỉ bấm **OK** sau
+   khi cuộc gọi thực sự kết thúc.
+
+CRM sẽ lưu thời gian bắt đầu, thời gian Sales xác nhận kết thúc, thời lượng
+ước tính, Sales thực hiện và ghi chú. Nếu chưa kết thúc, chọn **Hủy**; nhật ký
+vẫn ở trạng thái chờ để xác nhận sau.
+
+> iOS không cho ứng dụng đọc Call Log hoặc biết chính xác lúc cuộc gọi SIM
+> kết thúc. Vì vậy thời gian kết thúc trên iPhone là thời điểm Sales bấm **OK**.
+
+## Gọi điện và ghi nhật ký trên Android
+
+1. Mở CRM HAY Mobile và đăng nhập.
+2. Vào **Khách hàng**, mở khách rồi bấm **Gọi điện**.
+3. Cho phép quyền **đọc nhật ký cuộc gọi** khi Android hỏi.
+4. Gọi khách như bình thường.
+5. Quay lại CRM.
+
+Android sẽ đọc cuộc gọi gần nhất từ Call Log và tự đồng bộ thời gian bắt đầu,
+thời gian kết thúc, thời lượng và trạng thái cuộc gọi. Nếu không cấp quyền,
+CRM vẫn ghi nhận cuộc gọi nhưng không thể lấy thời lượng tự động.
+
+## Xem lịch sử cuộc gọi
+
+Admin mở hồ sơ khách hàng trên CRM để xem **Nhật ký chăm sóc**. Mỗi dòng có:
+
+- Sales thực hiện;
+- thời gian bắt đầu;
+- thời gian kết thúc hoặc trạng thái chờ;
+- thời lượng;
+- ghi chú;
+- trạng thái cuộc gọi nhỡ/từ chối/đã hoàn tất.
+
+## Lưu ý sử dụng
+
+- Không đóng hoặc xóa dữ liệu trình duyệt khi còn cuộc gọi đang chờ xác nhận.
+- iPhone cần quay lại đúng trình duyệt CRM sau cuộc gọi để xác nhận kết thúc.
+- Android cần bật quyền đọc nhật ký cuộc gọi cho CRM Mobile.
+- Cuộc gọi vẫn là cuộc gọi SIM thông thường; khách hàng không cần cài app.
+- Tài khoản Sales chỉ xem và ghi nhật ký khách được phân công; Admin xem được
+  toàn bộ lịch sử.
+
+---
+
+# Hướng dẫn kỹ thuật tạo App Mobile CRM cho Sales
 
 ## Tổng quan
 
