@@ -2284,6 +2284,36 @@ def delete_order(order_id):
     return redirect(url_for('orders'))
 
 
+@app.route('/orders/<int:order_id>/edit', methods=['GET', 'POST'])
+def edit_order(order_id):
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first_or_404()
+    if request.method == 'POST':
+        order.status = (request.form.get('status') or order.status).strip()
+        order.note = (request.form.get('note') or '').strip()
+        order.delivery_address = (request.form.get('delivery_address') or '').strip()
+        order.items.clear()
+        for code, name, unit, qty, price in zip(
+                request.form.getlist('product_code'),
+                request.form.getlist('product_name'),
+                request.form.getlist('unit'),
+                request.form.getlist('quantity'),
+                request.form.getlist('unit_price')):
+            if name.strip():
+                order.items.append(OrderItem(
+                    product_code=code.strip(), product_name=name.strip(),
+                    unit=unit.strip(), quantity=max(float(qty or 0), 0),
+                    unit_price=max(float(price or 0), 0),
+                ))
+        order.total_amount = sum(item.quantity * item.unit_price for item in order.items)
+        db.session.commit()
+        flash(f'Đã cập nhật đơn {order.code}.', 'success')
+        return redirect(url_for('order_document', order_id=order.id))
+    return render_template('order_edit.html', order=order)
+
+
 @app.route('/orders/<int:order_id>/production', methods=['POST'])
 def send_order_to_production(order_id):
     order = Order.query.join(Customer).filter(
