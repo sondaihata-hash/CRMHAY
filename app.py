@@ -70,6 +70,25 @@ app.config.update(
     SESSION_COOKIE_SECURE=is_production,
 )
 
+MOBILE_CORS_ORIGINS = {
+    'capacitor://localhost',
+    'http://localhost',
+    'https://localhost',
+    'https://crmhay.cloud',
+}
+
+
+@app.after_request
+def add_mobile_cors_headers(response):
+    origin = request.headers.get('Origin')
+    if origin in MOBILE_CORS_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
+        response.headers['Access-Control-Max-Age'] = '600'
+        response.headers.add('Vary', 'Origin')
+    return response
+
 db = SQLAlchemy(app)
 
 # Configure these in Render for durable background jobs.  When absent, the
