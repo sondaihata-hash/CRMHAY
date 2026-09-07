@@ -1821,8 +1821,8 @@ def index():
     )
 
     def customer_period_stat(query, start, end, previous_start, previous_end):
-        current = query.filter(Customer.phone_added_at >= start, Customer.phone_added_at < end).count()
-        previous = query.filter(Customer.phone_added_at >= previous_start, Customer.phone_added_at < previous_end).count()
+        current = query.filter(Customer.last_message_date >= start, Customer.last_message_date < end).count()
+        previous = query.filter(Customer.last_message_date >= previous_start, Customer.last_message_date < previous_end).count()
         return {
             'count': current,
             'previous': previous,
