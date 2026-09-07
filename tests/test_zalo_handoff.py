@@ -47,7 +47,8 @@ def test_zalo_handoff_returns_configured_group_link():
 
         assert response.status_code == 200
         payload = response.get_json()
-        assert payload['desktop_app_url'] == 'zalo://'
+        assert payload['group_url'] == 'https://zalo.me/g/example-group'
+        assert payload['desktop_app_url'] == 'https://zalo.me/g/example-group'
         assert 'destination_url' not in payload
         expected_message = f'Họ tên: {customer.name}\nSố điện thoại: 0987654321\nNơi ở: Chưa rõ'
         assert payload['message'] == expected_message
@@ -114,6 +115,7 @@ def test_handoff_ignores_legacy_invalid_group_destination():
             f'/customers/{customer.id}/handoff-zalo',
             data={'group_id': group.id, '_csrf_token': csrf_token(client, f'/customers/{customer.id}')},
         )
+        assert response.get_json()['group_url'] is None
         assert response.get_json()['desktop_app_url'] == 'zalo://'
         db.session.query(SalesHandoff).filter_by(customer_id=customer.id).delete()
         db.session.delete(group)

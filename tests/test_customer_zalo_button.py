@@ -20,7 +20,7 @@ def test_customer_list_contains_zalo_handoff_action():
         assert 'customer-zalo-button' in html
         assert 'onclick="openZaloHandoff' not in html
         assert 'window.location.href = data.destination_url' not in html
-        assert 'window.location.assign(\'zalo://\')' in html
+        assert "window.open(data.group_url || data.desktop_app_url || 'zalo://', '_blank', 'noopener')" in html
         assert 'zalo.me/g/button-test' not in html
 
         db.session.delete(group)

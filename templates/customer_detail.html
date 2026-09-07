@@ -72,6 +72,10 @@
           <div class="kpi-label">Điểm tích lũy</div>
           <div class="fs-5 fw-semibold text-warning">⭐ {{ c.points or 0 }} điểm</div>
         </div>
+        <div class="mb-3">
+          <div class="kpi-label">Sales phụ trách</div>
+          <div class="fs-5 fw-semibold">{{ c.assigned_user.username if c.assigned_user else 'Chưa phân công' }}</div>
+        </div>
       </div>
       <div class="col-md-6">
         <div class="mb-3">
@@ -198,7 +202,7 @@
       </div>
     </form>
 
-    {% set customer_reminders = c.reminders|selectattr('status', 'equalto', 'pending')|list %}
+    {% set customer_reminders = c.reminders|sort(attribute='created_at', reverse=true) %}
     {% if customer_reminders %}
       <div class="mt-4">
         {% for reminder in customer_reminders %}
@@ -207,14 +211,16 @@
               <strong>{{ reminder.title }}</strong>
               <div class="small text-secondary">
                 {% if reminder.due_at %}{{ reminder.due_at.strftime('%d/%m/%Y %H:%M') }}{% else %}Không có thời hạn{% endif %}
-                · {{ reminder.priority|title }}
+                · {{ reminder.priority|title }} · {{ 'Đã hoàn tất' if reminder.status == 'done' else 'Đang chờ' }}
               </div>
               {% if reminder.note %}<div class="small text-secondary mt-1">{{ reminder.note }}</div>{% endif %}
             </div>
+            {% if reminder.status != 'done' %}
             <form method="post" action="{{ url_for('complete_reminder', reminder_id=reminder.id) }}">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-sm success-btn" type="submit">Hoàn tất</button>
             </form>
+            {% endif %}
           </div>
         {% endfor %}
       </div>
@@ -275,7 +281,7 @@
   {% if c.message_logs %}
   <div class="panel p-4 mt-4">
     <div class="kpi-label mb-2">Lịch sử tương tác Facebook / Zalo / CRM</div>
-    {% for log in (c.message_logs|sort(attribute='sent_at', reverse=True))[:8] %}
+    {% for log in (c.message_logs|sort(attribute='sent_at', reverse=True)) %}
       <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
         <div class="d-flex justify-content-between gap-3 flex-wrap">
           <strong>{{ 'Khách hàng' if log.sender_type == 'customer' else 'Sales' }}</strong>
@@ -293,6 +299,57 @@
     {% endfor %}
   </div>
   {% endif %}
+
+  {% if activities %}
+  <div class="panel p-4 mt-4">
+    <div class="kpi-label mb-2">Nhật ký chăm sóc từ CRM Mobile</div>
+    {% for activity in activities %}
+      <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <div class="d-flex justify-content-between gap-3 flex-wrap">
+          <strong>{{ 'Gọi điện' if activity.activity_type == 'call' else 'Nhắn tin' }} · {{ activity.channel }}</strong>
+          <span class="text-secondary">{{ activity.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+        </div>
+        <div class="text-secondary mt-1">
+          Sales: {{ activity.user.username }}
+          {% if activity.duration_seconds is not none %} · Thời lượng: {{ activity.duration_seconds }} giây{% endif %}
+          {% if activity.status == 'missed' %} · Cuộc gọi nhỡ{% elif activity.status == 'rejected' %} · Bị từ chối{% elif activity.status == 'initiated' %} · Chưa có kết quả{% endif %}
+          {% if activity.note %} · {{ activity.note }}{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="panel p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+      <div>
+        <div class="kpi-label">Lịch sử bán hàng</div>
+        <h2 class="section-title mb-0">Đơn hàng của khách</h2>
+      </div>
+      <span class="badge-soft">{{ c.orders|length }} đơn</span>
+    </div>
+    {% if c.orders %}
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Mã đơn</th><th>Ngày tạo</th><th>Trạng thái</th><th>Sản phẩm</th><th class="text-end">Tổng tiền</th><th></th></tr></thead>
+        <tbody>
+        {% for order in c.orders|sort(attribute='created_at', reverse=true) %}
+          <tr>
+            <td><strong>{{ order.code }}</strong></td>
+            <td>{{ order.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>{{ order.status }}</td>
+            <td>{{ order.items|length }} sản phẩm</td>
+            <td class="text-end">{{ '{:,.0f}'.format(order.total_amount) }} đ</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('order_document', order_id=order.id) }}">Xem</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="text-secondary">Khách chưa có lịch sử đơn hàng.</div>
+    {% endif %}
+  </div>
 
   {% if handoffs %}
   <div class="panel p-4 mt-4">
@@ -332,13 +389,21 @@
             textArea.remove();
           }
           status.className = 'small mt-3 text-success';
-          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Bấm nút bên dưới để mở Zalo Desktop.`;
+          status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Bấm nút bên dưới để mở đúng nhóm Zalo.`;
           const openButton = document.createElement('button');
           openButton.type = 'button';
           openButton.className = 'btn btn-sm primary-btn ms-2';
-          openButton.textContent = 'Mở Zalo Desktop';
-          openButton.addEventListener('click', () => window.location.assign(data.desktop_app_url || 'zalo://'));
+          openButton.textContent = 'Mở đúng nhóm Zalo';
+          openButton.addEventListener('click', () => {
+            if (data.group_url) window.open(data.group_url, '_blank', 'noopener');
+          });
           status.appendChild(openButton);
+          const desktopButton = document.createElement('button');
+          desktopButton.type = 'button';
+          desktopButton.className = 'btn btn-sm primary-btn ms-2';
+          desktopButton.textContent = 'Mở Zalo Desktop';
+          desktopButton.addEventListener('click', () => { window.location.href = 'zalo://'; });
+          status.appendChild(desktopButton);
         } catch (error) {
           status.className = 'small mt-3 text-danger';
           status.textContent = error.message || 'Không thể kết nối CRM. Hãy thử lại.';

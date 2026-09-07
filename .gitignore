@@ -6,7 +6,10 @@ __pycache__/
 *.pyd
 *.db
 instance/
+logs/
 .DS_Store
 .vscode/
 node_modules/
 .idea/
+downloads/*.apk
+downloads/mobile-release.json

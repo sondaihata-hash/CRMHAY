@@ -21,8 +21,16 @@ $env:PORT = $Port
 if (-not $env:CRM_USE_CELERY) {
     $env:CRM_USE_CELERY = 'false'
 }
+$persistentMobileVersion = [Environment]::GetEnvironmentVariable('CRM_MOBILE_VERSION', 'User')
+if ($persistentMobileVersion) {
+    $env:CRM_MOBILE_VERSION = $persistentMobileVersion
+}
+$persistentMobileVersionCode = [Environment]::GetEnvironmentVariable('CRM_MOBILE_VERSION_CODE', 'User')
+if ($persistentMobileVersionCode) {
+    $env:CRM_MOBILE_VERSION_CODE = $persistentMobileVersionCode
+}
 
-$logDirectory = Join-Path $repoRoot 'logs'
+$logDirectory = Join-Path $env:TEMP 'crmh-supervisor'
 $logPath = Join-Path $logDirectory 'vps-supervisor.log'
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 Start-Transcript -Path $logPath -Append | Out-Null

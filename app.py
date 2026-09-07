@@ -3,7 +3,7 @@ import importlib.util
 import pkgutil
 import secrets
 import werkzeug
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, send_from_directory, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from sqlalchemy import text, inspect, func
@@ -53,6 +53,33 @@ DB_PATH = os.path.join(INSTANCE_DIR, 'crm.db')
 CUSTOMER_SNAPSHOT_PATH = os.environ.get(
     'CUSTOMER_SNAPSHOT_PATH', os.path.join(INSTANCE_DIR, 'customers-backup.json')
 )
+APP_VERSION = os.environ.get('CRM_MOBILE_VERSION', '1.4.1')
+APP_DOWNLOAD_DIR = os.path.join(BASE_DIR, 'downloads')
+APP_DOWNLOAD_FILE = 'crmhay-mobile.apk'
+APP_UPDATE_URL = os.environ.get('CRM_MOBILE_UPDATE_URL', f'https://crmhay.cloud/downloads/{APP_DOWNLOAD_FILE}')
+APP_MIN_VERSION = os.environ.get('CRM_MOBILE_MIN_VERSION', APP_VERSION)
+
+
+def mobile_release_metadata():
+    release_path = os.path.join(APP_DOWNLOAD_DIR, 'mobile-release.json')
+    metadata = {
+        'version': APP_VERSION,
+        'version_code': int(os.environ.get('CRM_MOBILE_VERSION_CODE', '0') or 0),
+        'download_url': APP_UPDATE_URL or None,
+    }
+    if os.path.isfile(release_path):
+        try:
+            with open(release_path, encoding='utf-8') as release_file:
+                published = json.load(release_file)
+            if published.get('version'):
+                metadata['version'] = published['version']
+            if published.get('version_code') is not None:
+                metadata['version_code'] = published['version_code']
+            if published.get('download_url'):
+                metadata['download_url'] = published['download_url']
+        except (OSError, ValueError, TypeError):
+            logging.warning('Khong doc duoc mobile-release.json; dung cau hinh moi truong.')
+    return metadata
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
@@ -71,6 +98,25 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_SECURE=is_production,
 )
+
+MOBILE_CORS_ORIGINS = {
+    'capacitor://localhost',
+    'http://localhost',
+    'https://localhost',
+    'https://crmhay.cloud',
+}
+
+
+@app.after_request
+def add_mobile_cors_headers(response):
+    origin = request.headers.get('Origin')
+    if origin in MOBILE_CORS_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
+        response.headers['Access-Control-Max-Age'] = '600'
+        response.headers.add('Vary', 'Origin')
+    return response
 
 db = SQLAlchemy(app)
 
@@ -110,10 +156,8 @@ _sync_lock = threading.Lock()
 
 # Optional deployment limits. When unset, Facebook pagination runs until the
 # API reports that there is no next page.
-MAX_API_CALLS_PER_SYNC = 10000
 FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
-MAX_SYNC_CONVERSATION_LIMIT = 10000
 CONVERSATIONS_PER_REQUEST = 25
 DEFAULT_HOTLINE_NUMBERS = frozenset({
     '0707866676',
@@ -245,6 +289,22 @@ class MessageLog(db.Model):
     customer = db.relationship('Customer', backref=db.backref('message_logs', lazy=True, cascade='all, delete-orphan'))
 
 
+class CustomerActivity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    activity_type = db.Column(db.String(30), nullable=False)
+    channel = db.Column(db.String(30), nullable=False, default='crm')
+    note = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='completed')
+    started_at = db.Column(db.DateTime, nullable=True)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    duration_seconds = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    customer = db.relationship('Customer', backref=db.backref('activities', lazy=True, cascade='all, delete-orphan'))
+    user = db.relationship('User', backref=db.backref('customer_activities', lazy=True))
+
+
 class Reminder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
@@ -329,6 +389,21 @@ def ensure_message_log_columns():
     db.session.commit()
 
 
+def ensure_customer_activity_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('customer_activity')}
+    timestamp_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+    new_columns = {
+        'status': "VARCHAR(20) NOT NULL DEFAULT 'completed'",
+        'started_at': timestamp_type,
+        'ended_at': timestamp_type,
+        'duration_seconds': 'INTEGER',
+    }
+    for column_name, column_type in new_columns.items():
+        if column_name not in columns:
+            db.session.execute(text(f'ALTER TABLE customer_activity ADD COLUMN {column_name} {column_type}'))
+    db.session.commit()
+
+
 def ensure_sync_job_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('sync_job')}
     timestamp_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
@@ -365,6 +440,8 @@ def login_required(view):
         user = current_user()
         if not user or not user.is_active:
             session.clear()
+            if request.path.startswith('/api/') or request.args.get('format') == 'json':
+                return {'ok': False, 'message': 'Phiên đăng nhập đã hết hạn.'}, 401
             return redirect(url_for('login', next=request.full_path))
         return view(*args, **kwargs)
     return wrapped_view
@@ -399,12 +476,16 @@ def login():
         password = request.form.get('password') or ''
         user = User.query.filter_by(username=username, is_active=True).first()
         if not user or not check_password_hash(user.password_hash, password):
+            if request.is_json or request.accept_mimetypes.best == 'application/json':
+                return {'ok': False, 'message': 'Tên đăng nhập hoặc mật khẩu không đúng.'}, 401
             flash('Tên đăng nhập hoặc mật khẩu không đúng.', 'danger')
             return render_template('login.html')
         session.clear()
         session['user_id'] = user.id
         user.last_login_at = datetime.utcnow()
         db.session.commit()
+        if request.is_json or request.accept_mimetypes.best == 'application/json':
+            return {'ok': True, 'user': {'id': user.id, 'username': user.username, 'role': user.role}}
         next_url = request.args.get('next') or url_for('index')
         parsed_next = urlsplit(next_url)
         if (
@@ -420,6 +501,26 @@ def login():
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
+
+
+@app.route('/downloads/<path:filename>')
+def mobile_download(filename):
+    if filename != APP_DOWNLOAD_FILE:
+        return {'error': 'Không tìm thấy tệp cập nhật.'}, 404
+    return send_from_directory(APP_DOWNLOAD_DIR, filename, as_attachment=True)
+
+
+@app.route('/api/mobile/version')
+def api_mobile_version():
+    release = mobile_release_metadata()
+    return {
+        'version': release['version'],
+        'minimum_version': APP_MIN_VERSION,
+        'version_code': release['version_code'],
+        'update_available': bool(release['download_url']),
+        'download_url': release['download_url'],
+        'message': 'Có phiên bản CRM Mobile mới.' if release['download_url'] else 'Bạn đang dùng phiên bản mới nhất.',
+    }
 
 
 @app.route('/logout', methods=['POST'])
@@ -479,6 +580,28 @@ def assign_customer(c_id):
     return redirect(url_for('customer_detail', c_id=customer.id))
 
 
+@app.route('/customers/assign-bulk', methods=['POST'])
+@admin_required
+def assign_customers_bulk():
+    customer_ids = request.form.getlist('customer_ids', type=int)
+    user_id = request.form.get('assigned_user_id', type=int)
+    user = db.session.get(User, user_id) if user_id else None
+    if not customer_ids:
+        flash('Hãy chọn ít nhất một khách hàng để chuyển.', 'warning')
+        return redirect(url_for('customers'))
+    if user_id and (not user or user.role != 'sales' or not user.is_active):
+        flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
+        return redirect(url_for('customers'))
+
+    customers_to_assign = Customer.query.filter(Customer.id.in_(customer_ids)).all()
+    for customer in customers_to_assign:
+        customer.assigned_user_id = user.id if user else None
+    db.session.commit()
+    assignment = user.username if user else 'chưa phân công'
+    flash(f'Đã chuyển {len(customers_to_assign)} khách cho {assignment}.', 'success')
+    return redirect(url_for('customers'))
+
+
 def ensure_sales_group_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('sales_group')}
     if 'zalo_url' not in columns:
@@ -513,7 +636,7 @@ def validate_csrf_token():
 
 @app.before_request
 def require_authentication():
-    if request.endpoint in {'login', 'index', 'static'} or (request.endpoint or '').startswith('api_'):
+    if request.endpoint in {'login', 'index', 'static', 'mobile_download'} or (request.endpoint or '').startswith('api_'):
         return None
     user = current_user()
     if not user or not user.is_active:
@@ -779,12 +902,10 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
 
     page_limit = None
     if configured_page_limit:
-        page_limit = max(1, min(int(configured_page_limit), 20))
+        page_limit = max(1, int(configured_page_limit))
     conversation_limit = None
     if configured_conversation_limit:
-        conversation_limit = max(
-            1, min(int(configured_conversation_limit), MAX_SYNC_CONVERSATION_LIMIT)
-        )
+        conversation_limit = max(1, int(configured_conversation_limit))
     return page_limit, conversation_limit
 
 
@@ -793,7 +914,7 @@ def get_facebook_api_call_limit():
     configured_limit = os.environ.get('FACEBOOK_SYNC_API_CALL_LIMIT')
     if not configured_limit:
         return None
-    return max(1, min(int(configured_limit), MAX_API_CALLS_PER_SYNC))
+    return max(1, int(configured_limit))
 
 
 def should_fetch_facebook_profiles():
@@ -823,6 +944,8 @@ def import_facebook_messages(messages):
             customer = Customer.query.filter(Customer.conversation_id == payload['conversation_id']).first()
         if customer is None and payload.get('facebook_id'):
             customer = Customer.query.filter(Customer.facebook_id == payload['facebook_id']).first()
+        if customer is None and payload.get('phone'):
+            customer = Customer.query.filter(Customer.phone == payload['phone']).first()
         if customer is None and not payload.get('facebook_id'):
             # Only dedup by name when no facebook_id — avoid merging distinct FB users
             customer = Customer.query.filter(Customer.name == payload['name'], Customer.source == 'facebook').first()
@@ -1245,6 +1368,7 @@ def init_db():
         ensure_user_columns()
         ensure_customer_columns()
         ensure_message_log_columns()
+        ensure_customer_activity_columns()
         ensure_order_columns()
         ensure_reminder_columns()
         ensure_sales_group_columns()
@@ -1355,6 +1479,10 @@ def sync_zalo_customer_message(payload):
         message=text or 'Không có nội dung',
         external_message_id=str(payload.get('message_id') or payload.get('id') or ''),
         sent_at=datetime.utcnow(),
+    ))
+    db.session.add(CustomerActivity(
+        customer_id=customer.id, user_id=current_user().id,
+        activity_type='message', channel='zalo', note=message,
     ))
     db.session.commit()
     return customer
@@ -1578,6 +1706,10 @@ def sync_facebook_webhook_message(page_id, messaging):
         external_message_id=message_id,
         sent_at=datetime.utcnow(),
     ))
+    db.session.add(CustomerActivity(
+        customer_id=customer.id, user_id=current_user().id,
+        activity_type='message', channel='facebook', note=message or f'[{media_type}]',
+    ))
     db.session.commit()
     return customer
 
@@ -1671,6 +1803,7 @@ def complete_reminder(reminder_id):
 
 
 @app.route('/customers')
+@login_required
 def customers():
     q = request.args.get('q', '')
     sort = request.args.get('sort', 'newest')
@@ -1692,6 +1825,22 @@ def customers():
     else:
         items = base_query.order_by(*customer_sort_order(sort)).all()
 
+    if request.args.get('format') == 'json':
+        return {
+            'ok': True,
+            'customers': [{
+                'id': customer.id,
+                'name': customer.name,
+                'phone': customer.phone or '',
+                'email': customer.email or '',
+                'location': customer.location or '',
+                'page_name': customer.page_name or '',
+                'source': customer.source or '',
+                'assigned_user_id': customer.assigned_user_id,
+                'last_message_date': customer.last_message_date.isoformat() if customer.last_message_date else None,
+            } for customer in items],
+        }
+
     customer_stats = base_query.with_entities(
         Customer.source,
         Customer.page_name,
@@ -1707,6 +1856,7 @@ def customers():
         'customers.html', customers=items, customer_stats=customer_stats,
         q=q, sync_job_id=sync_job_id, sort=sort,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
+        sales_users=User.query.filter_by(role='sales', is_active=True).order_by(User.username).all(),
     )
 
 
@@ -1732,16 +1882,34 @@ def add_customer():
 
 
 @app.route('/customers/<int:c_id>')
+@login_required
 def customer_detail(c_id):
     c = get_visible_customer(c_id)
+    if request.args.get('format') == 'json':
+        return {
+            'ok': True,
+            'customer': {
+                'id': c.id,
+                'name': c.name,
+                'phone': c.phone or '',
+                'email': c.email or '',
+                'location': c.location or '',
+                'page_name': c.page_name or '',
+                'source': c.source or '',
+                'notes': c.notes or '',
+                'assigned_user_id': c.assigned_user_id,
+            },
+        }
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
+    activities = CustomerActivity.query.filter_by(customer_id=c.id).order_by(CustomerActivity.created_at.desc()).all()
     sales_users = User.query.filter_by(role='sales', is_active=True).order_by(User.username).all()
     return render_template(
         'customer_detail.html',
         c=c,
         sales_groups=groups,
         handoffs=handoffs,
+        activities=activities,
         sales_users=sales_users,
     )
 
@@ -1761,7 +1929,8 @@ def handoff_customer_to_zalo(c_id):
         'ok': True,
         'message': message,
         'group_name': group.name,
-        'desktop_app_url': 'zalo://',
+        'group_url': group.zalo_url,
+        'desktop_app_url': group.zalo_url or 'zalo://',
     }
 
 
@@ -2359,9 +2528,12 @@ def sync_facebook_status():
         and (datetime.utcnow() - last_activity).total_seconds() > 120
     )
     message = job.message or ''
-    if stale and job.status == 'queued':
-        message = 'Tác vụ đang chờ worker; CRM chưa bắt đầu quét Facebook. Kiểm tra tiến trình CRM.'
-    return {'running': job.status in ('queued', 'running'), 'result': job.status,
+    if stale:
+        if job.status == 'queued':
+            message = 'Tác vụ đang chờ worker; CRM chưa bắt đầu quét Facebook. Kiểm tra tiến trình CRM.'
+        else:
+            message = 'Tác vụ đồng bộ đã mất kết nối hoặc bị treo; hãy chạy lại đồng bộ Facebook.'
+    return {'running': job.status in ('queued', 'running') and not stale, 'result': job.status,
             'message': message, 'imported': job.imported, 'updated': job.updated,
             'progress': job.progress or 0, 'processed': job.processed or 0, 'total': job.total or 0,
             'last_activity_at': job.last_activity_at.isoformat() if job.last_activity_at else None,
@@ -2483,6 +2655,22 @@ def serialize_order(o):
     }
 
 
+def serialize_activity(activity):
+    return {
+        'id': activity.id,
+        'type': activity.activity_type,
+        'channel': activity.channel,
+        'note': activity.note or '',
+        'status': activity.status,
+        'started_at': activity.started_at.isoformat() if activity.started_at else None,
+        'ended_at': activity.ended_at.isoformat() if activity.ended_at else None,
+        'duration_seconds': activity.duration_seconds,
+        'user_id': activity.user_id,
+        'username': activity.user.username if activity.user else '',
+        'created_at': activity.created_at.isoformat() if activity.created_at else None,
+    }
+
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     data = request.get_json(silent=True) or {}
@@ -2550,7 +2738,86 @@ def api_customer_detail(c_id):
     if not c:
         return {'error': 'Không tìm thấy khách hàng.'}, 404
     orders_list = Order.query.filter_by(customer_id=c.id).order_by(Order.created_at.desc()).all()
-    return {'customer': serialize_customer(c), 'orders': [serialize_order(o) for o in orders_list]}
+    activities = CustomerActivity.query.filter_by(customer_id=c.id).order_by(CustomerActivity.created_at.desc()).all()
+    return {
+        'customer': serialize_customer(c),
+        'orders': [serialize_order(o) for o in orders_list],
+        'activities': [serialize_activity(activity) for activity in activities],
+    }
+
+
+@app.route('/api/customers/<int:c_id>/activities', methods=['POST'])
+@api_login_required
+def api_create_customer_activity(c_id):
+    customer = api_visible_customer_query().filter(Customer.id == c_id).first()
+    if not customer:
+        return {'error': 'Không tìm thấy khách hàng hoặc bạn không được phân công khách này.'}, 404
+    data = request.get_json(silent=True) or {}
+    activity_type = (data.get('type') or '').strip().lower()
+    channel = (data.get('channel') or 'crm').strip().lower()
+    if activity_type not in {'call', 'message'}:
+        return {'error': 'Loại hoạt động phải là call hoặc message.'}, 400
+    if channel not in {'phone', 'facebook', 'zalo', 'sms', 'crm'}:
+        return {'error': 'Kênh hoạt động không hợp lệ.'}, 400
+    status = (data.get('status') or 'completed').strip().lower()
+    if status not in {'initiated', 'completed', 'missed', 'rejected', 'failed'}:
+        return {'error': 'Trạng thái hoạt động không hợp lệ.'}, 400
+    def parse_activity_time(value):
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace('Z', '+00:00')).replace(tzinfo=None)
+        except ValueError:
+            return None
+    try:
+        duration_seconds = max(0, int(data['duration_seconds'])) if data.get('duration_seconds') is not None else None
+    except (TypeError, ValueError):
+        return {'error': 'Thời lượng cuộc gọi không hợp lệ.'}, 400
+    activity = CustomerActivity(
+        customer_id=customer.id,
+        user_id=api_current_user().id,
+        activity_type=activity_type,
+        channel=channel,
+        note=(data.get('note') or '').strip()[:2000],
+        status=status,
+        started_at=parse_activity_time(data.get('started_at')),
+        ended_at=parse_activity_time(data.get('ended_at')),
+        duration_seconds=duration_seconds,
+    )
+    db.session.add(activity)
+    db.session.commit()
+    return {'activity': serialize_activity(activity)}, 201
+
+
+@app.route('/api/customers/<int:c_id>/activities/<int:activity_id>', methods=['PATCH'])
+@api_login_required
+def api_update_customer_activity(c_id, activity_id):
+    customer = api_visible_customer_query().filter(Customer.id == c_id).first()
+    activity = CustomerActivity.query.filter_by(id=activity_id, customer_id=c_id).first()
+    if not customer or not activity:
+        return {'error': 'Không tìm thấy hoạt động hoặc bạn không có quyền.'}, 404
+    data = request.get_json(silent=True) or {}
+    status = (data.get('status') or activity.status).strip().lower()
+    if status not in {'initiated', 'completed', 'missed', 'rejected', 'failed'}:
+        return {'error': 'Trạng thái hoạt động không hợp lệ.'}, 400
+    activity.status = status
+    if data.get('ended_at'):
+        try:
+            activity.ended_at = datetime.fromisoformat(str(data['ended_at']).replace('Z', '+00:00')).replace(tzinfo=None)
+        except ValueError:
+            return {'error': 'Thời gian kết thúc không hợp lệ.'}, 400
+    if data.get('started_at'):
+        try:
+            activity.started_at = datetime.fromisoformat(str(data['started_at']).replace('Z', '+00:00')).replace(tzinfo=None)
+        except ValueError:
+            return {'error': 'Thời gian bắt đầu không hợp lệ.'}, 400
+    if data.get('duration_seconds') is not None:
+        try:
+            activity.duration_seconds = max(0, int(data['duration_seconds']))
+        except (TypeError, ValueError):
+            return {'error': 'Thời lượng cuộc gọi không hợp lệ.'}, 400
+    db.session.commit()
+    return {'activity': serialize_activity(activity)}
 
 
 @app.route('/api/customers/<int:c_id>', methods=['PUT'])
@@ -2607,9 +2874,42 @@ def api_orders():
 def api_create_order():
     data = request.get_json(silent=True) or {}
     customer_id = data.get('customer_id')
-    c = api_visible_customer_query().filter(Customer.id == customer_id).first()
+    user = api_current_user()
+    phone = sanitize_customer_phone(data.get('phone') or '')
+    phone_numbers = extract_phone_numbers(phone)
+    normalized_phone = phone_numbers[0] if phone_numbers else ''
+    c = Customer.query.filter(Customer.id == customer_id).first() if customer_id else None
+    if c is None and normalized_phone:
+        for candidate in Customer.query.filter(Customer.phone.isnot(None), Customer.phone != '').all():
+            candidate_phone = extract_phone_numbers(candidate.phone)
+            if candidate_phone and candidate_phone[0] == normalized_phone:
+                c = candidate
+                break
+    if c is None and normalized_phone:
+        name = (data.get('customer_name') or '').strip()
+        if not name:
+            return {'error': 'Cần nhập tên khách hàng khi tạo khách mới.'}, 400
+        c = Customer(
+            name=name,
+            phone=normalized_phone,
+            email=(data.get('customer_email') or '').strip(),
+            location=(data.get('customer_location') or '').strip(),
+            source='manual',
+        )
+        db.session.add(c)
+        db.session.flush()
     if not c:
-        return {'error': 'Khách hàng không hợp lệ.'}, 400
+        return {'error': 'Cần chọn khách hàng hoặc nhập số điện thoại.'}, 400
+    if normalized_phone:
+        c.phone = normalized_phone
+    if data.get('customer_name'):
+        c.name = data['customer_name'].strip()
+    if data.get('customer_email'):
+        c.email = data['customer_email'].strip()
+    if data.get('customer_location'):
+        c.location = data['customer_location'].strip()
+    if user.role == 'sales':
+        c.assigned_user_id = user.id
     raw_items = data.get('items', [])
     if not raw_items:
         return {'error': 'Cần ít nhất một sản phẩm.'}, 400

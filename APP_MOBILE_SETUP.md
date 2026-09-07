@@ -167,38 +167,50 @@ export default App
 ```javascript
 const CRM_BASE_URL = 'https://crmhay.cloud'
 
+async function requestJson(path, options = {}) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000)
+  try {
+    const response = await fetch(`${CRM_BASE_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`)
+    return data
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export const api = {
   async login(username, password) {
-    const formData = new FormData()
-    formData.append('username', username)
-    formData.append('password', password)
-    
-    const response = await fetch(`${CRM_BASE_URL}/login`, {
+    const data = await requestJson('/api/login', {
       method: 'POST',
-      body: formData,
-      credentials: 'include',
+      body: JSON.stringify({ username, password }),
     })
-    
-    if (!response.ok) throw new Error('Login failed')
-    return response.text()
+    localStorage.setItem('crm_token', data.token)
+    return data
   },
 
   async getCustomers() {
-    const response = await fetch(`${CRM_BASE_URL}/customers?format=json`, {
+    return requestJson('/api/customers', {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('crm_token')}` },
-      credentials: 'include',
     })
-    if (!response.ok) throw new Error('Failed to fetch customers')
-    return response.json()
   },
 
   async getCustomer(customerId) {
-    const response = await fetch(`${CRM_BASE_URL}/customers/${customerId}`, {
+    return requestJson(`/api/customers/${customerId}`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('crm_token')}` },
-      credentials: 'include',
     })
-    if (!response.ok) throw new Error('Failed to fetch customer')
-    return response.json()
+  },
+  async logActivity(customerId, type, channel, note = '') {
+    return requestJson(`/api/customers/${customerId}/activities`, {
+      method: 'POST',
+      headers: { 'Authorization': `******'crm_token')}` },
+      body: JSON.stringify({ type, channel, note }),
+    })
   },
 
   async sendZaloMessage(customerId, message) {
@@ -241,6 +253,71 @@ export const api = {
   }
 }
 ```
+
+### 4.2 Nút cập nhật ứng dụng
+
+Cài plugin mở link tải APK:
+
+```bash
+npm install @capacitor/app-launcher
+npx cap sync android
+```
+
+Thêm nút vào màn hình Cài đặt:
+
+```jsx
+import { App } from '@capacitor/app'
+import { AppLauncher } from '@capacitor/app-launcher'
+
+async function checkForAppUpdate() {
+  const currentVersion = await App.getInfo().then(info => info.version)
+  const result = await requestJson('/api/mobile/version')
+  if (result.version === currentVersion || !result.download_url) {
+    alert('Bạn đang dùng phiên bản mới nhất.')
+    return
+  }
+  const confirmed = window.confirm(`Có bản ${result.version} mới. Cập nhật ngay?`)
+  if (confirmed) {
+    await AppLauncher.openUrl({ url: result.download_url })
+  }
+}
+
+<button type="button" onClick={checkForAppUpdate}>
+  Cập nhật ứng dụng
+</button>
+```
+
+Cấu hình link APK và phiên bản trên server:
+
+```text
+CRM_MOBILE_VERSION=1.0.1
+CRM_MOBILE_MIN_VERSION=1.0.0
+CRM_MOBILE_UPDATE_URL=https://crmhay.cloud/downloads/crmhay-sales-1.0.1.apk
+```
+
+APK mới phải giữ nguyên package name `com.crmhay.sales`, dùng cùng signing key và tăng
+`versionCode`; khi đó Android sẽ cài đè, giữ nguyên dữ liệu, không cần gỡ app cũ.
+
+#### Phát hành APK mới bằng một lệnh
+
+Sau khi build APK release từ mã nguồn mobile, chạy trên PC CRM:
+
+```powershell
+.\scripts\publish-mobile-apk.ps1 `
+  -ApkPath "C:\duong-dan\app-release.apk" `
+  -Version "1.4.1" `
+  -VersionCode 5
+```
+
+Script chép APK vào tên cố định `downloads\crmhay-mobile.apk`, tạo manifest
+`mobile-release.json` và cập nhật phiên bản cho server. Không cần đổi URL trong
+ứng dụng. Khởi động lại CRM sau khi phát hành để supervisor nạp biến môi trường;
+ứng dụng mobile chỉ cần bấm **Cập nhật ứng dụng**.
+
+Repository CRM hiện chỉ chứa APK phát hành, không chứa mã nguồn Android/React
+Native. Muốn tự động build APK sau mỗi thay đổi giao diện, cần đưa thư mục mã
+nguồn mobile và quy trình Android signing (keystore) vào máy build/CI; không nên
+đưa keystore vào Git.
 
 ---
 

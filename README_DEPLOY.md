@@ -176,9 +176,10 @@ Mặc định CRM quét lần lượt toàn bộ cuộc hội thoại và tự �
 phân trang của Facebook cho mọi Page đã tìm thấy. CRM lấy 25 cuộc hội thoại mỗi
 lượt gọi API; các tin nhắn trong từng hội thoại vẫn được phân trang đầy đủ.
 Nếu cần giới hạn một lần chạy vì quota hoặc chạy thử, có thể đặt
-`FACEBOOK_SYNC_CONVERSATION_LIMIT`, `FACEBOOK_SYNC_PAGE_LIMIT` (tối đa 20) hoặc
-`FACEBOOK_SYNC_API_CALL_LIMIT` (tối đa 10.000) trong Environment. Khi không đặt
-các biến này, không có giới hạn nhân tạo theo số cuộc hội thoại hay số API call.
+`FACEBOOK_SYNC_CONVERSATION_LIMIT`, `FACEBOOK_SYNC_PAGE_LIMIT` hoặc
+`FACEBOOK_SYNC_API_CALL_LIMIT` trong Environment. Khi không đặt các biến này,
+CRM sẽ quét toàn bộ Page, toàn bộ hội thoại và toàn bộ các trang tin nhắn mà
+Facebook trả về.
 
 ### 1.5 Đặt lại mật khẩu Admin trên Render Free
 

@@ -110,10 +110,25 @@
         <button type="button" class="btn btn-sm btn-outline-secondary action-btn" onclick="scrollCustomerList(1)">Cuộn xuống ↓</button>
       </div>
     </div>
+    {% if current_user and current_user().role == 'admin' %}
+    <form id="bulkAssignForm" method="post" action="{{ url_for('assign_customers_bulk') }}" class="bulk-assign-toolbar d-flex flex-wrap align-items-center gap-2 p-3 border-top border-bottom">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <strong class="me-2">Chuyển Sales:</strong>
+      <select name="assigned_user_id" class="form-select form-select-sm" style="width:auto; min-width:180px;" aria-label="Sales nhận khách">
+        <option value="">Bỏ phân công</option>
+        {% for user in sales_users %}
+        <option value="{{ user.id }}">{{ user.username }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm btn-primary action-btn">Chuyển khách đã chọn</button>
+      <span id="selectedCustomerCount" class="text-muted small">Chưa chọn khách nào</span>
+    </form>
+    {% endif %}
     <div id="customerList" class="table-responsive customer-list-scroll">
       <table class="table mb-0 align-middle customer-table-fixed" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
+            {% if current_user and current_user().role == 'admin' %}<th style="width: 42px;"><input type="checkbox" id="selectAllCustomers" aria-label="Chọn tất cả khách hàng"></th>{% endif %}
             <th style="width: 56px;">#</th>
             <th style="width: 24%; min-width: 180px;">Tên Khách</th>
             <th style="width: 12%; min-width: 110px;">Nơi ở</th>
@@ -129,6 +144,7 @@
         <tbody>
           {% for c in customers %}
           <tr>
+            {% if current_user and current_user().role == 'admin' %}<td><input type="checkbox" name="customer_ids" value="{{ c.id }}" form="bulkAssignForm" class="customer-select" aria-label="Chọn {{ c.name }}"></td>{% endif %}
             <td><small class="text-muted">{{ c.id }}</small></td>
             <td>
               <div class="d-flex align-items-center gap-2">
@@ -216,7 +232,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="10" class="text-center text-muted py-4">Không có khách hàng nào.</td>
+            <td colspan="{{ 11 if current_user and current_user().role == 'admin' else 10 }}" class="text-center text-muted py-4">Không có khách hàng nào.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -256,7 +272,7 @@
     <div class="zalo-modal-dialog panel">
       <div class="d-flex justify-content-between align-items-start"><div><div class="kpi-label">Chuyển khách cho Sale</div><h2 class="fs-5 mb-0" id="zaloHandoffTitle">Gửi khách qua Zalo Desktop</h2></div><button type="button" class="btn-close" data-close-zalo-modal aria-label="Đóng"></button></div>
       <p class="text-secondary small mt-3">CRM sẽ sao chép tên khách, số điện thoại và nơi ở. Sau đó bạn chủ động mở Zalo Desktop và chọn nhóm.</p><form id="customerZaloForm"><label class="form-label fw-semibold" for="zaloGroupId">Nhóm Sale nhận khách</label><select class="form-select" id="zaloGroupId" required><option value="">Chọn nhóm Zalo</option>{% for group in sales_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select><div id="customerZaloStatus" class="small mt-3" aria-live="polite"></div></form>
-      <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn secondary-btn" data-close-zalo-modal>Hủy</button><button type="submit" form="customerZaloForm" class="btn success-btn" id="customerZaloSubmit">Chuẩn bị & sao chép</button><button type="button" class="btn primary-btn" id="customerZaloOpen" hidden>Mở Zalo Desktop</button></div>
+      <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn secondary-btn" data-close-zalo-modal>Hủy</button><button type="submit" form="customerZaloForm" class="btn success-btn" id="customerZaloSubmit">Chuẩn bị & sao chép</button><button type="button" class="btn primary-btn" id="customerZaloDesktop" hidden>Mở Zalo Desktop</button><button type="button" class="btn primary-btn" id="customerZaloOpen" hidden>Mở đúng nhóm</button></div>
     </div>
   </div>
 
@@ -329,6 +345,31 @@
       document.getElementById('customerList').scrollBy({ top: direction * 360, behavior: 'smooth' });
     }
 
+    const selectAllCustomers = document.getElementById('selectAllCustomers');
+    const customerSelects = Array.from(document.querySelectorAll('.customer-select'));
+    const selectedCustomerCount = document.getElementById('selectedCustomerCount');
+    function updateSelectedCustomerCount() {
+      const count = customerSelects.filter((checkbox) => checkbox.checked).length;
+      selectedCustomerCount.textContent = count ? `${count} khách đã chọn` : 'Chưa chọn khách nào';
+      if (selectAllCustomers) {
+        selectAllCustomers.checked = count > 0 && count === customerSelects.length;
+        selectAllCustomers.indeterminate = count > 0 && count < customerSelects.length;
+      }
+    }
+    if (selectAllCustomers) {
+      selectAllCustomers.addEventListener('change', () => {
+        customerSelects.forEach((checkbox) => { checkbox.checked = selectAllCustomers.checked; });
+        updateSelectedCustomerCount();
+      });
+      customerSelects.forEach((checkbox) => checkbox.addEventListener('change', updateSelectedCustomerCount));
+      document.getElementById('bulkAssignForm').addEventListener('submit', (event) => {
+        if (!customerSelects.some((checkbox) => checkbox.checked)) {
+          event.preventDefault();
+          alert('Hãy chọn ít nhất một khách hàng để chuyển.');
+        }
+      });
+    }
+
     let selectedZaloCustomerId = null;
     const zaloModal = document.getElementById('zaloHandoffModal');
     const closeZaloModal = () => { zaloModal.hidden = true; document.body.classList.remove('modal-open'); };
@@ -338,6 +379,7 @@
       document.getElementById('zaloHandoffTitle').textContent = `Gửi ${customerName} qua Zalo Desktop`;
       document.getElementById('zaloGroupId').value = '';
       document.getElementById('customerZaloStatus').textContent = '';
+      document.getElementById('customerZaloDesktop').hidden = true;
       document.getElementById('customerZaloOpen').hidden = true;
       zaloModal.hidden = false;
       document.body.classList.add('modal-open');
@@ -371,8 +413,12 @@
           textArea.remove();
         }
         status.className = 'small mt-3 text-success';
-        status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Bấm “Mở Zalo Desktop” để tiếp tục.`;
-        document.getElementById('customerZaloOpen').hidden = false;
+        status.textContent = `Đã sao chép thông tin cho nhóm “${data.group_name}”. Bấm “Mở nhóm Zalo” để tiếp tục.`;
+        const openButton = document.getElementById('customerZaloOpen');
+        openButton.textContent = 'Mở nhóm Zalo';
+        openButton.dataset.groupUrl = data.group_url || '';
+        openButton.hidden = false;
+        document.getElementById('customerZaloDesktop').hidden = false;
       } catch (error) {
         status.className = 'small mt-3 text-danger';
         status.textContent = error.message || 'Không thể kết nối CRM. Hãy thử lại.';
@@ -381,8 +427,12 @@
       }
     });
 
-    document.getElementById('customerZaloOpen').addEventListener('click', () => {
-      window.location.assign('zalo://');
+    document.getElementById('customerZaloOpen').addEventListener('click', (event) => {
+      const groupUrl = event.currentTarget.dataset.groupUrl;
+      if (groupUrl) window.open(groupUrl, '_blank', 'noopener');
+    });
+    document.getElementById('customerZaloDesktop').addEventListener('click', () => {
+      window.location.href = 'zalo://';
     });
 
     monitorSync();
