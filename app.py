@@ -156,7 +156,7 @@ _sync_lock = threading.Lock()
 
 # Optional deployment limits. When unset, Facebook pagination runs until the
 # API reports that there is no next page.
-FACEBOOK_API_TIMEOUT = 15  # seconds per HTTP request
+FACEBOOK_API_TIMEOUT = 30  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
 CONVERSATIONS_PER_REQUEST = 25
 DEFAULT_HOTLINE_NUMBERS = frozenset({
@@ -1022,8 +1022,22 @@ def fetch_facebook_json(endpoint, access_token, extra_params=None):
     t0 = time.time()
     req = Request(url, headers={'User-Agent': 'CRM-HAY/1.0'})
     try:
-        with urlopen(req, timeout=FACEBOOK_API_TIMEOUT) as response:
-            payload = json.loads(response.read().decode('utf-8'))
+        last_error = None
+        for attempt in range(3):
+            try:
+                with urlopen(req, timeout=FACEBOOK_API_TIMEOUT) as response:
+                    payload = json.loads(response.read().decode('utf-8'))
+                break
+            except HTTPError as exc:
+                last_error = exc
+                if exc.code < 500 and exc.code != 429:
+                    raise
+            except (URLError, TimeoutError, OSError) as exc:
+                last_error = exc
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+        else:
+            raise last_error
     except Exception as exc:
         elapsed = time.time() - t0
         logger.error("Facebook API FAIL %s %.2fs: %s", safe_endpoint, elapsed, exc)
@@ -1200,7 +1214,14 @@ def fetch_managed_facebook_messages(
                     'fields': 'participants{id,name},messages.limit(100){from{id,name},message,created_time}',
                     'limit': str(CONVERSATIONS_PER_REQUEST),
                 }
-                payload = fetch_facebook_json(next_url or endpoint, page_token, params)
+                try:
+                    payload = fetch_facebook_json(next_url or endpoint, page_token, params)
+                except (HTTPError, URLError, ValueError, KeyError, TimeoutError, OSError) as exc:
+                    logger.exception(
+                        "Skipping page %d/%d after conversations request failed: %s",
+                        page_index + 1, len(pages_to_sync), exc,
+                    )
+                    break
                 api_call_count += 1
                 conversations = payload.get('data', [])
                 if not conversations:
@@ -1228,7 +1249,14 @@ def fetch_managed_facebook_messages(
                     message_next_url = (messages_payload.get('paging') or {}).get('next')
                     while message_next_url and (
                             api_call_limit is None or api_call_count < api_call_limit):
-                        message_payload = fetch_facebook_json(message_next_url, page_token)
+                        try:
+                            message_payload = fetch_facebook_json(message_next_url, page_token)
+                        except (HTTPError, URLError, ValueError, KeyError, TimeoutError, OSError) as exc:
+                            logger.exception(
+                                "Skipping remaining messages in page %s conversation after request failed: %s",
+                                page_name, exc,
+                            )
+                            break
                         api_call_count += 1
                         messages.extend(message_payload.get('data', []))
                         message_next_url = (message_payload.get('paging') or {}).get('next')
