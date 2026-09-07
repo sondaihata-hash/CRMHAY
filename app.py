@@ -1839,6 +1839,18 @@ def index():
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
     phone_count = customer_query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
+    location_summary = customer_query.filter(
+        Customer.location.isnot(None),
+        db.func.trim(Customer.location) != '',
+    ).with_entities(
+        Customer.location,
+        func.count(Customer.id).label('customer_count'),
+    ).group_by(
+        Customer.location,
+    ).order_by(
+        func.count(Customer.id).desc(),
+        Customer.location.asc(),
+    ).limit(10).all()
     order_count = order_query.count()
     revenue = order_query.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).scalar() or 0
     month_revenue = order_query.with_entities(func.coalesce(func.sum(Order.total_amount), 0)).filter(
@@ -1865,6 +1877,7 @@ def index():
         recent_customers=recent_customers, recent_orders=recent_orders,
         reminder_count=reminder_count, pending_reminders=pending_reminders,
         customer_period_stats=customer_period_stats,
+        location_summary=location_summary,
     )
 
 
