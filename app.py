@@ -997,7 +997,14 @@ def import_facebook_messages(messages):
             customer.gender = payload['gender'] or customer.gender
             customer.locale = payload['locale'] or customer.locale
             customer.phone = payload['phone']
-            if payload['phone'] and (not had_phone or not customer.phone_added_at):
+            if payload['phone'] and (
+                    not had_phone
+                    or not customer.phone_added_at
+                    or (
+                        payload['phone_added_at']
+                        and payload['phone_added_at'] < customer.phone_added_at
+                    )
+            ):
                 customer.phone_added_at = payload['phone_added_at'] or datetime.utcnow()
             customer.location = payload['location'] or customer.location
             customer.page_name = payload['page_name'] or customer.page_name
