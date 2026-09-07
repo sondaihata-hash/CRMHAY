@@ -1776,9 +1776,9 @@ def index():
     year_start = datetime(now.year, 1, 1)
     customer_query = visible_customer_query()
 
-    def customer_period_stat(start, end, previous_start, previous_end):
-        current = customer_query.filter(Customer.created_at >= start, Customer.created_at < end).count()
-        previous = customer_query.filter(Customer.created_at >= previous_start, Customer.created_at < previous_end).count()
+    def customer_period_stat(query, start, end, previous_start, previous_end):
+        current = query.filter(Customer.created_at >= start, Customer.created_at < end).count()
+        previous = query.filter(Customer.created_at >= previous_start, Customer.created_at < previous_end).count()
         return {
             'count': current,
             'previous': previous,
@@ -1787,10 +1787,10 @@ def index():
         }
 
     customer_period_stats = {
-        'day': customer_period_stat(day_start, tomorrow, day_start - timedelta(days=1), day_start),
-        'week': customer_period_stat(week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start),
-        'month': customer_period_stat(month_start, next_month_start, month_start - timedelta(days=32), month_start),
-        'year': customer_period_stat(year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
+        'day': customer_period_stat(customer_query, day_start, tomorrow, day_start - timedelta(days=1), day_start),
+        'week': customer_period_stat(customer_query, week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start),
+        'month': customer_period_stat(customer_query, month_start, next_month_start, month_start - timedelta(days=32), month_start),
+        'year': customer_period_stat(customer_query, year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
     }
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
