@@ -2823,6 +2823,33 @@ def api_login_required(view):
     return wrapped
 
 
+@app.route('/api/admin/sync-facebook', methods=['POST'])
+@api_login_required
+def api_sync_facebook_customers():
+    if api_current_user().role != 'admin':
+        return {'error': 'Chỉ Admin mới có quyền đồng bộ Facebook.'}, 403
+    if not get_facebook_token():
+        return {'error': 'Chưa cấu hình token Facebook hợp lệ.'}, 400
+    active_job = SyncJob.query.filter(SyncJob.status.in_(('queued', 'running'))).first()
+    if active_job:
+        return {'job_id': active_job.id, 'message': 'Đang có tác vụ đồng bộ Facebook.'}
+    job = SyncJob(
+        id=str(uuid.uuid4()),
+        status='queued',
+        message='Đang xếp hàng đồng bộ Facebook...',
+        progress=0,
+        processed=0,
+        total=0,
+    )
+    db.session.add(job)
+    db.session.commit()
+    if celery:
+        facebook_sync_task.delay(job.id)
+    else:
+        threading.Thread(target=_run_facebook_sync, args=(job.id,), daemon=True).start()
+    return {'job_id': job.id, 'message': 'Đã bắt đầu đồng bộ Facebook.'}, 202
+
+
 def api_current_user():
     return getattr(request, '_api_user', None)
 
