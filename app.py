@@ -1769,6 +1769,28 @@ def index():
 
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
+    day_start = datetime(now.year, now.month, now.day)
+    tomorrow = day_start + timedelta(days=1)
+    week_start = day_start - timedelta(days=day_start.weekday())
+    next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+    year_start = datetime(now.year, 1, 1)
+
+    def customer_period_stat(start, end, previous_start, previous_end):
+        current = customer_query.filter(Customer.created_at >= start, Customer.created_at < end).count()
+        previous = customer_query.filter(Customer.created_at >= previous_start, Customer.created_at < previous_end).count()
+        return {
+            'count': current,
+            'previous': previous,
+            'delta': current - previous,
+            'growth': ((current - previous) / previous * 100) if previous else (100 if current else 0),
+        }
+
+    customer_period_stats = {
+        'day': customer_period_stat(day_start, tomorrow, day_start - timedelta(days=1), day_start),
+        'week': customer_period_stat(week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start),
+        'month': customer_period_stat(month_start, next_month_start, month_start - timedelta(days=32), month_start),
+        'year': customer_period_stat(year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
+    }
     customer_query = visible_customer_query()
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
@@ -1798,6 +1820,7 @@ def index():
         status_summary=status_summary, source_summary=source_summary,
         recent_customers=recent_customers, recent_orders=recent_orders,
         reminder_count=reminder_count, pending_reminders=pending_reminders,
+        customer_period_stats=customer_period_stats,
     )
 
 
