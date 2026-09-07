@@ -796,6 +796,12 @@ def build_customer_from_message(payload):
                 last_message_date = datetime.strptime(date_value, '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 last_message_date = datetime.utcnow()
+    phone_added_at = payload.get('phone_added_at')
+    if isinstance(phone_added_at, str):
+        try:
+            phone_added_at = datetime.fromisoformat(phone_added_at.replace('Z', '+00:00')).replace(tzinfo=None)
+        except ValueError:
+            phone_added_at = None
 
     # Split name into first/last (Vietnamese: last word = first_name)
     name_clean = raw_name.strip() or 'Khách hàng Facebook'
@@ -814,6 +820,7 @@ def build_customer_from_message(payload):
         'locale': payload.get('locale') or '',
         'email': payload.get('email') or '',
         'phone': phone,
+        'phone_added_at': phone_added_at,
         'notes': f"Page: {raw_page_name}\nVị trí: {location}\nTin nhắn: {message[:500]}",
         'page_name': raw_page_name,
         'location': location,
@@ -967,7 +974,7 @@ def import_facebook_messages(messages):
                 locale=payload['locale'],
                 email=payload['email'],
                 phone=payload['phone'],
-                phone_added_at=datetime.utcnow() if payload['phone'] else None,
+                phone_added_at=payload['phone_added_at'] or (datetime.utcnow() if payload['phone'] else None),
                 notes=payload['notes'],
                 page_name=payload['page_name'],
                 location=payload['location'],
@@ -991,7 +998,7 @@ def import_facebook_messages(messages):
             customer.locale = payload['locale'] or customer.locale
             customer.phone = payload['phone']
             if payload['phone'] and (not had_phone or not customer.phone_added_at):
-                customer.phone_added_at = datetime.utcnow()
+                customer.phone_added_at = payload['phone_added_at'] or datetime.utcnow()
             customer.location = payload['location'] or customer.location
             customer.page_name = payload['page_name'] or customer.page_name
             customer.last_message_date = payload['last_message_date']
@@ -1302,6 +1309,21 @@ def fetch_managed_facebook_messages(
                     # Keep phone-less existing conversations in the rescan result
                     # so stale hotline/admin numbers can be cleared.
                     phone = phone_numbers[0] if phone_numbers else ''
+                    phone_message_dates = []
+                    for msg in customer_messages:
+                        msg_text = msg.get('message') or msg.get('story') or ''
+                        msg_numbers = extract_phone_numbers(msg_text)
+                        if any(number not in configured_hotline_numbers() for number in msg_numbers):
+                            created_time = msg.get('created_time')
+                            if created_time:
+                                try:
+                                    phone_message_dates.append(
+                                        datetime.fromisoformat(
+                                            created_time.replace('Z', '+00:00')
+                                        ).replace(tzinfo=None)
+                                    )
+                                except (TypeError, ValueError):
+                                    pass
 
                     location = extract_location(combined_text) or ''
                     message_text = latest_customer_message.get('message') or latest_customer_message.get('story') or '[Hình ảnh/sticker]'
@@ -1358,6 +1380,7 @@ def fetch_managed_facebook_messages(
                         'gender': gender,
                         'locale': locale,
                         'phone': phone,
+                        'phone_added_at': min(phone_message_dates) if phone_message_dates else None,
                         'location': location,
                         'message': combined_text[:500] if combined_text else message_text,
                         'message_date': latest_customer_message.get('created_time'),
