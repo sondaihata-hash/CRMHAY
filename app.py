@@ -192,6 +192,7 @@ class Customer(db.Model):
     points = db.Column(db.Integer, nullable=False, default=0)
     assigned_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    phone_added_at = db.Column(db.DateTime, nullable=True, index=True)
 
 
 class User(db.Model):
@@ -358,6 +359,7 @@ def ensure_customer_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('customer')}
     new_columns = {
         'page_name': 'TEXT',
+        'phone_added_at': 'DATETIME',
         'location': 'TEXT',
         'last_message_date': 'DATETIME',
         'last_customer_message_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME',
