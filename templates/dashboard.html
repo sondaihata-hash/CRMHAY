@@ -138,6 +138,22 @@
       {% else %}
         <div class="col-12"><p class="text-secondary mb-0">Chưa có dữ liệu nơi ở của khách hàng.</p></div>
       {% endfor %}
+      {% if location_unknown_count %}
+        <div class="col-md-6 col-xl-4">
+          <div class="kpi-card h-100 border-warning">
+            <div class="d-flex justify-content-between gap-3 mb-2">
+              <span>Chưa xác định</span>
+              <strong>{{ '{:,.0f}'.format(location_unknown_count) }}</strong>
+            </div>
+            <div class="progress-track">
+              <span class="bg-warning" style="width: {{ ((location_unknown_count / customer_count * 100) if customer_count else 0)|round(0) }}%"></span>
+            </div>
+            <div class="small text-secondary mt-1">
+              {{ '%.1f'|format((location_unknown_count / customer_count * 100) if customer_count else 0) }}% tổng khách
+            </div>
+          </div>
+        </div>
+      {% endif %}
     </div>
   </section>
   {% endif %}

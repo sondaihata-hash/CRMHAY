@@ -1851,6 +1851,12 @@ def index():
         func.count(Customer.id).desc(),
         Customer.location.asc(),
     ).limit(10).all()
+    location_unknown_count = customer_query.filter(
+        db.or_(
+            Customer.location.is_(None),
+            db.func.trim(Customer.location) == '',
+        )
+    ).count()
     sales_users = User.query.filter_by(role='sales').order_by(User.username.asc()).all()
     sales_customer_counts = dict(
         customer_query.filter(Customer.assigned_user_id.isnot(None)).with_entities(
@@ -1910,6 +1916,7 @@ def index():
         reminder_count=reminder_count, pending_reminders=pending_reminders,
         customer_period_stats=customer_period_stats,
         location_summary=location_summary,
+        location_unknown_count=location_unknown_count,
         sales_customer_stats=sales_customer_stats,
         sales_revenue_stats=sales_revenue_stats,
     )
