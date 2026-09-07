@@ -2790,6 +2790,7 @@ def serialize_customer(c):
         'last_message_date': c.last_message_date.isoformat() if c.last_message_date else None,
         'created_at': c.created_at.isoformat() if c.created_at else None,
         'assigned_user_id': c.assigned_user_id,
+        'assigned_user_name': c.assigned_user.username if c.assigned_user else None,
     }
 
 
@@ -2828,6 +2829,18 @@ def serialize_activity(activity):
     }
 
 
+def serialize_message(message):
+    return {
+        'id': message.id,
+        'sender_type': message.sender_type,
+        'channel': message.channel,
+        'message': message.message,
+        'media_url': message.media_url,
+        'media_type': message.media_type,
+        'sent_at': message.sent_at.isoformat() if message.sent_at else None,
+    }
+
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     data = request.get_json(silent=True) or {}
@@ -2856,12 +2869,11 @@ def api_logout():
 @api_login_required
 def api_dashboard():
     user = api_current_user()
-    # Temporarily set session user for visible_customer_query reuse
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
     cq = api_visible_customer_query()
     oq = Order.query.join(Customer).filter(Customer.id.in_(cq.with_entities(Customer.id)))
-    return {
+    result = {
         'customer_count': cq.count(),
         'phone_count': cq.filter(Customer.phone.isnot(None), Customer.phone != '').count(),
         'order_count': oq.count(),
@@ -2871,6 +2883,65 @@ def api_dashboard():
         'status_summary': [{'status': s, 'count': c} for s, c in oq.with_entities(
             Order.status, func.count(Order.id)).group_by(Order.status).all()],
     }
+    if user.role == 'admin':
+        day_start = datetime(now.year, now.month, now.day)
+        tomorrow = day_start + timedelta(days=1)
+        week_start = day_start - timedelta(days=day_start.weekday())
+        next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+        year_start = datetime(now.year, 1, 1)
+
+        def period_stat(start, end, previous_start, previous_end):
+            current = cq.filter(
+                Customer.phone.isnot(None), Customer.phone != '',
+                Customer.last_message_date >= start, Customer.last_message_date < end,
+            ).count()
+            previous = cq.filter(
+                Customer.phone.isnot(None), Customer.phone != '',
+                Customer.last_message_date >= previous_start, Customer.last_message_date < previous_end,
+            ).count()
+            return {
+                'count': current,
+                'previous': previous,
+                'delta': current - previous,
+                'growth': ((current - previous) / previous * 100) if previous else (100 if current else 0),
+            }
+
+        location_rows = cq.filter(
+            Customer.location.isnot(None), db.func.trim(Customer.location) != '',
+        ).with_entities(
+            Customer.location, func.count(Customer.id),
+        ).group_by(Customer.location).order_by(func.count(Customer.id).desc(), Customer.location.asc()).limit(10).all()
+        location_unknown = cq.filter(db.or_(
+            Customer.location.is_(None), db.func.trim(Customer.location) == '',
+        )).count()
+        sales_users = User.query.filter_by(role='sales').order_by(User.username.asc()).all()
+        sales_customer_counts = dict(cq.filter(
+            Customer.assigned_user_id.isnot(None),
+        ).with_entities(Customer.assigned_user_id, func.count(Customer.id)).group_by(Customer.assigned_user_id).all())
+        sales_revenues = dict(Order.query.join(
+            Customer, Order.customer_id == Customer.id,
+        ).filter(Customer.assigned_user_id.isnot(None)).with_entities(
+            Customer.assigned_user_id, func.coalesce(func.sum(Order.total_amount), 0),
+        ).group_by(Customer.assigned_user_id).all())
+        sales_stats = [{
+            'id': sales_user.id,
+            'name': sales_user.username,
+            'customer_count': sales_customer_counts.get(sales_user.id, 0),
+            'revenue': float(sales_revenues.get(sales_user.id, 0) or 0),
+        } for sales_user in sales_users]
+        result.update({
+            'customer_period_stats': {
+                'day': period_stat(day_start, tomorrow, day_start - timedelta(days=1), day_start),
+                'week': period_stat(week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start),
+                'month': period_stat(month_start, next_month_start, month_start - timedelta(days=32), month_start),
+                'year': period_stat(year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
+            },
+            'location_summary': [{'location': location, 'count': count} for location, count in location_rows],
+            'location_unknown_count': location_unknown,
+            'sales_customer_stats': sorted(sales_stats, key=lambda item: item['customer_count'], reverse=True),
+            'sales_revenue_stats': sorted(sales_stats, key=lambda item: item['revenue'], reverse=True),
+        })
+    return result
 
 
 @app.route('/api/customers')
@@ -2896,10 +2967,12 @@ def api_customer_detail(c_id):
         return {'error': 'Không tìm thấy khách hàng.'}, 404
     orders_list = Order.query.filter_by(customer_id=c.id).order_by(Order.created_at.desc()).all()
     activities = CustomerActivity.query.filter_by(customer_id=c.id).order_by(CustomerActivity.created_at.desc()).all()
+    messages = MessageLog.query.filter_by(customer_id=c.id).order_by(MessageLog.sent_at.desc()).limit(100).all()
     return {
         'customer': serialize_customer(c),
         'orders': [serialize_order(o) for o in orders_list],
         'activities': [serialize_activity(activity) for activity in activities],
+        'messages': [serialize_message(message) for message in messages],
     }
 
 
