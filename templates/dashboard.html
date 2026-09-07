@@ -19,6 +19,37 @@
     <div class="col-sm-6 col-xl-3"><div class="kpi-card metric-card"><div class="metric-icon metric-coral">₫</div><div><div class="kpi-label">Doanh thu tháng này</div><div class="kpi-value metric-money">{{ '{:,.0f}'.format(month_revenue) }}<small> đ</small></div></div></div></div>
   </div>
 
+  <section class="panel p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+      <div>
+        <div class="kpi-label">Tăng trưởng khách hàng</div>
+        <h2 class="section-title mb-0">Khách hàng mới theo kỳ</h2>
+      </div>
+      <span class="text-secondary small">So với kỳ liền trước</span>
+    </div>
+    <div class="row g-3">
+      {% set periods = [('day', 'Hôm nay'), ('week', 'Tuần này'), ('month', 'Tháng này'), ('year', 'Năm nay')] %}
+      {% for key, label in periods %}
+        {% set stat = customer_period_stats[key] %}
+        <div class="col-6 col-xl-3">
+          <div class="kpi-card h-100">
+            <div class="kpi-label">{{ label }}</div>
+            <div class="d-flex align-items-end justify-content-between gap-2">
+              <div class="kpi-value">{{ '{:,.0f}'.format(stat.count) }}</div>
+              <span class="{{ 'text-success' if stat.delta >= 0 else 'text-danger' }} fw-semibold">
+                {{ '+' if stat.delta >= 0 else '' }}{{ stat.delta }}
+              </span>
+            </div>
+            <div class="small {{ 'text-success' if stat.growth >= 0 else 'text-danger' }}">
+              {{ '+' if stat.growth >= 0 else '' }}{{ '%.1f'|format(stat.growth) }}% so với kỳ trước
+            </div>
+            <div class="small text-secondary mt-1">Kỳ trước: {{ stat.previous }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
   <div class="row g-4 mb-4">
     <div class="col-xl-7">
       <section class="panel p-4 h-100">
