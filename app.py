@@ -1344,7 +1344,7 @@ def fetch_managed_facebook_messages(
                     locale = ''
                     profile_location = ''
                     if (customer_id and should_fetch_facebook_profiles()
-                            and api_call_count < api_call_limit):
+                            and (api_call_limit is None or api_call_count < api_call_limit)):
                         api_call_count += 1
                         try:
                             profile = fetch_facebook_json(
