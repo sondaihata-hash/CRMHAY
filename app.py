@@ -240,6 +240,7 @@ class Order(db.Model):
     vat_amount = db.Column(db.Float, nullable=False, default=0)
     payment_details = db.Column(db.String(400), nullable=True)
     points_awarded = db.Column(db.Integer, nullable=False, default=0)
+    production_sent_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
 
@@ -2802,6 +2803,7 @@ def serialize_order(o):
         'discount_amount': o.discount_amount, 'vat_amount': o.vat_amount,
         'payment_details': o.payment_details,
         'points_awarded': o.points_awarded or 0,
+        'production_sent_at': o.production_sent_at.isoformat() if o.production_sent_at else None,
         'customer_name': o.customer.name if o.customer else None,
         'customer_id': o.customer_id,
         'created_at': o.created_at.isoformat() if o.created_at else None,
@@ -3262,6 +3264,86 @@ def api_create_order():
     db.session.commit()
     update_customer_points(c.id)
     return {'order': serialize_order(order)}, 201
+
+
+def production_order_message(order):
+    lines = [
+        f'ĐƠN SẢN XUẤT: {order.code}',
+        f'Trạng thái: {order.status}',
+        '',
+        'Sản phẩm:',
+    ]
+    lines.extend(
+        f'- {item.product_name} | ĐVT: {item.unit or "—"} | SL: {item.quantity:g}'
+        for item in order.items
+    )
+    if order.note:
+        lines.extend(['', f'Ghi chú sản xuất: {order.note}'])
+    return '\n'.join(lines)
+
+
+@app.route('/api/orders/<int:order_id>', methods=['PUT', 'DELETE'])
+@api_login_required
+def api_modify_order(order_id):
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(api_visible_customer_query().with_entities(Customer.id)),
+    ).first()
+    if not order:
+        return {'error': 'Không tìm thấy đơn hàng hoặc bạn không có quyền.'}, 404
+    if request.method == 'DELETE':
+        db.session.delete(order)
+        db.session.commit()
+        return {'ok': True}
+    data = request.get_json(silent=True) or {}
+    if 'status' in data and data['status']:
+        order.status = str(data['status']).strip()
+    for field in ('note', 'delivery_address', 'payment_details'):
+        if field in data:
+            setattr(order, field, (data[field] or '').strip())
+    if 'items' in data:
+        if not isinstance(data['items'], list) or not data['items']:
+            return {'error': 'Đơn hàng cần ít nhất một sản phẩm.'}, 400
+        order.items.clear()
+        for raw_item in data['items']:
+            try:
+                order.items.append(OrderItem(
+                    product_code=(raw_item.get('product_code') or '').strip(),
+                    product_name=(raw_item.get('product_name') or '').strip(),
+                    unit=(raw_item.get('unit') or '').strip(),
+                    quantity=max(float(raw_item.get('quantity') or 0), 0),
+                    unit_price=max(float(raw_item.get('unit_price') or 0), 0),
+                ))
+            except (TypeError, ValueError):
+                return {'error': 'Số lượng / đơn giá không hợp lệ.'}, 400
+        order.discount_amount = max(float(data.get('discount_amount') or 0), 0)
+        order.vat_amount = max(float(data.get('vat_amount') or 0), 0)
+        order.total_amount = max(
+            sum(item.quantity * item.unit_price for item in order.items)
+            - order.discount_amount + order.vat_amount, 0,
+        )
+    db.session.commit()
+    return {'order': serialize_order(order)}
+
+
+@app.route('/api/orders/<int:order_id>/production', methods=['POST'])
+@api_login_required
+def api_send_order_to_production(order_id):
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(api_visible_customer_query().with_entities(Customer.id)),
+    ).first()
+    if not order:
+        return {'error': 'Không tìm thấy đơn hàng hoặc bạn không có quyền.'}, 404
+    message = production_order_message(order)
+    order.production_sent_at = datetime.utcnow()
+    order.status = 'Đã gửi sản xuất'
+    db.session.commit()
+    return {
+        'order': serialize_order(order),
+        'message': message,
+        'zalo_url': 'https://zalo.me',
+    }
 
 
 if __name__ == '__main__':
