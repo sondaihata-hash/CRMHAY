@@ -1859,7 +1859,7 @@ def index():
         ).group_by(Customer.assigned_user_id).all()
     )
     sales_revenues = dict(
-        order_query.join(Customer, Order.customer_id == Customer.id).filter(
+        Order.query.join(Customer, Order.customer_id == Customer.id).filter(
             Customer.assigned_user_id.isnot(None),
         ).with_entities(
             Customer.assigned_user_id,
