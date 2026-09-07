@@ -19,6 +19,7 @@
     <div class="col-sm-6 col-xl-3"><div class="kpi-card metric-card"><div class="metric-icon metric-coral">₫</div><div><div class="kpi-label">Doanh thu tháng này</div><div class="kpi-value metric-money">{{ '{:,.0f}'.format(month_revenue) }}<small> đ</small></div></div></div></div>
   </div>
 
+  {% if current_user().role == 'admin' %}
   <section class="panel p-4 mb-4">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
       <div>
@@ -49,6 +50,7 @@
       {% endfor %}
     </div>
   </section>
+  {% endif %}
 
   <div class="row g-4 mb-4">
     <div class="col-xl-7">
