@@ -23,6 +23,62 @@ $env:CRM_ADMIN_PASSWORD = '<mat-khau-manh>'
 Kiểm tra trên PC bằng `http://127.0.0.1:5000`. Script dùng Waitress thay cho
 `gunicorn` vì gunicorn không chạy native trên Windows.
 
+### 1.1 Tự khởi động cùng Windows và tự restart sau khi cập nhật code
+
+Để CRM tự chạy lại sau khi PC khởi động và tự restart khi `git pull` hoặc file
+code được cập nhật, mở PowerShell tại thư mục dự án:
+
+```powershell
+.\scripts\install-vps-autostart.ps1
+Start-ScheduledTask -TaskName 'CRMHAY VPS'
+```
+
+Task (hoặc shortcut Startup nếu Windows từ chối quyền tạo task) chạy khi tài khoản
+Windows đăng nhập. Supervisor sẽ:
+
+- khởi động Waitress trên `127.0.0.1:5000`;
+- tự khởi động lại nếu tiến trình CRM bị dừng hoặc crash;
+- kiểm tra các file Git mỗi 5 giây và restart sau khi code thay đổi.
+
+Các biến môi trường production như `CRM_SECRET_KEY` phải được cấu hình trong
+Windows User/System Environment để task nền có thể đọc được, không chỉ đặt tạm
+trong một cửa sổ PowerShell. Xem trạng thái bằng:
+
+```powershell
+# Chạy một lần với giá trị thật của bạn (không đưa các giá trị này vào Git).
+[Environment]::SetEnvironmentVariable('CRM_SECRET_KEY', '<chuoi-ngau-nhien-it-nhat-32-ky-tu>', 'User')
+[Environment]::SetEnvironmentVariable('CRM_ADMIN_USERNAME', '<tai-khoan-admin>', 'User')
+[Environment]::SetEnvironmentVariable('CRM_ADMIN_PASSWORD', '<mat-khau-manh>', 'User')
+
+Get-ScheduledTask -TaskName 'CRMHAY VPS'
+Get-ScheduledTaskInfo -TaskName 'CRMHAY VPS'
+```
+
+Sau khi đổi biến môi trường, hãy đăng xuất/đăng nhập Windows rồi chạy lại task.
+Nếu dùng Cloudflare Tunnel, tunnel cũng phải được cài thành task/service riêng;
+CRM chỉ tự quản lý tiến trình Waitress trên cổng 5000.
+
+Để Tunnel tự chạy sau khi đăng nhập Windows, chạy:
+
+```powershell
+.\scripts\install-cloudflared-autostart.ps1
+```
+
+Script dùng cấu hình hiện tại tại
+`C:\Users\<user>\.cloudflared\config.yml` và chạy tunnel theo ingress đã khai
+báo cho `crmhay.cloud`. Kiểm tra sau khi đăng nhập lại bằng cách mở
+`https://crmhay.cloud`. Gỡ tự khởi động bằng:
+
+```powershell
+.\scripts\uninstall-cloudflared-autostart.ps1
+```
+
+Gỡ tự khởi động khi cần:
+
+```powershell
+.\scripts\uninstall-vps-autostart.ps1
+```
+
 ### 2. Đưa domain về PC bằng Cloudflare Tunnel
 
 1. Cài `cloudflared` trên PC và đăng nhập: `cloudflared tunnel login`.
