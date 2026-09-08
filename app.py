@@ -1768,6 +1768,93 @@ def sync_facebook_webhook_message(page_id, messaging):
     message_id = str(message.get('mid') or '').strip()
     if message_id and MessageLog.query.filter_by(external_message_id=message_id).first():
         return customer
+
+
+def verify_facebook_webhook_signature(raw_body):
+        app_secret = os.environ.get('FACEBOOK_APP_SECRET', '').strip()
+        if not app_secret:
+            return True
+        signature = request.headers.get('X-Hub-Signature-256', '')
+        if not signature.startswith('sha256='):
+            return False
+        expected = hmac.new(
+            app_secret.encode('utf-8'),
+            raw_body,
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(signature[7:], expected)
+
+
+def sync_facebook_lead(lead_id, page_id):
+        token = get_facebook_token()
+        if not token:
+            raise ValueError('Chưa cấu hình Facebook access token để đọc Lead Ads.')
+        lead = fetch_facebook_json(
+            str(lead_id),
+            token,
+            {'fields': 'id,created_time,field_data,ad_id,form_id,campaign_name,ad_name,adset_name'},
+        )
+        fields = {}
+        for field in lead.get('field_data') or []:
+            name = str(field.get('name') or '').strip().lower()
+            values = field.get('values') or []
+            if name and values:
+                fields[name] = str(values[0]).strip()
+
+        def field_value(*names):
+            for name in names:
+                if fields.get(name):
+                    return fields[name]
+            return ''
+
+        phone = sanitize_customer_phone(field_value('phone_number', 'phone', 'số điện thoại', 'mobile_phone'))
+        email = field_value('email', 'e-mail')
+        name = field_value('full_name', 'name', 'full name', 'ho_ten', 'họ và tên')
+        if not name:
+            name = 'Facebook Lead ' + str(lead_id)
+        customer = Customer.query.filter_by(facebook_lead_id=str(lead_id)).first()
+        if customer is None and phone:
+            customer = Customer.query.filter(Customer.phone == phone).first()
+        created_time = lead.get('created_time')
+        lead_date = datetime.utcnow()
+        if isinstance(created_time, str):
+            try:
+                lead_date = datetime.fromisoformat(created_time.replace('Z', '+00:00')).replace(tzinfo=None)
+            except ValueError:
+                pass
+        details = [
+            f"Lead ID: {lead_id}",
+            f"Page ID: {page_id}",
+            f"Form ID: {lead.get('form_id') or '—'}",
+            f"Ad ID: {lead.get('ad_id') or '—'}",
+        ]
+        if lead.get('campaign_name'):
+            details.append(f"Chiến dịch: {lead['campaign_name']}")
+        if customer is None:
+            customer = Customer(
+                name=name,
+                facebook_lead_id=str(lead_id),
+                phone=phone,
+                phone_added_at=lead_date if phone else None,
+                email=email,
+                notes='\n'.join(details),
+                page_name=str(page_id),
+                last_message_date=lead_date,
+                message_excerpt='Lead Ads Facebook',
+                source='facebook_lead',
+            )
+            db.session.add(customer)
+        else:
+            customer.facebook_lead_id = str(lead_id)
+            customer.name = name or customer.name
+            customer.phone = phone or customer.phone
+            customer.email = email or customer.email
+            customer.notes = (customer.notes or '') + '\n' + '\n'.join(details)
+            customer.page_name = str(page_id) if page_id else customer.page_name
+            customer.source = 'facebook_lead'
+            customer.last_message_date = lead_date
+        db.session.commit()
+        return customer
     db.session.add(MessageLog(
         customer_id=customer.id,
         sender_type='customer',
@@ -2556,12 +2643,26 @@ def facebook_webhook():
             return request.args.get('hub.challenge', ''), 200
         return 'Invalid verification token', 403
 
+    if not verify_facebook_webhook_signature(request.get_data()):
+        return {'ok': False, 'message': 'Invalid Facebook webhook signature.'}, 403
     payload = request.get_json(silent=True) or {}
     if payload.get('object') != 'page':
         return {'ok': False, 'message': 'Unsupported webhook object.'}, 400
     processed = 0
     for entry in payload.get('entry') or []:
         page_id = str(entry.get('id') or '').strip()
+        for change in entry.get('changes') or []:
+            if change.get('field') != 'leadgen':
+                continue
+            value = change.get('value') or {}
+            lead_id = value.get('leadgen_id') or value.get('lead_id')
+            if lead_id:
+                try:
+                    sync_facebook_lead(lead_id, page_id)
+                    processed += 1
+                except (HTTPError, URLError, ValueError, KeyError) as exc:
+                    logger.error('Facebook Lead Ads sync failed for %s: %s', lead_id, exc)
+                    return {'ok': False, 'message': 'Không thể lấy dữ liệu Lead Ads từ Facebook.'}, 502
         for messaging in entry.get('messaging') or []:
             if sync_facebook_webhook_message(page_id, messaging):
                 processed += 1
