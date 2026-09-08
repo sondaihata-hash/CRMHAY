@@ -2380,7 +2380,9 @@ def create_order(customer_id):
             flash('Chiết khấu, VAT, điểm đổi và giá trị điểm cần là số hợp lệ.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
         points_redeemed = max(points_redeemed, 0)
-        points_value = max(points_value, 0)
+        if points_value <= 0:
+            flash('Giá trị quy đổi 1 điểm phải lớn hơn 0.', 'danger')
+            return redirect(url_for('create_order', customer_id=customer.id))
         if points_redeemed > (customer.points or 0):
             flash(f'Khách chỉ còn {customer.points or 0} điểm, không thể đổi {points_redeemed} điểm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
@@ -2464,10 +2466,13 @@ def edit_order(order_id):
         order.sales_phone = (request.form.get('sales_phone') or '').strip()
         order.sales_bank_account = (request.form.get('sales_bank_account') or '').strip()
         try:
-            order.points_value = max(float(request.form.get('points_value') or order.points_value or 1000), 0)
+            order.points_value = float(request.form.get('points_value') or order.points_value or 1000)
             order.points_redeemed = max(int(request.form.get('points_redeemed') or 0), 0)
         except ValueError:
             flash('Giá trị điểm và số điểm đổi phải là số hợp lệ.', 'danger')
+            return redirect(url_for('edit_order', order_id=order.id))
+        if order.points_value <= 0:
+            flash('Giá trị quy đổi 1 điểm phải lớn hơn 0.', 'danger')
             return redirect(url_for('edit_order', order_id=order.id))
         if order.points_redeemed > (order.customer.points or 0) + (order.points_redeemed or 0):
             flash('Số điểm đổi vượt quá số dư của khách hàng.', 'danger')
@@ -3547,7 +3552,9 @@ def api_create_order():
     discount = max(float(data.get('discount_amount') or 0), 0)
     vat = max(float(data.get('vat_amount') or 0), 0)
     points_redeemed = max(int(data.get('points_redeemed') or 0), 0)
-    points_value = max(float(data.get('points_value') or 1000), 0)
+    points_value = float(data.get('points_value') or 1000)
+    if points_value <= 0:
+        return {'error': 'Giá trị quy đổi 1 điểm phải lớn hơn 0.'}, 400
     if points_redeemed > (c.points or 0):
         return {'error': f'Khách chỉ còn {c.points or 0} điểm.'}, 400
     points_discount = points_redeemed * points_value
@@ -3610,10 +3617,12 @@ def api_modify_order(order_id):
             setattr(order, field, (data[field] or '').strip())
     if 'points_value' in data or 'points_redeemed' in data:
         try:
-            order.points_value = max(float(data.get('points_value') or order.points_value or 1000), 0)
+            order.points_value = float(data.get('points_value') or order.points_value or 1000)
             order.points_redeemed = max(int(data.get('points_redeemed') or 0), 0)
         except (TypeError, ValueError):
             return {'error': 'Giá trị điểm và số điểm đổi không hợp lệ.'}, 400
+        if order.points_value <= 0:
+            return {'error': 'Giá trị quy đổi 1 điểm phải lớn hơn 0.'}, 400
         if order.points_redeemed > (order.customer.points or 0) + (order.points_redeemed or 0):
             return {'error': 'Số điểm đổi vượt quá số dư của khách hàng.'}, 400
         order.points_discount = order.points_redeemed * order.points_value
