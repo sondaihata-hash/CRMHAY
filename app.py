@@ -3523,7 +3523,11 @@ def api_create_order():
         items.append(item)
     discount = max(float(data.get('discount_amount') or 0), 0)
     vat = max(float(data.get('vat_amount') or 0), 0)
-    total = max(sum(i.quantity * i.unit_price for i in items) - discount + vat, 0)
+    points_redeemed = max(int(data.get('points_redeemed') or 0), 0)
+    if points_redeemed > (c.points or 0):
+        return {'error': f'Khách chỉ còn {c.points or 0} điểm.'}, 400
+    points_discount = points_redeemed * 1000
+    total = max(sum(i.quantity * i.unit_price for i in items) - discount - points_discount + vat, 0)
     order = Order(
         customer_id=c.id,
         code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{c.id}",
@@ -3533,8 +3537,8 @@ def api_create_order():
         payment_details=(data.get('payment_details') or '').strip(),
         sales_phone=(data.get('sales_phone') or '').strip(),
         sales_bank_account=(data.get('sales_bank_account') or '').strip(),
-        points_redeemed=max(int(data.get('points_redeemed') or 0), 0),
-        points_discount=max(int(data.get('points_redeemed') or 0), 0) * 1000,
+        points_redeemed=points_redeemed,
+        points_discount=points_discount,
         discount_amount=discount, vat_amount=vat,
     )
     db.session.add(order)
