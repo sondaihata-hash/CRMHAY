@@ -2373,8 +2373,13 @@ def create_order(customer_id):
         try:
             discount_amount = float(request.form.get('discount_amount') or 0)
             vat_amount = float(request.form.get('vat_amount') or 0)
+            points_redeemed = int(request.form.get('points_redeemed') or 0)
         except ValueError:
-            flash('Chiết khấu và VAT cần là số hợp lệ.', 'danger')
+            flash('Chiết khấu, VAT và điểm đổi cần là số hợp lệ.', 'danger')
+            return redirect(url_for('create_order', customer_id=customer.id))
+        points_redeemed = max(points_redeemed, 0)
+        if points_redeemed > (customer.points or 0):
+            flash(f'Khách chỉ còn {customer.points or 0} điểm, không thể đổi {points_redeemed} điểm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
         items = []
         for code, name, unit, qty, price in zip(request.form.getlist('product_code'), request.form.getlist('product_name'), request.form.getlist('unit'), request.form.getlist('quantity'), request.form.getlist('unit_price')):
@@ -2389,7 +2394,8 @@ def create_order(customer_id):
         if not items:
             flash('Hãy nhập ít nhất một sản phẩm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
-        total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) + max(vat_amount, 0), 0)
+        points_discount = points_redeemed * 1000
+        total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) - points_discount + max(vat_amount, 0), 0)
         order = Order(
             customer_id=customer.id,
             code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{customer.id}",
@@ -2399,6 +2405,8 @@ def create_order(customer_id):
             delivery_address=request.form.get('delivery_address', '').strip(), payment_details=request.form.get('payment_details', '').strip(),
             sales_phone=request.form.get('sales_phone', '').strip(),
             sales_bank_account=request.form.get('sales_bank_account', '').strip(),
+            points_redeemed=points_redeemed,
+            points_discount=points_discount,
             discount_amount=max(discount_amount, 0), vat_amount=max(vat_amount, 0),
         )
         db.session.add(order)
@@ -3525,6 +3533,8 @@ def api_create_order():
         payment_details=(data.get('payment_details') or '').strip(),
         sales_phone=(data.get('sales_phone') or '').strip(),
         sales_bank_account=(data.get('sales_bank_account') or '').strip(),
+        points_redeemed=max(int(data.get('points_redeemed') or 0), 0),
+        points_discount=max(int(data.get('points_redeemed') or 0), 0) * 1000,
         discount_amount=discount, vat_amount=vat,
     )
     db.session.add(order)
