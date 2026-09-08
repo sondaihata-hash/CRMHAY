@@ -59,6 +59,7 @@
           endButton.style.display = 'inline-block';
           status.textContent = `Đang tính thời gian gọi từ ${new Date(call.started_at).toLocaleTimeString('vi-VN')}`;
         };
+        if (window.location.hash === '#call') panel.style.display = 'block';
         document.getElementById('callCustomerButton').addEventListener('click', () => {
           panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
           showPending();

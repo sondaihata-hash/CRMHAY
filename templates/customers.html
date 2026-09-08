@@ -229,7 +229,7 @@
                 <a class="btn btn-sm btn-success action-btn" href="/orders/create/{{ c.id }}">Tạo đơn</a>
                 <button class="btn btn-sm btn-outline-success action-btn customer-zalo-button" type="button" data-customer-id="{{ c.id }}" data-customer-name="{{ c.name }}">Gửi Zalo</button>
                 {% if c.phone %}
-                <button class="btn btn-sm btn-warning action-btn customer-call-button" type="button" data-customer-id="{{ c.id }}" data-phone="{{ c.phone }}">Gọi</button>
+                <button class="btn btn-sm btn-warning action-btn customer-call-button" type="button" data-customer-id="{{ c.id }}">Gọi</button>
                 {% endif %}
                 <a class="btn btn-sm btn-outline-primary action-btn" href="/customers/{{ c.id }}">Xem</a>
                 <a class="btn btn-sm btn-outline-secondary action-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
@@ -419,23 +419,8 @@
     document.querySelectorAll('.customer-zalo-button').forEach((button) => button.addEventListener('click', () => {
       openZaloHandoff(button.dataset.customerId, button.dataset.customerName);
     }));
-    document.querySelectorAll('.customer-call-button').forEach((button) => button.addEventListener('click', async () => {
-      const response = await fetch(`/customers/${button.dataset.customerId}/call-start`, {
-        method: 'POST',
-        headers: {'X-CSRF-Token': '{{ csrf_token() }}', 'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({channel: 'phone'}),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        alert(data.error || 'Không thể bắt đầu cuộc gọi.');
-        return;
-      }
-      const data = await response.json();
-      localStorage.setItem(`crm_active_call_${button.dataset.customerId}`, JSON.stringify({
-        activity_id: data.activity_id,
-        started_at: data.started_at,
-      }));
-      window.location.href = `tel:${button.dataset.phone}`;
+    document.querySelectorAll('.customer-call-button').forEach((button) => button.addEventListener('click', () => {
+      window.location.href = `/customers/${button.dataset.customerId}#call`;
     }));
     document.querySelectorAll('[data-close-zalo-modal]').forEach((element) => element.addEventListener('click', closeZaloModal));
 
