@@ -478,7 +478,10 @@ def admin_required(view):
 def visible_customer_query():
     user = current_user()
     query = Customer.query
-    if user.role not in {'admin', 'manager'}:
+    if user.role == 'manager':
+        managed_ids = User.query.filter(User.manager_id == user.id).with_entities(User.id)
+        query = query.filter(Customer.assigned_user_id.in_(managed_ids))
+    elif user.role != 'admin':
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
 
@@ -3039,6 +3042,16 @@ def api_login_required(view):
         request._api_user = token_obj.user
         return view(*args, **kwargs)
     return wrapped
+
+
+def team_manager_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if current_user().role not in {'admin', 'manager'}:
+            return 'Bạn không có quyền thực hiện thao tác này.', 403
+        return view(*args, **kwargs)
+    return wrapped_view
 
 
 @app.route('/api/admin/sync-facebook', methods=['POST'])
