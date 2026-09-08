@@ -3332,7 +3332,10 @@ def api_dashboard():
         ).with_entities(Customer.assigned_user_id, func.count(Customer.id)).group_by(Customer.assigned_user_id).all())
         sales_revenues = dict(Order.query.join(
             Customer, Order.customer_id == Customer.id,
-        ).filter(Customer.assigned_user_id.isnot(None)).with_entities(
+        ).filter(
+            Customer.id.in_(cq.with_entities(Customer.id)),
+            Customer.assigned_user_id.isnot(None),
+        ).with_entities(
             Customer.assigned_user_id, func.coalesce(func.sum(Order.total_amount), 0),
         ).group_by(Customer.assigned_user_id).all())
         sales_stats = [{
