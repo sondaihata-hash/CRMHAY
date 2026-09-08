@@ -374,7 +374,7 @@
             {% if user and user.role == 'admin' %}
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/sales-groups') %}active{% endif %}" {% if request.path.startswith('/sales-groups') %}aria-current="page"{% endif %} href="/sales-groups">Nhóm Sales</a></li>
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/settings') %}active{% endif %}" {% if request.path.startswith('/settings') %}aria-current="page"{% endif %} href="/settings">Settings</a></li>
-              <li class="nav-item"><a class="nav-link {% if request.path.startswith('/admin/users') %}active{% endif %}" {% if request.path.startswith('/admin/users') %}aria-current="page"{% endif %} href="/admin/users">Tài khoản Sales</a></li>
+              <li class="nav-item"><a class="nav-link {% if request.path.startswith('/admin/users') %}active{% endif %}" {% if request.path.startswith('/admin/users') %}aria-current="page"{% endif %} href="/admin/users">Tài khoản & phân quyền</a></li>
             {% endif %}
           </ul>
           {% if user %}<span class="text-white-50 small me-3">{{ user.username }}</span><form method="post" action="{{ url_for('logout') }}" class="d-flex"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-light action-btn" type="submit">Đăng xuất</button></form>{% endif %}

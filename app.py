@@ -142,6 +142,12 @@ ADMIN_ENDPOINTS = {
     'delete_customer', 'users', 'add_user', 'toggle_user', 'assign_customer',
     'facebook_import_legacy', 'reminders', 'complete_reminder',
 }
+USER_ROLES = {
+    'admin': 'Quản trị viên',
+    'manager': 'Quản lý',
+    'employee': 'Nhân viên',
+    'sales': 'Sales',
+}
 
 # Background sync state — single-worker safe
 # ponytail: upgrade to Redis/Celery when moving to multi-worker
@@ -553,14 +559,17 @@ def users():
 def add_user():
     username = (request.form.get('username') or '').strip().lower()
     password = request.form.get('password') or ''
+    role = (request.form.get('role') or 'employee').strip().lower()
     if not username or len(password) < 8:
         flash('Tên đăng nhập và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
+    elif role not in USER_ROLES:
+        flash('Vai trò tài khoản không hợp lệ.', 'danger')
     elif User.query.filter_by(username=username).first():
         flash('Tên đăng nhập đã tồn tại.', 'warning')
     else:
-        db.session.add(User(username=username, password_hash=generate_password_hash(password), role='sales'))
+        db.session.add(User(username=username, password_hash=generate_password_hash(password), role=role))
         db.session.commit()
-        flash('Đã tạo tài khoản Sales.', 'success')
+        flash(f"Đã tạo tài khoản {USER_ROLES[role]}.", 'success')
     return redirect(url_for('users'))
 
 
@@ -573,7 +582,7 @@ def toggle_user(user_id):
     else:
         user.is_active = not user.is_active
         db.session.commit()
-        flash(f"Đã {'mở khóa' if user.is_active else 'khóa'} tài khoản Sales.", 'success')
+        flash(f"Đã {'mở khóa' if user.is_active else 'khóa'} tài khoản {USER_ROLES.get(user.role, user.role)}.", 'success')
     return redirect(url_for('users'))
 
 
