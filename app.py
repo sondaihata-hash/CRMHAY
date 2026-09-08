@@ -582,7 +582,7 @@ def add_user():
 @admin_required
 def toggle_user(user_id):
     user = User.query.get_or_404(user_id)
-    if user.role == 'admin':
+    if user.role in {'admin', 'manager'}:
         flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
     else:
         user.is_active = not user.is_active
