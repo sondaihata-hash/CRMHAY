@@ -652,7 +652,11 @@ def delete_user(user_id):
         return 'Bạn không có quyền quản lý tài khoản này.', 403
     if user.role == 'admin' or user.id == actor.id:
         flash('Không thể xóa tài khoản Admin hoặc tài khoản đang đăng nhập.', 'warning')
-    elif user.customers or user.customer_activities or user.reminders:
+    elif (
+        Customer.query.filter_by(assigned_user_id=user.id).first()
+        or CustomerActivity.query.filter_by(user_id=user.id).first()
+        or Reminder.query.filter_by(assigned_user_id=user.id).first()
+    ):
         flash('Không thể xóa tài khoản đã có dữ liệu; hãy khóa tài khoản thay thế.', 'warning')
     else:
         db.session.delete(user)
@@ -2038,6 +2042,7 @@ def index():
     )
     sales_revenues = dict(
         Order.query.join(Customer, Order.customer_id == Customer.id).filter(
+            Customer.id.in_(customer_query.with_entities(Customer.id)),
             Customer.assigned_user_id.isnot(None),
         ).with_entities(
             Customer.assigned_user_id,
