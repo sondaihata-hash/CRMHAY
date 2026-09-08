@@ -246,6 +246,7 @@ class Order(db.Model):
     sales_bank_account = db.Column(db.String(200), nullable=True)
     points_awarded = db.Column(db.Integer, nullable=False, default=0)
     points_redeemed = db.Column(db.Integer, nullable=False, default=0)
+    points_value = db.Column(db.Float, nullable=False, default=1000)
     points_discount = db.Column(db.Float, nullable=False, default=0)
     production_sent_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -2240,7 +2241,7 @@ def handoff_customer_to_zalo(c_id):
 
 def ensure_order_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
-    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
+    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_value': 'FLOAT DEFAULT 1000', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
@@ -2374,10 +2375,12 @@ def create_order(customer_id):
             discount_amount = float(request.form.get('discount_amount') or 0)
             vat_amount = float(request.form.get('vat_amount') or 0)
             points_redeemed = int(request.form.get('points_redeemed') or 0)
+            points_value = float(request.form.get('points_value') or 1000)
         except ValueError:
-            flash('Chiết khấu, VAT và điểm đổi cần là số hợp lệ.', 'danger')
+            flash('Chiết khấu, VAT, điểm đổi và giá trị điểm cần là số hợp lệ.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
         points_redeemed = max(points_redeemed, 0)
+        points_value = max(points_value, 0)
         if points_redeemed > (customer.points or 0):
             flash(f'Khách chỉ còn {customer.points or 0} điểm, không thể đổi {points_redeemed} điểm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
@@ -2394,7 +2397,7 @@ def create_order(customer_id):
         if not items:
             flash('Hãy nhập ít nhất một sản phẩm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
-        points_discount = points_redeemed * 1000
+        points_discount = points_redeemed * points_value
         total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) - points_discount + max(vat_amount, 0), 0)
         order = Order(
             customer_id=customer.id,
@@ -2406,6 +2409,7 @@ def create_order(customer_id):
             sales_phone=request.form.get('sales_phone', '').strip(),
             sales_bank_account=request.form.get('sales_bank_account', '').strip(),
             points_redeemed=points_redeemed,
+            points_value=points_value,
             points_discount=points_discount,
             discount_amount=max(discount_amount, 0), vat_amount=max(vat_amount, 0),
         )
@@ -2459,6 +2463,16 @@ def edit_order(order_id):
         order.delivery_address = (request.form.get('delivery_address') or '').strip()
         order.sales_phone = (request.form.get('sales_phone') or '').strip()
         order.sales_bank_account = (request.form.get('sales_bank_account') or '').strip()
+        try:
+            order.points_value = max(float(request.form.get('points_value') or order.points_value or 1000), 0)
+            order.points_redeemed = max(int(request.form.get('points_redeemed') or 0), 0)
+        except ValueError:
+            flash('Giá trị điểm và số điểm đổi phải là số hợp lệ.', 'danger')
+            return redirect(url_for('edit_order', order_id=order.id))
+        if order.points_redeemed > (order.customer.points or 0) + (order.points_redeemed or 0):
+            flash('Số điểm đổi vượt quá số dư của khách hàng.', 'danger')
+            return redirect(url_for('edit_order', order_id=order.id))
+        order.points_discount = order.points_redeemed * order.points_value
         order.items.clear()
         for code, name, unit, qty, price in zip(
                 request.form.getlist('product_code'),
@@ -3077,6 +3091,7 @@ def serialize_order(o):
         'payment_details': o.payment_details,
         'points_awarded': o.points_awarded or 0,
         'points_redeemed': o.points_redeemed or 0,
+        'points_value': o.points_value or 1000,
         'points_discount': o.points_discount or 0,
         'production_sent_at': o.production_sent_at.isoformat() if o.production_sent_at else None,
         'customer_name': o.customer.name if o.customer else None,
@@ -3532,9 +3547,10 @@ def api_create_order():
     discount = max(float(data.get('discount_amount') or 0), 0)
     vat = max(float(data.get('vat_amount') or 0), 0)
     points_redeemed = max(int(data.get('points_redeemed') or 0), 0)
+    points_value = max(float(data.get('points_value') or 1000), 0)
     if points_redeemed > (c.points or 0):
         return {'error': f'Khách chỉ còn {c.points or 0} điểm.'}, 400
-    points_discount = points_redeemed * 1000
+    points_discount = points_redeemed * points_value
     total = max(sum(i.quantity * i.unit_price for i in items) - discount - points_discount + vat, 0)
     order = Order(
         customer_id=c.id,
@@ -3546,6 +3562,7 @@ def api_create_order():
         sales_phone=(data.get('sales_phone') or '').strip(),
         sales_bank_account=(data.get('sales_bank_account') or '').strip(),
         points_redeemed=points_redeemed,
+        points_value=points_value,
         points_discount=points_discount,
         discount_amount=discount, vat_amount=vat,
     )
@@ -3591,6 +3608,15 @@ def api_modify_order(order_id):
     for field in ('note', 'delivery_address', 'payment_details', 'sales_phone', 'sales_bank_account'):
         if field in data:
             setattr(order, field, (data[field] or '').strip())
+    if 'points_value' in data or 'points_redeemed' in data:
+        try:
+            order.points_value = max(float(data.get('points_value') or order.points_value or 1000), 0)
+            order.points_redeemed = max(int(data.get('points_redeemed') or 0), 0)
+        except (TypeError, ValueError):
+            return {'error': 'Giá trị điểm và số điểm đổi không hợp lệ.'}, 400
+        if order.points_redeemed > (order.customer.points or 0) + (order.points_redeemed or 0):
+            return {'error': 'Số điểm đổi vượt quá số dư của khách hàng.'}, 400
+        order.points_discount = order.points_redeemed * order.points_value
     if 'items' in data:
         if not isinstance(data['items'], list) or not data['items']:
             return {'error': 'Đơn hàng cần ít nhất một sản phẩm.'}, 400
