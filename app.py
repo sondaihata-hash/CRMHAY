@@ -582,7 +582,7 @@ def add_user():
 @admin_required
 def toggle_user(user_id):
     user = User.query.get_or_404(user_id)
-    if user.role in {'admin', 'manager'}:
+    if user.role == 'admin':
         flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
     else:
         user.is_active = not user.is_active
@@ -3201,7 +3201,7 @@ def api_dashboard():
         'status_summary': [{'status': s, 'count': c} for s, c in oq.with_entities(
             Order.status, func.count(Order.id)).group_by(Order.status).all()],
     }
-    if user.role == 'admin':
+    if user.role in {'admin', 'manager'}:
         day_start = datetime(now.year, now.month, now.day)
         tomorrow = day_start + timedelta(days=1)
         week_start = day_start - timedelta(days=day_start.weekday())
