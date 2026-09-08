@@ -551,7 +551,12 @@ def logout():
 @app.route('/admin/users')
 @admin_required
 def users():
-    return render_template('users.html', users=User.query.order_by(User.role, User.username).all())
+    return render_template(
+        'users.html',
+        users=User.query.order_by(User.role, User.username).all(),
+        role_options=USER_ROLES,
+        role_labels=USER_ROLES,
+    )
 
 
 @app.route('/admin/users/add', methods=['POST'])
@@ -592,7 +597,7 @@ def assign_customer(c_id):
     customer = Customer.query.get_or_404(c_id)
     user_id = request.form.get('assigned_user_id', type=int)
     user = db.session.get(User, user_id) if user_id else None
-    if user_id and (not user or user.role != 'sales' or not user.is_active):
+    if user_id and (not user or user.role not in {'sales', 'employee'} or not user.is_active):
         flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
     else:
         customer.assigned_user_id = user.id if user else None
@@ -2119,7 +2124,7 @@ def customers():
         q=q, sync_job_id=sync_job_id, sort=sort, selected_page_name=selected_page_name,
         page_names=page_names,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
-        sales_users=User.query.filter_by(role='sales', is_active=True).order_by(User.username).all(),
+        sales_users=User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username).all(),
     )
 
 
@@ -2217,7 +2222,7 @@ def customer_detail(c_id):
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
     activities = CustomerActivity.query.filter_by(customer_id=c.id).order_by(CustomerActivity.created_at.desc()).all()
-    sales_users = User.query.filter_by(role='sales', is_active=True).order_by(User.username).all()
+    sales_users = User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username).all()
     return render_template(
         'customer_detail.html',
         c=c,
@@ -3464,7 +3469,7 @@ def api_add_customer():
 def api_admin_users():
     if api_current_user().role != 'admin':
         return {'error': 'Chỉ Admin mới có quyền xem danh sách Sales.'}, 403
-    users = User.query.filter_by(role='sales', is_active=True).order_by(User.username.asc()).all()
+    users = User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username.asc()).all()
     return {'users': [{'id': user.id, 'username': user.username} for user in users]}
 
 
@@ -3479,7 +3484,7 @@ def api_assign_customer(c_id):
     data = request.get_json(silent=True) or {}
     user_id = data.get('assigned_user_id')
     user = db.session.get(User, user_id) if user_id else None
-    if user_id and (not user or user.role != 'sales' or not user.is_active):
+    if user_id and (not user or user.role not in {'sales', 'employee'} or not user.is_active):
         return {'error': 'Sales được chọn không hợp lệ hoặc đã bị khóa.'}, 400
     customer.assigned_user_id = user.id if user else None
     db.session.commit()
