@@ -1957,10 +1957,15 @@ def customers():
     if sort not in {'date', 'newest', 'page'}:
         sort = 'newest'
     sync_job_id = request.args.get('sync_job', '')
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except (TypeError, ValueError):
+        page = 1
+    per_page = 100
     base_query = visible_customer_query()
 
     if q:
-        items = base_query.filter(
+        base_query = base_query.filter(
             db.or_(
                 Customer.name.contains(q),
                 Customer.phone.contains(q),
@@ -1968,9 +1973,12 @@ def customers():
                 Customer.email.contains(q),
                 Customer.tags.contains(q),
             )
-        ).order_by(*customer_sort_order(sort)).all()
-    else:
-        items = base_query.order_by(*customer_sort_order(sort)).all()
+        )
+    ordered_query = base_query.order_by(*customer_sort_order(sort))
+    total_count = ordered_query.count()
+    total_pages = max(1, (total_count + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    items = ordered_query.offset((page - 1) * per_page).limit(per_page).all()
 
     if request.args.get('format') == 'json':
         return {
@@ -2001,6 +2009,7 @@ def customers():
     ).all()
     return render_template(
         'customers.html', customers=items, customer_stats=customer_stats,
+        total_count=total_count, page=page, total_pages=total_pages,
         q=q, sync_job_id=sync_job_id, sort=sort,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
         sales_users=User.query.filter_by(role='sales', is_active=True).order_by(User.username).all(),

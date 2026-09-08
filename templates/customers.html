@@ -25,7 +25,7 @@
     <div class="col-md-4">
       <div class="kpi-card">
         <div class="kpi-label">Tổng khách hàng</div>
-        <div class="kpi-value">{{ customers|length }}</div>
+        <div class="kpi-value">{{ total_count }}</div>
       </div>
     </div>
     <div class="col-md-4">
@@ -106,8 +106,7 @@
             <option value="page" {% if sort == 'page' %}selected{% endif %}>Theo Page</option>
           </select>
         </form>
-        <button type="button" class="btn btn-sm btn-outline-secondary action-btn" onclick="scrollCustomerList(-1)">↑ Cuộn lên</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary action-btn" onclick="scrollCustomerList(1)">Cuộn xuống ↓</button>
+        <span class="text-muted small">100 khách/trang</span>
       </div>
     </div>
     {% if current_user and current_user().role == 'admin' %}
@@ -124,7 +123,7 @@
       <span id="selectedCustomerCount" class="text-muted small">Chưa chọn khách nào</span>
     </form>
     {% endif %}
-    <div id="customerList" class="table-responsive customer-list-scroll">
+    <div id="customerList" class="table-responsive">
       <table class="table mb-0 align-middle customer-table-fixed" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
@@ -238,6 +237,30 @@
         </tbody>
       </table>
     </div>
+    <nav class="p-3 border-top" aria-label="Phân trang khách hàng">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="text-muted small">
+          Trang {{ page }}/{{ total_pages }} · Hiển thị {{ customers|length }} / {{ total_count }} khách
+        </span>
+        <div class="btn-group" role="group">
+          {% if page > 1 %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page=page - 1) }}">← Trước</a>
+          {% endif %}
+          {% for page_number in range(1, total_pages + 1) %}
+            {% if page_number == page %}
+            <span class="btn btn-sm btn-primary">{{ page_number }}</span>
+            {% elif page_number <= 3 or page_number > total_pages - 2 or (page_number >= page - 1 and page_number <= page + 1) %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page=page_number) }}">{{ page_number }}</a>
+            {% elif page_number == 4 or page_number == total_pages - 2 %}
+            <span class="btn btn-sm btn-outline-secondary disabled">…</span>
+            {% endif %}
+          {% endfor %}
+          {% if page < total_pages %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page=page + 1) }}">Sau →</a>
+          {% endif %}
+        </div>
+      </div>
+    </nav>
   </div>
 
   <style>
@@ -339,10 +362,6 @@
       
       setTimeout(() => event.target.submit(), 300);
       return false;
-    }
-
-    function scrollCustomerList(direction) {
-      document.getElementById('customerList').scrollBy({ top: direction * 360, behavior: 'smooth' });
     }
 
     const selectAllCustomers = document.getElementById('selectAllCustomers');
