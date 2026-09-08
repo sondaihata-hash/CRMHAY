@@ -1849,7 +1849,8 @@ def sync_facebook_lead(lead_id, page_id):
             customer.name = name or customer.name
             customer.phone = phone or customer.phone
             customer.email = email or customer.email
-            customer.notes = (customer.notes or '') + '\n' + '\n'.join(details)
+            if f'Lead ID: {lead_id}' not in (customer.notes or ''):
+                customer.notes = (customer.notes or '') + '\n' + '\n'.join(details)
             customer.page_name = str(page_id) if page_id else customer.page_name
             customer.source = 'facebook_lead'
             customer.last_message_date = lead_date

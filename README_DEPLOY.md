@@ -1,5 +1,21 @@
 # CRM Facebook - Deployment Guide (Render + Mắt Bào)
 
+## Facebook Lead Ads API
+
+CRM nhận Lead Ads qua webhook `POST /api/facebook/webhook`. Trong Meta
+Developers, cấu hình Webhooks cho đối tượng **Page**, callback URL:
+`https://crmhay.cloud/api/facebook/webhook`, và dùng cùng giá trị
+`FACEBOOK_WEBHOOK_VERIFY_TOKEN` để xác minh. Đăng ký trường `leadgen` cho Page.
+
+Lead được đọc qua Graph API bằng `FACEBOOK_SYSTEM_USER_ACCESS_TOKEN` (hoặc
+`FACEBOOK_PAGE_ACCESS_TOKEN`) và lưu thành khách hàng với nguồn
+`facebook_lead`; CRM tự chống trùng theo `leadgen_id` và số điện thoại.
+Token cần có quyền phù hợp để đọc Lead Ads của Page.
+
+Nên cấu hình thêm `FACEBOOK_APP_SECRET` trong biến môi trường production để CRM
+kiểm tra chữ ký `X-Hub-Signature-256` của Facebook. Khi chưa có biến này,
+webhook vẫn tương thích với cấu hình cũ nhưng nên bổ sung trước khi mở công khai.
+
 Hướng dẫn chi tiết deploy CRM lên Render và cấu hình domain `crmhay.cloud`.
 
 ## Chạy CRM trên chính PC Windows
