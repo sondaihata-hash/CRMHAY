@@ -478,7 +478,7 @@ def admin_required(view):
 def visible_customer_query():
     user = current_user()
     query = Customer.query
-    if user.role != 'admin':
+    if user.role not in {'admin', 'manager'}:
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
 
@@ -3075,7 +3075,7 @@ def api_current_user():
 def api_visible_customer_query():
     user = api_current_user()
     query = Customer.query
-    if user.role != 'admin':
+    if user.role not in {'admin', 'manager'}:
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
 
