@@ -33,6 +33,8 @@ import ast
 import csv
 import io
 import json
+import hashlib
+import hmac
 import logging
 import os
 import re
@@ -174,6 +176,7 @@ class Customer(db.Model):
     first_name = db.Column(db.String(100), nullable=True)
     last_name = db.Column(db.String(100), nullable=True)
     facebook_id = db.Column(db.String(100), nullable=True)
+    facebook_lead_id = db.Column(db.String(150), nullable=True, index=True)
     conversation_id = db.Column(db.String(200), nullable=True)
     profile_pic = db.Column(db.Text, nullable=True)
     gender = db.Column(db.String(20), nullable=True)
@@ -362,6 +365,7 @@ def ensure_customer_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('customer')}
     new_columns = {
         'page_name': 'TEXT',
+        'facebook_lead_id': 'VARCHAR(150)',
         'phone_added_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME',
         'location': 'TEXT',
         'last_message_date': 'DATETIME',
