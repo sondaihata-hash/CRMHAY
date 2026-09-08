@@ -36,7 +36,7 @@
   </table>
   <div class="text-end">
     Chiết khấu: {{ '{:,.0f}'.format(order.discount_amount) }} đ<br>
-    Đổi điểm: {{ order.points_redeemed or 0 }} điểm (-{{ '{:,.0f}'.format(order.points_discount or 0) }} đ)<br>
+    Đổi điểm: {{ order.points_redeemed or 0 }} điểm × {{ '{:,.0f}'.format(order.points_value or 1000) }} đ (-{{ '{:,.0f}'.format(order.points_discount or 0) }} đ)<br>
     VAT: {{ '{:,.0f}'.format(order.vat_amount) }} đ<br>
     <b>TỔNG THANH TOÁN: {{ '{:,.0f}'.format(order.total_amount) }} đ</b>
   </div>

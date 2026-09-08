@@ -44,7 +44,7 @@ def build_order_pdf(order):
         y -= 8*mm; pdf.line(14*mm, y, 196*mm, y)
     pdf.setFont(font, 10)
     pdf.drawRightString(196*mm, y-8*mm, f'Chiết khấu: {order.discount_amount:,.0f} đ')
-    pdf.drawRightString(196*mm, y-14*mm, f'Đổi điểm: {order.points_redeemed or 0} điểm (-{(order.points_discount or 0):,.0f} đ)')
+    pdf.drawRightString(196*mm, y-14*mm, f'Đổi điểm: {order.points_redeemed or 0} điểm x {(order.points_value or 1000):,.0f} đ (-{(order.points_discount or 0):,.0f} đ)')
     pdf.drawRightString(196*mm, y-20*mm, f'VAT: {order.vat_amount:,.0f} đ')
     pdf.setFont(font, 11); pdf.drawRightString(196*mm, y-27*mm, f'TỔNG THANH TOÁN: {order.total_amount:,.0f} đ')
     pdf.setFont(font, 9); pdf.drawString(14*mm, 40*mm, 'Người lập'); pdf.drawCentredString(width/2, 40*mm, 'Kế toán trưởng'); pdf.drawRightString(196*mm, 40*mm, 'Khách hàng')
