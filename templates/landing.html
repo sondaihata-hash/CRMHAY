@@ -95,6 +95,97 @@
         gap: 2rem;
         align-items: center;
       }
+      .ai-stage {
+        position: relative;
+        min-height: 430px;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 45%, rgba(45,212,191,.2), transparent 34%), #071e2b;
+        border: 1px solid rgba(148, 255, 239, .25);
+      }
+      .ai-grid {
+        position: absolute;
+        inset: 0;
+        opacity: .25;
+        background-image: linear-gradient(rgba(94,234,212,.2) 1px, transparent 1px), linear-gradient(90deg, rgba(94,234,212,.2) 1px, transparent 1px);
+        background-size: 34px 34px;
+        transform: perspective(500px) rotateX(58deg) scale(1.7) translateY(100px);
+        transform-origin: center bottom;
+        animation: gridDrift 10s linear infinite;
+      }
+      @keyframes gridDrift { to { background-position: 0 68px, 68px 0; } }
+      .ai-orbit {
+        position: absolute;
+        width: 250px;
+        height: 250px;
+        left: 50%;
+        top: 49%;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(94,234,212,.35);
+        border-radius: 50%;
+        box-shadow: 0 0 55px rgba(20,184,166,.18);
+        animation: orbitSpin 18s linear infinite;
+      }
+      .ai-orbit::before, .ai-orbit::after {
+        content: "";
+        position: absolute;
+        inset: 22px;
+        border: 1px dashed rgba(125,211,252,.3);
+        border-radius: 50%;
+      }
+      .ai-orbit::after { inset: 53px; border-style: solid; border-color: rgba(249,115,22,.35); }
+      @keyframes orbitSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+      .ai-core {
+        position: absolute;
+        left: 50%;
+        top: 49%;
+        transform: translate(-50%, -50%);
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        color: #ccfbf1;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -.08em;
+        background: radial-gradient(circle at 35% 30%, #5eead4, #0f766e 45%, #064e3b);
+        border: 2px solid rgba(204,251,241,.75);
+        box-shadow: 0 0 0 14px rgba(20,184,166,.08), 0 0 55px rgba(45,212,191,.65);
+        animation: corePulse 3s ease-in-out infinite;
+      }
+      @keyframes corePulse { 50% { box-shadow: 0 0 0 24px rgba(20,184,166,.03), 0 0 82px rgba(45,212,191,.8); } }
+      .ai-node {
+        position: absolute;
+        z-index: 2;
+        padding: .45rem .65rem;
+        border: 1px solid rgba(165,243,252,.35);
+        border-radius: 999px;
+        color: #cffafe;
+        background: rgba(8,47,73,.78);
+        font-size: .68rem;
+        box-shadow: 0 0 18px rgba(34,211,238,.15);
+        animation: nodeFloat 4s ease-in-out infinite;
+      }
+      .ai-node:nth-of-type(2) { left: 10%; top: 22%; animation-delay: -1s; }
+      .ai-node:nth-of-type(3) { right: 9%; top: 28%; animation-delay: -2s; }
+      .ai-node:nth-of-type(4) { left: 8%; bottom: 22%; animation-delay: -3s; }
+      .ai-node:nth-of-type(5) { right: 8%; bottom: 19%; animation-delay: -1.5s; }
+      @keyframes nodeFloat { 50% { transform: translateY(-8px); } }
+      .ai-caption {
+        position: absolute;
+        z-index: 3;
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+        padding: .75rem .9rem;
+        border-radius: .75rem;
+        background: rgba(2, 20, 30, .7);
+        border: 1px solid rgba(255,255,255,.14);
+        color: rgba(255,255,255,.8);
+        font-size: .72rem;
+      }
+      .ai-caption strong { color: #5eead4; }
       .hero-copy p { color: rgba(255,255,255,0.78); }
       .hero-card .eyebrow { background: rgba(255,255,255,0.13); color: #ccfbf1; }
       .hero-card .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.25); }
@@ -354,7 +445,7 @@
       .mock-choice { display: block; margin-top: 0.45rem; border-radius: 0.35rem; padding: 0.3rem; background: #dcfce7; color: #166534; font-size: 0.58rem; text-align: center; }
       @media (max-width: 991.98px) {
         .hero-layout { grid-template-columns: 1fr; }
-        .dashboard-preview { max-width: 620px; margin: 0 auto; transform: none; }
+        .ai-stage { max-width: 620px; margin: 0 auto; }
         .visual-guides { grid-template-columns: 1fr; }
       }
       .cta {
@@ -395,17 +486,10 @@
               <div class="metric-box"><strong>1 màn</strong><span>dashboard & đơn hàng</span></div>
             </div>
             </div>
-          <div class="dashboard-preview" aria-label="Minh họa dashboard CRM">
-            <div class="preview-top"><span>CRM HAY / Tổng quan</span><span class="preview-dots"><i></i><i></i><i></i></span></div>
-            <div class="preview-body">
-              <div class="preview-kpis"><div class="preview-kpi"><small>Khách hàng</small><strong>6.427</strong></div><div class="preview-kpi"><small>Đơn hàng</small><strong>248</strong></div><div class="preview-kpi"><small>Doanh thu</small><strong>86%</strong></div></div>
-              <div class="preview-chart">
-                <small style="color:#64748b;">Hiệu suất chăm sóc theo tuần</small>
-                <svg viewBox="0 0 340 105" role="img" aria-label="Biểu đồ tăng trưởng"><path d="M8 88H332M8 62H332M8 36H332" stroke="#e2e8f0" stroke-width="1"/><path class="chart-line" d="M10 82 C42 78, 52 62, 78 68 S112 45, 140 55 S174 28, 202 42 S238 24, 265 31 S302 12, 330 18" fill="none" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/><path d="M10 82 C42 78, 52 62, 78 68 S112 45, 140 55 S174 28, 202 42 S238 24, 265 31 S302 12, 330 18 V100 H10Z" fill="url(#chartFill)" opacity=".18"/><defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#14b8a6"/><stop offset="1" stop-color="#fff"/></linearGradient></defs></svg>
-                <div class="preview-footer"><span>Tuần trước</span><strong>+24,8%</strong></div>
-              </div>
-            </div>
-            <span class="floating-badge">● 18 việc cần xử lý</span>
+          <div class="ai-stage" aria-label="Trợ lý AI CRM đang phân tích dữ liệu">
+            <div class="ai-grid"></div><div class="ai-orbit"></div><div class="ai-core">AI</div>
+            <span class="ai-node">Facebook · 6427 khách</span><span class="ai-node">Dự báo doanh thu ↑</span><span class="ai-node">18 việc ưu tiên</span><span class="ai-node">Phân tích Sales</span>
+            <div class="ai-caption"><strong>AI đang hoạt động</strong> · Đang kết nối khách hàng, Page và hiệu suất chăm sóc theo thời gian thực.</div>
           </div>
         </div>
       </section>
