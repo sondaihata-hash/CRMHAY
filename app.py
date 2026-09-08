@@ -245,6 +245,8 @@ class Order(db.Model):
     sales_phone = db.Column(db.String(50), nullable=True)
     sales_bank_account = db.Column(db.String(200), nullable=True)
     points_awarded = db.Column(db.Integer, nullable=False, default=0)
+    points_redeemed = db.Column(db.Integer, nullable=False, default=0)
+    points_discount = db.Column(db.Float, nullable=False, default=0)
     production_sent_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
@@ -2238,7 +2240,7 @@ def handoff_customer_to_zalo(c_id):
 
 def ensure_order_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
-    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
+    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
@@ -2250,12 +2252,14 @@ def update_customer_points(customer_id):
     if not c:
         return
     completed_orders = Order.query.filter_by(customer_id=c.id, status='Hoàn tất').all()
-    total_pts = 0
+    earned_pts = 0
+    redeemed_pts = 0
     for o in completed_orders:
         pts = int((o.total_amount or 0) // 1000000)
         o.points_awarded = pts
-        total_pts += pts
-    c.points = total_pts
+        earned_pts += pts
+    redeemed_pts = sum((o.points_redeemed or 0) for o in Order.query.filter_by(customer_id=c.id).all())
+    c.points = max(earned_pts - redeemed_pts, 0)
     db.session.commit()
 
 
