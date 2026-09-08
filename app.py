@@ -3070,6 +3070,8 @@ def serialize_order(o):
         'discount_amount': o.discount_amount, 'vat_amount': o.vat_amount,
         'payment_details': o.payment_details,
         'points_awarded': o.points_awarded or 0,
+        'points_redeemed': o.points_redeemed or 0,
+        'points_discount': o.points_discount or 0,
         'production_sent_at': o.production_sent_at.isoformat() if o.production_sent_at else None,
         'customer_name': o.customer.name if o.customer else None,
         'customer_id': o.customer_id,
