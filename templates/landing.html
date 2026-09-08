@@ -215,6 +215,61 @@
         font-size: 0.8rem;
         font-weight: 700;
       }
+      .visual-guides {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.2rem;
+      }
+      .visual-guide {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
+      }
+      .visual-guide h3 {
+        font-size: 1.05rem;
+        font-weight: 800;
+        margin: 0.9rem 0 0.4rem;
+      }
+      .visual-guide p {
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 0;
+      }
+      .mock-screen {
+        min-height: 185px;
+        border-radius: 0.8rem;
+        background: #f1f5f9;
+        border: 1px solid #dbe4ee;
+        padding: 0.75rem;
+      }
+      .mock-browser {
+        background: #fff;
+        border-radius: 0.55rem;
+        overflow: hidden;
+        border: 1px solid #cbd5e1;
+      }
+      .mock-bar {
+        display: flex;
+        gap: 0.3rem;
+        align-items: center;
+        padding: 0.35rem 0.5rem;
+        background: #e2e8f0;
+      }
+      .mock-dot { width: 0.42rem; height: 0.42rem; border-radius: 50%; background: #94a3b8; }
+      .mock-address { flex: 1; background: #fff; border-radius: 999px; color: #64748b; font-size: 0.58rem; padding: 0.2rem 0.5rem; }
+      .mock-content { padding: 0.65rem; }
+      .mock-title { width: 58%; height: 0.55rem; border-radius: 99px; background: #0f766e; margin-bottom: 0.7rem; }
+      .mock-line { height: 0.42rem; border-radius: 99px; background: #cbd5e1; margin: 0.35rem 0; }
+      .mock-line.short { width: 65%; }
+      .mock-button { display: inline-block; margin-top: 0.55rem; border-radius: 0.35rem; background: #f97316; color: #fff; font-size: 0.62rem; padding: 0.35rem 0.55rem; }
+      .mock-phone { width: 100px; margin: auto; border: 4px solid #1e293b; border-radius: 1rem; background: #fff; padding: 0.35rem; min-height: 160px; }
+      .mock-phone .mock-content { padding: 0.45rem; }
+      .mock-choice { display: block; margin-top: 0.45rem; border-radius: 0.35rem; padding: 0.3rem; background: #dcfce7; color: #166534; font-size: 0.58rem; text-align: center; }
+      @media (max-width: 991.98px) {
+        .visual-guides { grid-template-columns: 1fr; }
+      }
       .cta {
         margin-top: 2rem;
       }
@@ -341,6 +396,32 @@
         <div class="alert alert-info mt-4 mb-0">
           <strong>Admin xem lịch sử:</strong> mở hồ sơ khách hàng để xem Sales thực hiện,
           thời gian gọi, thời lượng, trạng thái và ghi chú trong mục Nhật ký chăm sóc.
+        </div>
+        <div class="visual-guides mt-4">
+          <article class="visual-guide">
+            <div class="mock-screen">
+              <div class="mock-browser">
+                <div class="mock-bar"><i class="mock-dot"></i><i class="mock-dot"></i><i class="mock-dot"></i><span class="mock-address">crmhay.cloud</span></div>
+                <div class="mock-content"><div class="mock-title"></div><div class="mock-line"></div><div class="mock-line short"></div><span class="mock-button">Đăng nhập</span></div>
+              </div>
+            </div>
+            <h3>1. Mở CRM trên Safari</h3>
+            <p>Mở Safari, nhập <strong>crmhay.cloud</strong>, đăng nhập rồi chọn “Thêm vào Màn hình chính” để dùng như app.</p>
+          </article>
+          <article class="visual-guide">
+            <div class="mock-screen d-flex align-items-center justify-content-center">
+              <div class="mock-phone"><div class="mock-content"><div class="mock-title"></div><div class="mock-line"></div><div class="mock-line short"></div><span class="mock-choice">Khách hàng</span><span class="mock-choice">Đơn hàng</span></div></div>
+            </div>
+            <h3>2. Cài CRM trên Android</h3>
+            <p>Tải APK CRM HAY, cài đặt, đăng nhập tài khoản Sales hoặc Admin và cấp quyền khi ứng dụng yêu cầu.</p>
+          </article>
+          <article class="visual-guide">
+            <div class="mock-screen d-flex align-items-center justify-content-center">
+              <div class="mock-phone"><div class="mock-content"><div class="mock-title"></div><span class="mock-choice">Điện thoại</span><span class="mock-choice">Zalo</span><span class="mock-choice">WhatsApp</span></div></div>
+            </div>
+            <h3>3. Gọi và lưu thời gian</h3>
+            <p>Mở hồ sơ khách, bấm “Gọi khách”, chọn kênh gọi. Sau khi kết thúc, quay lại CRM và bấm “Kết thúc & lưu thời gian”.</p>
+          </article>
         </div>
       </section>
 
