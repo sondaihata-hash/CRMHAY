@@ -209,10 +209,12 @@ class User(db.Model):
     username = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='sales')
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     last_login_at = db.Column(db.DateTime, nullable=True)
     customers = db.relationship('Customer', backref='assigned_user', lazy=True)
+    manager = db.relationship('User', remote_side=[id], backref=db.backref('managed_users', lazy=True))
 
 
 class Setting(db.Model):
@@ -640,7 +642,7 @@ def ensure_sales_group_columns():
 
 def ensure_user_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
-    new_columns = {'role': "TEXT DEFAULT 'sales'", 'is_active': 'BOOLEAN DEFAULT 1', 'last_login_at': 'DATETIME'}
+    new_columns = {'role': "TEXT DEFAULT 'sales'", 'manager_id': 'INTEGER', 'is_active': 'BOOLEAN DEFAULT 1', 'last_login_at': 'DATETIME'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {column_name} {column_type}'))
