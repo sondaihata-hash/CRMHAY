@@ -27,6 +27,8 @@ def build_order_pdf(order):
     pdf.drawString(14*mm, height-44*mm, f'Tên khách hàng: {order.customer.name}')
     pdf.drawString(14*mm, height-50*mm, f'Địa chỉ: {order.delivery_address or "-"}')
     pdf.drawString(14*mm, height-56*mm, f'Điện thoại: {order.customer.phone or "-"}')
+    pdf.drawString(14*mm, height-61*mm, f'SĐT Sales: {order.sales_phone or "-"}')
+    pdf.drawString(120*mm, height-56*mm, f'STK Sales: {order.sales_bank_account or "-"}')
     pdf.drawString(120*mm, height-44*mm, f'Ngày: {order.created_at:%d/%m/%Y}')
     pdf.drawString(120*mm, height-50*mm, f'Số: {order.code}')
     y = height-65*mm

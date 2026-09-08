@@ -16,7 +16,9 @@
       Tên khách hàng: <b>{{ order.customer.name }}</b><br>
       Địa chỉ: {{ order.delivery_address or '—' }}<br>
       Điện thoại: {{ order.customer.phone or '—' }}<br>
-      Email: {{ order.customer.email or '—' }}
+      Email: {{ order.customer.email or '—' }}<br>
+      SĐT Sales: {{ order.sales_phone or '—' }}<br>
+      STK Sales: {{ order.sales_bank_account or '—' }}
     </div>
     <div class="col-5">
       Ngày: {{ order.created_at.strftime('%d/%m/%Y') }}<br>
