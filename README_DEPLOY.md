@@ -229,6 +229,28 @@ Khi muốn đổi domain mới (VD: crmhay.vn):
 - [ ] Kiểm tra đăng nhập Admin và tạo tài khoản Sales
 - [ ] Tích hợp Facebook API khi sẵn sàng
 
+## Production hardening checklist
+
+- Bắt buộc đặt `CRM_SECRET_KEY` ngẫu nhiên (ít nhất 32 ký tự), chỉ dùng HTTPS và
+  không ghi secret/token vào log. Ứng dụng phát `GET /healthz` (liveness) và
+  `GET /readyz` (database/migration readiness) cho Render hoặc load balancer.
+- Đăng nhập bị giới hạn mặc định 5 lần sai trong 15 phút theo tài khoản + địa chỉ
+  IP. Có thể điều chỉnh bằng `CRM_LOGIN_MAX_ATTEMPTS` và
+  `CRM_LOGIN_LOCK_MINUTES`; hãy đặt rate limit bổ sung ở CDN/WAF khi chạy nhiều
+  worker.
+- Khi khởi động, dữ liệu cũ được gán vào organization `default`. Các User,
+  Customer, Order, Reminder và Setting mới được lọc theo organization của tài
+  khoản; không dùng chung database giữa các khách hàng nếu chưa cấp tài khoản
+  riêng cho từng organization.
+- Snapshot khách hàng phải nằm trên persistent disk/object storage thông qua
+  `CUSTOMER_SNAPSHOT_PATH`. Mỗi lần ghi snapshot dùng thay thế nguyên tử, giữ
+  thêm file `.previous`, flush xuống đĩa và đặt quyền hạn chế. Snapshot chỉ là
+  bản phục hồi phụ; cần backup PostgreSQL tự động, mã hóa, kiểm tra restore định
+  kỳ và giữ nhiều phiên bản ngoài máy chạy ứng dụng.
+- Audit log ghi các thay đổi nhạy cảm (tài khoản, phân công, khách hàng, đơn,
+  nhắc việc, setting và gửi tin). Hạn chế quyền truy cập database/log và đặt
+  chính sách lưu trữ phù hợp với quy định bảo vệ dữ liệu cá nhân.
+
 ---
 
 ## Tham khảo

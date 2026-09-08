@@ -3,10 +3,11 @@ import importlib.util
 import pkgutil
 import secrets
 import werkzeug
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, send_file, session
+from flask import Flask, g, render_template, request, redirect, url_for, flash, Response, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from sqlalchemy import text, inspect, func
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 if not hasattr(pkgutil, 'get_loader'):
@@ -32,6 +33,7 @@ import ast
 import csv
 import io
 import json
+import hashlib
 import logging
 import os
 import re
@@ -68,6 +70,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_SECURE=is_production,
+    MAX_CONTENT_LENGTH=2 * 1024 * 1024,
 )
 
 MOBILE_CORS_ORIGINS = {
@@ -80,6 +83,13 @@ MOBILE_CORS_ORIGINS = {
 
 @app.after_request
 def add_mobile_cors_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    response.headers.setdefault('Cross-Origin-Resource-Policy', 'same-origin')
+    if is_production:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
     origin = request.headers.get('Origin')
     if origin in MOBILE_CORS_ORIGINS:
         response.headers['Access-Control-Allow-Origin'] = origin
@@ -106,7 +116,7 @@ ADMIN_ENDPOINTS = {
     'add_sales_group', 'delete_sales_group', 'update_sales_group_link',
     'sync_facebook_customers', 'sync_facebook_status', 'facebook_export',
     'delete_customer', 'users', 'add_user', 'toggle_user', 'assign_customer',
-    'facebook_import_legacy', 'reminders', 'complete_reminder',
+    'facebook_import_legacy', 'reminders', 'complete_reminder', 'audit_logs',
 }
 
 # Background sync state — single-worker safe
@@ -141,8 +151,32 @@ DEFAULT_HOTLINE_NUMBERS = frozenset({
 })
 
 
+class Organization(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+def default_organization_id():
+    """Return the compatibility organization used by single-tenant installs."""
+    try:
+        return db.session.query(Organization.id).filter_by(slug='default').scalar()
+    except SQLAlchemyError:
+        return None
+
+
+def active_organization_id():
+    user = current_user()
+    return (
+        user.organization_id if user and user.organization_id
+        else getattr(g, 'organization_id', None) or default_organization_id()
+    )
+
+
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     name = db.Column(db.String(200), nullable=False)
     first_name = db.Column(db.String(100), nullable=True)
     last_name = db.Column(db.String(100), nullable=True)
@@ -168,6 +202,7 @@ class Customer(db.Model):
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     username = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='sales')
@@ -178,14 +213,19 @@ class User(db.Model):
 
 
 class Setting(db.Model):
+    __table_args__ = (
+        db.UniqueConstraint('organization_id', 'key', name='uq_setting_organization_key'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(200), unique=True, nullable=False)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
+    key = db.Column(db.String(200), nullable=False)
     value = db.Column(db.Text, nullable=True)
     description = db.Column(db.String(400), nullable=True)
 
 
 class SyncJob(db.Model):
     id = db.Column(db.String(36), primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     status = db.Column(db.String(20), nullable=False, default='queued', index=True)
     message = db.Column(db.Text, nullable=True)
     imported = db.Column(db.Integer, nullable=False, default=0)
@@ -197,6 +237,7 @@ class SyncJob(db.Model):
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
     code = db.Column(db.String(40), nullable=False, unique=True)
     total_amount = db.Column(db.Float, nullable=False, default=0)
@@ -225,6 +266,7 @@ class OrderItem(db.Model):
 class SalesGroup(db.Model):
     """A manually maintained destination list for the user's Zalo groups."""
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     name = db.Column(db.String(200), nullable=False, unique=True)
     description = db.Column(db.String(400), nullable=True)
     zalo_url = db.Column(db.String(500), nullable=True)
@@ -233,6 +275,7 @@ class SalesGroup(db.Model):
 
 class SalesHandoff(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
     group_id = db.Column(db.Integer, db.ForeignKey('sales_group.id'), nullable=False, index=True)
     message = db.Column(db.Text, nullable=False)
@@ -246,6 +289,7 @@ class SalesHandoff(db.Model):
 
 class MessageLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
     sender_type = db.Column(db.String(30), nullable=False, default='customer')
     channel = db.Column(db.String(30), nullable=False, default='zalo')
@@ -257,6 +301,7 @@ class MessageLog(db.Model):
 
 class Reminder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True, default=default_organization_id)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
     assigned_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     title = db.Column(db.String(200), nullable=False)
@@ -270,16 +315,40 @@ class Reminder(db.Model):
     assigned_user = db.relationship('User', backref=db.backref('reminders', lazy=True))
 
 
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True, index=True)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    action = db.Column(db.String(80), nullable=False, index=True)
+    resource_type = db.Column(db.String(80), nullable=False)
+    resource_id = db.Column(db.String(80), nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
+class LoginThrottle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    throttle_key = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    username = db.Column(db.String(120), nullable=False, index=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    failed_attempts = db.Column(db.Integer, nullable=False, default=0)
+    first_failed_at = db.Column(db.DateTime, nullable=True)
+    locked_until = db.Column(db.DateTime, nullable=True, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def write_customer_snapshot():
-    """Atomically save imported customer data to a JSON recovery file."""
+    """Atomically save customer data, retaining the last known-good snapshot."""
     customers = Customer.query.order_by(Customer.id).all()
     fields = (
-        'id', 'name', 'first_name', 'last_name', 'facebook_id',
+        'id', 'organization_id', 'name', 'first_name', 'last_name', 'facebook_id',
         'conversation_id', 'profile_pic', 'gender', 'locale', 'email', 'phone',
         'notes', 'page_name', 'location', 'message_excerpt', 'source',
         'message_count', 'tags', 'created_at', 'last_message_date',
     )
     payload = {
+        'schema_version': 2,
         'generated_at': datetime.utcnow().isoformat() + 'Z',
         'customer_count': len(customers),
         'customers': [{
@@ -294,7 +363,22 @@ def write_customer_snapshot():
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as snapshot_file:
             json.dump(payload, snapshot_file, ensure_ascii=False, indent=2)
+            snapshot_file.flush()
+            os.fsync(snapshot_file.fileno())
+        try:
+            os.chmod(temporary_path, 0o600)
+        except OSError:
+            pass
+        previous_path = CUSTOMER_SNAPSHOT_PATH + '.previous'
+        if os.path.exists(CUSTOMER_SNAPSHOT_PATH):
+            os.replace(CUSTOMER_SNAPSHOT_PATH, previous_path)
         os.replace(temporary_path, CUSTOMER_SNAPSHOT_PATH)
+        try:
+            os.chmod(CUSTOMER_SNAPSHOT_PATH, 0o600)
+            if os.path.exists(previous_path):
+                os.chmod(previous_path, 0o600)
+        except OSError:
+            pass
         logger.info('Customer snapshot saved: %s (%d customers)', CUSTOMER_SNAPSHOT_PATH, len(customers))
     except Exception:
         try:
@@ -302,6 +386,152 @@ def write_customer_snapshot():
         except FileNotFoundError:
             pass
         raise
+
+
+def record_audit(action, resource_type, resource_id=None, details=None, organization_id=None):
+    """Queue a non-sensitive audit event in the same transaction as a mutation."""
+    try:
+        ip_address = (request.remote_addr or '')[:64]
+    except RuntimeError:
+        ip_address = None
+    db.session.add(AuditLog(
+        organization_id=organization_id if organization_id is not None else active_organization_id(),
+        actor_user_id=current_user().id if current_user() else None,
+        action=action,
+        resource_type=resource_type,
+        resource_id=str(resource_id) if resource_id is not None else None,
+        details=json.dumps(details or {}, ensure_ascii=False, default=str),
+        ip_address=ip_address,
+    ))
+
+
+def login_throttle_key(username, ip_address):
+    return hashlib.sha256(
+        f'{username.lower()}|{ip_address or "unknown"}'.encode('utf-8')
+    ).hexdigest()
+
+
+def login_limits():
+    try:
+        max_attempts = max(3, min(int(os.environ.get('CRM_LOGIN_MAX_ATTEMPTS', '5')), 20))
+    except ValueError:
+        max_attempts = 5
+    try:
+        lock_minutes = max(1, min(int(os.environ.get('CRM_LOGIN_LOCK_MINUTES', '15')), 1440))
+    except ValueError:
+        lock_minutes = 15
+    return max_attempts, lock_minutes
+
+
+def login_is_locked(username, ip_address, now=None):
+    throttle = LoginThrottle.query.filter_by(
+        throttle_key=login_throttle_key(username, ip_address)
+    ).first()
+    now = now or datetime.utcnow()
+    return throttle if throttle and throttle.locked_until and throttle.locked_until > now else None
+
+
+def record_failed_login(username, ip_address):
+    now = datetime.utcnow()
+    key = login_throttle_key(username, ip_address)
+    throttle = LoginThrottle.query.filter_by(throttle_key=key).first()
+    if not throttle:
+        throttle = LoginThrottle(
+            throttle_key=key, username=username[:120], ip_address=(ip_address or '')[:64],
+            failed_attempts=0, first_failed_at=now,
+        )
+        db.session.add(throttle)
+    throttle.failed_attempts = (throttle.failed_attempts or 0) + 1
+    throttle.updated_at = now
+    max_attempts, lock_minutes = login_limits()
+    if throttle.failed_attempts >= max_attempts:
+        throttle.locked_until = now + timedelta(minutes=lock_minutes)
+    db.session.commit()
+    return throttle
+
+
+def clear_failed_logins(username, ip_address):
+    key = login_throttle_key(username, ip_address)
+    throttle = LoginThrottle.query.filter_by(throttle_key=key).first()
+    if throttle:
+        db.session.delete(throttle)
+        db.session.commit()
+
+
+def ensure_organization_columns():
+    """Add tenant columns and assign all pre-tenant rows to the default org."""
+    default_org = Organization.query.filter_by(slug='default').first()
+    if not default_org:
+        default_org = Organization(
+            name=os.environ.get('CRM_ORGANIZATION_NAME', 'CRM HAY'),
+            slug='default',
+        )
+        db.session.add(default_org)
+        db.session.flush()
+    tables = set(inspect(db.engine).get_table_names())
+    tenant_tables = (
+        'user', 'customer', 'order', 'reminder', 'setting', 'sync_job',
+        'sales_group', 'sales_handoff', 'message_log',
+    )
+    for table in tenant_tables:
+        if table not in tables:
+            continue
+        columns = {column['name'] for column in inspect(db.engine).get_columns(table)}
+        if 'organization_id' not in columns:
+            quoted = f'"{table}"'
+            db.session.execute(text(
+                f'ALTER TABLE {quoted} ADD COLUMN organization_id INTEGER'
+            ))
+        db.session.execute(text(
+            f'UPDATE "{table}" SET organization_id = :organization_id '
+            'WHERE organization_id IS NULL'
+        ), {'organization_id': default_org.id})
+        db.session.execute(text(
+            f'CREATE INDEX IF NOT EXISTS "ix_{table}_organization_id" '
+            f'ON "{table}" (organization_id)'
+        ))
+    db.session.commit()
+    ensure_setting_tenant_constraint()
+
+
+def ensure_setting_tenant_constraint():
+    """Replace the legacy global Setting.key uniqueness with per-tenant uniqueness."""
+    if db.engine.dialect.name == 'sqlite':
+        definition = db.session.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='setting'"
+        )).scalar() or ''
+        has_global_unique = bool(
+            re.search(r'UNIQUE\s*\(\s*["`]?key["`]?\s*\)', definition, re.IGNORECASE)
+            or re.search(r'\bkey\b[^,]*\bUNIQUE\b', definition, re.IGNORECASE)
+        )
+        if has_global_unique:
+            db.session.execute(text('ALTER TABLE setting RENAME TO setting_legacy'))
+            db.session.execute(text(
+                'CREATE TABLE setting ('
+                'id INTEGER NOT NULL, organization_id INTEGER, key VARCHAR(200) NOT NULL, '
+                'value TEXT, description VARCHAR(400), PRIMARY KEY (id), '
+                'FOREIGN KEY(organization_id) REFERENCES organization (id), '
+                'UNIQUE (organization_id, key))'
+            ))
+            db.session.execute(text(
+                'INSERT INTO setting (id, organization_id, key, value, description) '
+                'SELECT id, organization_id, key, value, description FROM setting_legacy'
+            ))
+            db.session.execute(text('DROP TABLE setting_legacy'))
+            db.session.commit()
+        return
+
+    inspector = inspect(db.engine)
+    for constraint in inspector.get_unique_constraints('setting'):
+        if constraint.get('column_names') == ['key'] and constraint.get('name'):
+            db.session.execute(text(
+                f'ALTER TABLE "setting" DROP CONSTRAINT "{constraint["name"]}"'
+            ))
+    db.session.execute(text(
+        'CREATE UNIQUE INDEX IF NOT EXISTS uq_setting_organization_key '
+        'ON "setting" (organization_id, key)'
+    ))
+    db.session.commit()
 
 
 def ensure_customer_columns():
@@ -330,7 +560,10 @@ def ensure_customer_columns():
 
 
 def current_user():
-    user_id = session.get('user_id')
+    try:
+        user_id = session.get('user_id')
+    except RuntimeError:
+        return None
     return db.session.get(User, user_id) if user_id else None
 
 
@@ -362,10 +595,14 @@ def admin_required(view):
 
 def visible_customer_query():
     user = current_user()
-    query = Customer.query
+    query = Customer.query.filter(Customer.organization_id == active_organization_id())
     if user.role != 'admin':
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
+
+
+def visible_user_query():
+    return User.query.filter(User.organization_id == active_organization_id())
 
 
 def get_visible_customer(customer_id):
@@ -377,13 +614,30 @@ def login():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip().lower()
         password = request.form.get('password') or ''
+        ip_address = request.remote_addr or 'unknown'
+        locked = login_is_locked(username, ip_address)
+        if locked:
+            retry_at = locked.locked_until.strftime('%H:%M')
+            flash(f'Đăng nhập tạm khóa do thử sai quá nhiều lần. Vui lòng thử lại sau {retry_at}.', 'danger')
+            return render_template('login.html'), 429
         user = User.query.filter_by(username=username, is_active=True).first()
         if not user or not check_password_hash(user.password_hash, password):
-            flash('Tên đăng nhập hoặc mật khẩu không đúng.', 'danger')
-            return render_template('login.html'), 401
+            throttle = record_failed_login(username, ip_address)
+            max_attempts, _ = login_limits()
+            remaining = max(0, max_attempts - throttle.failed_attempts)
+            if throttle.locked_until:
+                message = 'Đăng nhập tạm khóa do thử sai quá nhiều lần. Vui lòng thử lại sau ít phút.'
+                status = 429
+            else:
+                message = f'Tên đăng nhập hoặc mật khẩu không đúng. Bạn còn {remaining} lần thử.'
+                status = 401
+            flash(message, 'danger')
+            return render_template('login.html'), status
+        clear_failed_logins(username, ip_address)
         session.clear()
         session['user_id'] = user.id
         user.last_login_at = datetime.utcnow()
+        record_audit('login.success', 'User', user.id, {'username': user.username}, user.organization_id)
         db.session.commit()
         next_url = request.args.get('next') or url_for('index')
         parsed_next = urlsplit(next_url)
@@ -404,10 +658,45 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/account/password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    user = current_user()
+    if request.method == 'POST':
+        current_password = request.form.get('current_password') or ''
+        new_password = request.form.get('new_password') or ''
+        confirmation = request.form.get('confirmation') or ''
+        if not check_password_hash(user.password_hash, current_password):
+            flash('Mật khẩu hiện tại không đúng.', 'danger')
+        elif len(new_password) < 12:
+            flash('Mật khẩu mới phải có ít nhất 12 ký tự.', 'danger')
+        elif new_password != confirmation:
+            flash('Xác nhận mật khẩu mới không khớp.', 'danger')
+        else:
+            user.password_hash = generate_password_hash(new_password)
+            record_audit('user.password_change', 'User', user.id)
+            db.session.commit()
+            flash('Đã đổi mật khẩu thành công.', 'success')
+            return redirect(url_for('index'))
+    return render_template('change_password.html')
+
+
+@app.route('/admin/audit-log')
+@admin_required
+def audit_logs():
+    page = max(request.args.get('page', 1, type=int), 1)
+    page_size = 50
+    query = AuditLog.query.filter_by(
+        organization_id=active_organization_id(),
+    ).order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    pagination = query.paginate(page=page, per_page=page_size, error_out=False)
+    return render_template('audit_log.html', logs=pagination.items, pagination=pagination)
+
+
 @app.route('/admin/users')
 @admin_required
 def users():
-    return render_template('users.html', users=User.query.order_by(User.role, User.username).all())
+    return render_template('users.html', users=visible_user_query().order_by(User.role, User.username).all())
 
 
 @app.route('/admin/users/add', methods=['POST'])
@@ -420,7 +709,13 @@ def add_user():
     elif User.query.filter_by(username=username).first():
         flash('Tên đăng nhập đã tồn tại.', 'warning')
     else:
-        db.session.add(User(username=username, password_hash=generate_password_hash(password), role='sales'))
+        user = User(
+            username=username, password_hash=generate_password_hash(password), role='sales',
+            organization_id=active_organization_id(),
+        )
+        db.session.add(user)
+        db.session.flush()
+        record_audit('user.create', 'User', user.id, {'role': user.role})
         db.session.commit()
         flash('Đã tạo tài khoản Sales.', 'success')
     return redirect(url_for('users'))
@@ -429,11 +724,12 @@ def add_user():
 @app.route('/admin/users/<int:user_id>/toggle', methods=['POST'])
 @admin_required
 def toggle_user(user_id):
-    user = User.query.get_or_404(user_id)
+    user = visible_user_query().filter(User.id == user_id).first_or_404()
     if user.role == 'admin':
         flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
     else:
         user.is_active = not user.is_active
+        record_audit('user.status_change', 'User', user.id, {'is_active': user.is_active})
         db.session.commit()
         flash(f"Đã {'mở khóa' if user.is_active else 'khóa'} tài khoản Sales.", 'success')
     return redirect(url_for('users'))
@@ -442,13 +738,14 @@ def toggle_user(user_id):
 @app.route('/customers/<int:c_id>/assign', methods=['POST'])
 @admin_required
 def assign_customer(c_id):
-    customer = Customer.query.get_or_404(c_id)
+    customer = get_visible_customer(c_id)
     user_id = request.form.get('assigned_user_id', type=int)
-    user = db.session.get(User, user_id) if user_id else None
+    user = visible_user_query().filter(User.id == user_id).first() if user_id else None
     if user_id and (not user or user.role != 'sales' or not user.is_active):
         flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
     else:
         customer.assigned_user_id = user.id if user else None
+        record_audit('customer.assign', 'Customer', customer.id, {'assigned_user_id': user.id if user else None})
         db.session.commit()
         flash('Đã cập nhật Sales phụ trách.', 'success')
     return redirect(url_for('customer_detail', c_id=customer.id))
@@ -488,7 +785,10 @@ def validate_csrf_token():
 
 @app.before_request
 def require_authentication():
-    if request.endpoint in {'login', 'index', 'static'} or (request.endpoint or '').startswith('api_'):
+    if (
+        request.endpoint in {'login', 'index', 'static', 'healthz', 'readyz'}
+        or (request.endpoint or '').startswith('api_')
+    ):
         return None
     user = current_user()
     if not user or not user.is_active:
@@ -499,6 +799,28 @@ def require_authentication():
     if request.method == 'POST':
         return validate_csrf_token()
     return None
+
+
+@app.route('/healthz')
+def healthz():
+    """Cheap liveness probe that does not require database access."""
+    return {'status': 'ok'}
+
+
+@app.route('/readyz')
+def readyz():
+    """Readiness probe used by the load balancer and deployment checks."""
+    try:
+        db.session.execute(text('SELECT 1'))
+        tables = set(inspect(db.engine).get_table_names())
+        required = {'organization', 'user', 'customer', 'order', 'reminder', 'setting'}
+        if not required.issubset(tables):
+            raise RuntimeError('database migrations are incomplete')
+        return {'status': 'ready'}, 200
+    except Exception:
+        db.session.rollback()
+        logger.exception('Readiness check failed')
+        return {'status': 'not_ready'}, 503
 
 
 def extract_phone_numbers(text_value):
@@ -724,7 +1046,9 @@ def get_setting_value(key, default=None):
     if value:
         return value
     with app.app_context():
-        setting = Setting.query.filter_by(key=key).first()
+        setting = Setting.query.filter_by(
+            key=key, organization_id=active_organization_id()
+        ).first()
         if setting and setting.value:
             return setting.value
     return default
@@ -790,18 +1114,28 @@ def import_facebook_messages(messages):
         customer = None
         # Dedup priority: conversation_id > facebook_id > name (no facebook_id only)
         if payload.get('conversation_id'):
-            customer = Customer.query.filter(Customer.conversation_id == payload['conversation_id']).first()
+            customer = Customer.query.filter(
+                Customer.organization_id == active_organization_id(),
+                Customer.conversation_id == payload['conversation_id'],
+            ).first()
         if customer is None and payload.get('facebook_id'):
-            customer = Customer.query.filter(Customer.facebook_id == payload['facebook_id']).first()
+            customer = Customer.query.filter(
+                Customer.organization_id == active_organization_id(),
+                Customer.facebook_id == payload['facebook_id'],
+            ).first()
         if customer is None and not payload.get('facebook_id'):
             # Only dedup by name when no facebook_id — avoid merging distinct FB users
-            customer = Customer.query.filter(Customer.name == payload['name'], Customer.source == 'facebook').first()
+            customer = Customer.query.filter(
+                Customer.organization_id == active_organization_id(),
+                Customer.name == payload['name'], Customer.source == 'facebook',
+            ).first()
 
         if customer is None:
             if not payload['phone'] and item.get('from_facebook_sync'):
                 continue
             customer = Customer(
                 name=payload['name'],
+                organization_id=active_organization_id(),
                 first_name=payload['first_name'],
                 last_name=payload['last_name'],
                 facebook_id=payload['facebook_id'],
@@ -1185,12 +1519,14 @@ def fetch_managed_facebook_messages(max_pages=None, max_conversations_per_page=N
 def init_db():
     with app.app_context():
         db.create_all()
+        ensure_organization_columns()
         ensure_user_columns()
         ensure_customer_columns()
         ensure_order_columns()
         ensure_reminder_columns()
         ensure_sales_group_columns()
         clear_configured_hotlines_from_customers()
+        default_org_id = default_organization_id()
         admin_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
         admin_password = os.environ.get('CRM_ADMIN_PASSWORD', '')
         admin_reset_password = os.environ.get('CRM_ADMIN_RESET_PASSWORD', '')
@@ -1202,6 +1538,7 @@ def init_db():
                 username=admin_username,
                 password_hash=generate_password_hash(admin_password),
                 role='admin',
+                organization_id=default_org_id,
             ))
             db.session.commit()
         if configured_admin and admin_reset_password:
@@ -1212,6 +1549,7 @@ def init_db():
         if not Customer.query.first():
             sample = Customer(
                 name='Nguyen Van A',
+                organization_id=default_org_id,
                 facebook_id='fb_12345',
                 email='a@example.com',
                 phone='0123456789',
@@ -1253,14 +1591,24 @@ def sync_zalo_customer_message(payload):
     customer = None
 
     if phone:
-        customer = Customer.query.filter(Customer.phone == phone).first()
+        customer = Customer.query.filter(
+            Customer.organization_id == active_organization_id(),
+            Customer.phone == phone,
+        ).first()
     if customer is None and sender_id:
-        customer = Customer.query.filter(db.or_(Customer.facebook_id == sender_id, Customer.conversation_id == sender_id)).first()
+        customer = Customer.query.filter(
+            Customer.organization_id == active_organization_id(),
+            db.or_(Customer.facebook_id == sender_id, Customer.conversation_id == sender_id),
+        ).first()
     if customer is None and name:
-        customer = Customer.query.filter(Customer.name == name, Customer.source.in_(['facebook', 'zalo', 'manual'])).first()
+        customer = Customer.query.filter(
+            Customer.organization_id == active_organization_id(),
+            Customer.name == name, Customer.source.in_(['facebook', 'zalo', 'manual']),
+        ).first()
     if customer is None:
         customer = Customer(
             name=name,
+            organization_id=active_organization_id(),
             phone=phone or None,
             facebook_id=sender_id or None,
             source='zalo',
@@ -1355,7 +1703,10 @@ def index():
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
     customer_query = visible_customer_query()
-    order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
+    order_query = Order.query.join(Customer).filter(
+        Order.organization_id == active_organization_id(),
+        Customer.id.in_(customer_query.with_entities(Customer.id)),
+    )
     customer_count = customer_query.count()
     phone_count = customer_query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
     order_count = order_query.count()
@@ -1410,6 +1761,7 @@ def complete_reminder(reminder_id):
     reminder = visible_reminder_query().filter(Reminder.id == reminder_id).first_or_404()
     reminder.status = 'done' if reminder.status != 'done' else 'pending'
     reminder.completed_at = datetime.utcnow() if reminder.status == 'done' else None
+    record_audit('reminder.status_change', 'Reminder', reminder.id, {'status': reminder.status})
     db.session.commit()
     flash('Đã cập nhật trạng thái nhắc việc.', 'success')
     return redirect(request.referrer or url_for('reminders'))
@@ -1451,7 +1803,9 @@ def customers():
     return render_template(
         'customers.html', customers=items, customer_stats=customer_stats,
         q=q, sync_job_id=sync_job_id, sort=sort,
-        sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
+        sales_groups=SalesGroup.query.filter_by(
+            organization_id=active_organization_id(),
+        ).order_by(SalesGroup.name).all(),
     )
 
 
@@ -1468,8 +1822,14 @@ def add_customer():
         if not name:
             flash('Tên là bắt buộc', 'danger')
             return redirect(url_for('add_customer'))
-        c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone, notes=notes, location=location, tags=tags, assigned_user_id=current_user().id if current_user().role == 'sales' else None)
+        c = Customer(
+            name=name, organization_id=active_organization_id(), facebook_id=facebook_id,
+            email=email, phone=phone, notes=notes, location=location, tags=tags,
+            assigned_user_id=current_user().id if current_user().role == 'sales' else None,
+        )
         db.session.add(c)
+        db.session.flush()
+        record_audit('customer.create', 'Customer', c.id)
         db.session.commit()
         flash('Đã thêm khách hàng', 'success')
         return redirect(url_for('customers'))
@@ -1479,9 +1839,11 @@ def add_customer():
 @app.route('/customers/<int:c_id>')
 def customer_detail(c_id):
     c = get_visible_customer(c_id)
-    groups = SalesGroup.query.order_by(SalesGroup.name).all()
+    groups = SalesGroup.query.filter_by(
+        organization_id=active_organization_id(),
+    ).order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
-    sales_users = User.query.filter_by(role='sales', is_active=True).order_by(User.username).all()
+    sales_users = visible_user_query().filter_by(role='sales', is_active=True).order_by(User.username).all()
     return render_template('customer_detail.html', c=c, sales_groups=groups, handoffs=handoffs, sales_users=sales_users)
 
 
@@ -1489,12 +1851,20 @@ def customer_detail(c_id):
 def handoff_customer_to_zalo(c_id):
     customer = get_visible_customer(c_id)
     group_id = request.form.get('group_id', type=int)
-    group = db.session.get(SalesGroup, group_id) if group_id else None
+    group = SalesGroup.query.filter_by(
+        id=group_id, organization_id=active_organization_id(),
+    ).first() if group_id else None
     if not group:
         return {'ok': False, 'message': 'Vui lòng chọn nhóm Sales.'}, 400
 
     message = build_zalo_handoff_message(customer)
-    db.session.add(SalesHandoff(customer_id=customer.id, group_id=group.id, message=message))
+    db.session.add(SalesHandoff(
+        organization_id=active_organization_id(),
+        customer_id=customer.id,
+        group_id=group.id,
+        message=message,
+    ))
+    record_audit('customer.handoff', 'Customer', customer.id, {'group_id': group.id})
     db.session.commit()
     return {
         'ok': True,
@@ -1556,7 +1926,10 @@ def ensure_reminder_columns():
 
 
 def visible_reminder_query():
-    query = Reminder.query.join(Customer).filter(Customer.id.in_(visible_customer_query().with_entities(Customer.id)))
+    query = Reminder.query.join(Customer).filter(
+        Reminder.organization_id == active_organization_id(),
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    )
     user = current_user()
     if user and user.role != 'admin':
         query = query.filter(db.or_(Reminder.assigned_user_id == user.id, Reminder.assigned_user_id.is_(None)))
@@ -1565,7 +1938,12 @@ def visible_reminder_query():
 
 @app.route('/sales-groups')
 def sales_groups():
-    return render_template('sales_groups.html', groups=SalesGroup.query.order_by(SalesGroup.name).all())
+    return render_template(
+        'sales_groups.html',
+        groups=SalesGroup.query.filter_by(
+            organization_id=active_organization_id(),
+        ).order_by(SalesGroup.name).all(),
+    )
 
 
 @app.route('/sales-groups/add', methods=['POST'])
@@ -1575,12 +1953,19 @@ def add_sales_group():
     zalo_url = (request.form.get('zalo_url') or '').strip()
     if not name:
         flash('Tên nhóm Sales là bắt buộc.', 'danger')
-    elif SalesGroup.query.filter_by(name=name).first():
+    elif SalesGroup.query.filter_by(
+        name=name, organization_id=active_organization_id(),
+    ).first():
         flash('Nhóm Sales này đã tồn tại.', 'warning')
     elif not is_valid_zalo_group_url(zalo_url):
         flash('Link nhóm phải có dạng https://zalo.me/g/....', 'danger')
     else:
-        db.session.add(SalesGroup(name=name, description=description or None, zalo_url=zalo_url or None))
+        db.session.add(SalesGroup(
+            organization_id=active_organization_id(),
+            name=name,
+            description=description or None,
+            zalo_url=zalo_url or None,
+        ))
         db.session.commit()
         flash('Đã thêm nhóm Sales.', 'success')
     return redirect(url_for('sales_groups'))
@@ -1588,7 +1973,9 @@ def add_sales_group():
 
 @app.route('/sales-groups/<int:group_id>/delete', methods=['POST'])
 def delete_sales_group(group_id):
-    group = db.session.get(SalesGroup, group_id)
+    group = SalesGroup.query.filter_by(
+        id=group_id, organization_id=active_organization_id(),
+    ).first()
     if not group:
         flash('Không tìm thấy nhóm Sales.', 'danger')
     elif group.handoffs:
@@ -1602,7 +1989,9 @@ def delete_sales_group(group_id):
 
 @app.route('/sales-groups/<int:group_id>/link', methods=['POST'])
 def update_sales_group_link(group_id):
-    group = db.session.get(SalesGroup, group_id)
+    group = SalesGroup.query.filter_by(
+        id=group_id, organization_id=active_organization_id(),
+    ).first()
     if not group:
         flash('Không tìm thấy nhóm Sales.', 'danger')
         return redirect(url_for('sales_groups'))
@@ -1620,7 +2009,10 @@ def update_sales_group_link(group_id):
 def orders():
     status = (request.args.get('status') or '').strip()
     q = (request.args.get('q') or '').strip()
-    query = Order.query.join(Customer).filter(Customer.id.in_(visible_customer_query().with_entities(Customer.id)))
+    query = Order.query.join(Customer).filter(
+        Order.organization_id == active_organization_id(),
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    )
     if status:
         query = query.filter(Order.status == status)
     if q:
@@ -1655,6 +2047,7 @@ def create_order(customer_id):
             return redirect(url_for('create_order', customer_id=customer.id))
         total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) + max(vat_amount, 0), 0)
         order = Order(
+            organization_id=active_organization_id(),
             customer_id=customer.id,
             code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{customer.id}",
             total_amount=total_amount,
@@ -1665,6 +2058,8 @@ def create_order(customer_id):
         )
         db.session.add(order)
         order.items.extend(items)
+        db.session.flush()
+        record_audit('order.create', 'Order', order.id, {'customer_id': customer.id, 'total_amount': total_amount})
         db.session.commit()
         update_customer_points(customer.id)
         flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
@@ -1693,6 +2088,7 @@ def update_order_status(order_id):
 def order_document(order_id):
     order = Order.query.join(Customer).filter(
         Order.id == order_id,
+        Order.organization_id == active_organization_id(),
         Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
     ).first()
     if not order:
@@ -1704,6 +2100,7 @@ def order_document(order_id):
 def export_order_pdf(order_id):
     order = Order.query.join(Customer).filter(
         Order.id == order_id,
+        Order.organization_id == active_organization_id(),
         Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
     ).first()
     if not order:
@@ -1723,6 +2120,7 @@ def edit_customer(c_id):
         c.notes = request.form.get('notes')
         c.location = request.form.get('location')
         c.tags = request.form.get('tags')
+        record_audit('customer.update', 'Customer', c.id)
         db.session.commit()
         flash('Đã cập nhật khách hàng', 'success')
         return redirect(url_for('customer_detail', c_id=c.id))
@@ -1744,6 +2142,7 @@ def add_customer_reminder(c_id):
     except ValueError:
         due_at = datetime.utcnow() + timedelta(days=1)
     reminder = Reminder(
+        organization_id=active_organization_id(),
         customer_id=customer.id,
         assigned_user_id=current_user().id if current_user() else None,
         title=title,
@@ -1753,6 +2152,8 @@ def add_customer_reminder(c_id):
         status='pending',
     )
     db.session.add(reminder)
+    db.session.flush()
+    record_audit('reminder.create', 'Reminder', reminder.id, {'customer_id': customer.id})
     db.session.commit()
     flash('Đã thêm nhắc việc cho khách hàng.', 'success')
     return redirect(url_for('customer_detail', c_id=customer.id))
@@ -1777,6 +2178,7 @@ def send_customer_zalo(c_id):
     ))
     customer.last_message_date = datetime.utcnow()
     customer.message_excerpt = message[:500]
+    record_audit('customer.message_sent', 'Customer', customer.id, {'channel': 'zalo'})
     db.session.commit()
     flash('Đã gửi tin nhắn qua Zalo từ CRM.', 'success')
     return redirect(url_for('customer_detail', c_id=customer.id))
@@ -1795,11 +2197,12 @@ def zalo_webhook():
 
 @app.route('/customers/<int:c_id>/delete', methods=['POST'])
 def delete_customer(c_id):
-    c = Customer.query.get_or_404(c_id)
+    c = get_visible_customer(c_id)
     if c.orders:
         flash('Không thể xóa khách đã có đơn hàng. Hãy lưu trữ hoặc xử lý đơn trước.', 'warning')
         return redirect(url_for('customer_detail', c_id=c.id))
     db.session.delete(c)
+    record_audit('customer.delete', 'Customer', c.id)
     db.session.commit()
     flash('Đã xóa khách hàng', 'info')
     return redirect(url_for('customers'))
@@ -1807,7 +2210,7 @@ def delete_customer(c_id):
 
 @app.route('/settings')
 def settings():
-    items = Setting.query.order_by(Setting.key).all()
+    items = Setting.query.filter_by(organization_id=active_organization_id()).order_by(Setting.key).all()
     return render_template('settings.html', items=items)
 
 
@@ -1819,12 +2222,17 @@ def add_setting():
     if not key:
         flash('Key là bắt buộc', 'danger')
         return redirect(url_for('settings'))
-    existing = Setting.query.filter_by(key=key).first()
+    existing = Setting.query.filter_by(key=key, organization_id=active_organization_id()).first()
     if existing:
         existing.value = value
         existing.description = description
     else:
-        db.session.add(Setting(key=key, value=value, description=description))
+        existing = Setting(
+            organization_id=active_organization_id(), key=key, value=value, description=description
+        )
+        db.session.add(existing)
+    record_audit('setting.upsert', 'Setting', existing.id if existing.id else key, {'key': key})
+    db.session.flush()
     db.session.commit()
     flash('Đã lưu setting', 'success')
     return redirect(url_for('settings'))
@@ -1832,10 +2240,11 @@ def add_setting():
 
 @app.route('/settings/<int:s_id>/edit', methods=['GET', 'POST'])
 def edit_setting(s_id):
-    s = Setting.query.get_or_404(s_id)
+    s = Setting.query.filter_by(id=s_id, organization_id=active_organization_id()).first_or_404()
     if request.method == 'POST':
         s.value = request.form.get('value')
         s.description = request.form.get('description')
+        record_audit('setting.update', 'Setting', s.id, {'key': s.key})
         db.session.commit()
         flash('Đã cập nhật setting', 'success')
         return redirect(url_for('settings'))
@@ -1850,7 +2259,9 @@ def _run_facebook_sync(job_id=None):
     """Run one sync and save its visible state in the database."""
     try:
         with app.app_context():
-            job = SyncJob.query.get(job_id) if job_id else None
+            job = SyncJob.query.filter_by(id=job_id).first() if job_id else None
+            if job:
+                g.organization_id = job.organization_id
             if job:
                 job.status = 'running'
                 job.started_at = datetime.utcnow()
@@ -1896,7 +2307,7 @@ def _run_facebook_sync(job_id=None):
         with app.app_context():
             if job_id:
                 db.session.rollback()
-                job = db.session.get(SyncJob, job_id)
+                job = SyncJob.query.filter_by(id=job_id).first()
                 if job:
                     job.status = 'error'
                     job.message = f'Đồng bộ thất bại: {exc}'
@@ -1918,12 +2329,20 @@ def sync_facebook_customers():
         flash('Chưa cấu hình token Facebook hợp lệ. Thêm FACEBOOK_PAGE_ACCESS_TOKEN hoặc FACEBOOK_SYSTEM_USER_ACCESS_TOKEN.', 'danger')
         return redirect(url_for('customers'))
 
-    active_job = SyncJob.query.filter(SyncJob.status.in_(('queued', 'running'))).first()
+    active_job = SyncJob.query.filter(
+        SyncJob.organization_id == active_organization_id(),
+        SyncJob.status.in_(('queued', 'running')),
+    ).first()
     if active_job:
         flash('Đang có một tác vụ đồng bộ Facebook. Vui lòng chờ hoàn tất.', 'info')
         return redirect(url_for('customers', sync_job=active_job.id))
 
-    job = SyncJob(id=str(uuid.uuid4()), status='queued', message='Đang xếp hàng đồng bộ Facebook...')
+    job = SyncJob(
+        id=str(uuid.uuid4()),
+        organization_id=active_organization_id(),
+        status='queued',
+        message='Đang xếp hàng đồng bộ Facebook...',
+    )
     db.session.add(job)
     db.session.commit()
 
@@ -1942,7 +2361,10 @@ def sync_facebook_customers():
 def sync_facebook_status():
     """JSON endpoint for polling the current or requested durable job."""
     job_id = request.args.get('job_id')
-    job = db.session.get(SyncJob, job_id) if job_id else SyncJob.query.order_by(SyncJob.created_at.desc()).first()
+    job_query = SyncJob.query.filter_by(organization_id=active_organization_id())
+    if job_id:
+        job_query = job_query.filter_by(id=job_id)
+    job = job_query.order_by(SyncJob.created_at.desc()).first()
     if not job:
         return {'running': False, 'result': None, 'message': ''}
     return {'running': job.status in ('queued', 'running'), 'result': job.status,
@@ -1963,7 +2385,7 @@ def facebook_export():
     writer = csv.writer(output)
     writer.writerow(['id', 'name', 'first_name', 'last_name', 'facebook_id', 'conversation_id', 'email', 'phone', 'location', 'page_name', 'gender', 'locale', 'message_count', 'tags', 'last_message_date', 'source', 'profile_pic'])
 
-    customers_list = Customer.query.order_by(Customer.created_at.desc()).all()
+    customers_list = visible_customer_query().order_by(Customer.created_at.desc()).all()
     for customer in customers_list:
         writer.writerow([
             customer.id,

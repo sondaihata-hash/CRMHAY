@@ -141,9 +141,10 @@
   - Nguồn khách hàng (biểu đồ)
   - Trạng thái đơn hàng
 
-### Xuất dữ liệu (nếu cần)
-- Hiện tại CRM chưa có function xuất, nhưng dữ liệu lưu trong database
-- Admin có thể request xuất từ database trực tiếp
+### Xuất dữ liệu
+- Vào **Khách hàng** → **Xuất Facebook/CSV** để tải dữ liệu khách hàng.
+- Chỉ tài khoản Admin được phép xuất toàn bộ dữ liệu.
+- File xuất phải được lưu trữ an toàn và xóa sau khi sử dụng vì có dữ liệu cá nhân.
 
 ---
 

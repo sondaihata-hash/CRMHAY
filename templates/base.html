@@ -389,9 +389,10 @@
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/sales-groups') %}active{% endif %}" {% if request.path.startswith('/sales-groups') %}aria-current="page"{% endif %} href="/sales-groups">Nhóm Sales</a></li>
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/settings') %}active{% endif %}" {% if request.path.startswith('/settings') %}aria-current="page"{% endif %} href="/settings">Settings</a></li>
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/admin/users') %}active{% endif %}" {% if request.path.startswith('/admin/users') %}aria-current="page"{% endif %} href="/admin/users">Tài khoản Sales</a></li>
-            {% endif %}
-          </ul>
-          {% if user %}<span class="text-white-50 small me-3">{{ user.username }}</span><form method="post" action="{{ url_for('logout') }}" class="d-flex"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-light action-btn" type="submit">Đăng xuất</button></form>{% endif %}
+                <li class="nav-item"><a class="nav-link {% if request.path.startswith('/admin/audit-log') %}active{% endif %}" {% if request.path.startswith('/admin/audit-log') %}aria-current="page"{% endif %} href="/admin/audit-log">Nhật ký</a></li>
+              {% endif %}
+            </ul>
+            {% if user %}<a class="text-white-50 small me-3 text-decoration-none" href="{{ url_for('change_password') }}">{{ user.username }} · Đổi mật khẩu</a><form method="post" action="{{ url_for('logout') }}" class="d-flex"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-light action-btn" type="submit">Đăng xuất</button></form>{% endif %}
         </div>
       </div>
     </nav>
