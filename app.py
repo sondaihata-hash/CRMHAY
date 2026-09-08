@@ -615,7 +615,7 @@ def assign_customers_bulk():
     if not customer_ids:
         flash('Hãy chọn ít nhất một khách hàng để chuyển.', 'warning')
         return redirect(url_for('customers'))
-    if user_id and (not user or user.role != 'sales' or not user.is_active):
+    if user_id and (not user or user.role not in {'sales', 'employee'} or not user.is_active):
         flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
         return redirect(url_for('customers'))
 
@@ -1956,7 +1956,7 @@ def index():
             db.func.trim(Customer.location) == '',
         )
     ).count()
-    sales_users = User.query.filter_by(role='sales').order_by(User.username.asc()).all()
+    sales_users = User.query.filter(User.role.in_(('sales', 'employee'))).order_by(User.username.asc()).all()
     sales_customer_counts = dict(
         customer_query.filter(Customer.assigned_user_id.isnot(None)).with_entities(
             Customer.assigned_user_id,
@@ -3232,7 +3232,7 @@ def api_dashboard():
         location_unknown = cq.filter(db.or_(
             Customer.location.is_(None), db.func.trim(Customer.location) == '',
         )).count()
-        sales_users = User.query.filter_by(role='sales').order_by(User.username.asc()).all()
+        sales_users = User.query.filter(User.role.in_(('sales', 'employee'))).order_by(User.username.asc()).all()
         sales_customer_counts = dict(cq.filter(
             Customer.assigned_user_id.isnot(None),
         ).with_entities(Customer.assigned_user_id, func.count(Customer.id)).group_by(Customer.assigned_user_id).all())
