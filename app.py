@@ -3043,6 +3043,7 @@ def serialize_customer(c):
     return {
         'id': c.id, 'name': c.name, 'first_name': c.first_name,
         'last_name': c.last_name, 'facebook_id': c.facebook_id,
+        'facebook_lead_id': c.facebook_lead_id,
         'email': c.email, 'phone': c.phone, 'notes': c.notes,
         'location': c.location, 'page_name': c.page_name,
         'tags': c.tags, 'source': c.source,
