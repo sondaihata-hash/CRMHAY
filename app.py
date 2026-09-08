@@ -2026,7 +2026,10 @@ def index():
             db.func.trim(Customer.location) == '',
         )
     ).count()
-    sales_users = User.query.filter(User.role.in_(('sales', 'employee'))).order_by(User.username.asc()).all()
+    sales_user_query = User.query.filter(User.role.in_(('sales', 'employee')))
+    if current_user().role == 'manager':
+        sales_user_query = sales_user_query.filter(User.manager_id == current_user().id)
+    sales_users = sales_user_query.order_by(User.username.asc()).all()
     sales_customer_counts = dict(
         customer_query.filter(Customer.assigned_user_id.isnot(None)).with_entities(
             Customer.assigned_user_id,
@@ -3155,7 +3158,10 @@ def api_current_user():
 def api_visible_customer_query():
     user = api_current_user()
     query = Customer.query
-    if user.role not in {'admin', 'manager'}:
+    if user.role == 'manager':
+        managed_ids = User.query.filter(User.manager_id == user.id).with_entities(User.id)
+        query = query.filter(Customer.assigned_user_id.in_(managed_ids))
+    elif user.role != 'admin':
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
 
@@ -3312,7 +3318,10 @@ def api_dashboard():
         location_unknown = cq.filter(db.or_(
             Customer.location.is_(None), db.func.trim(Customer.location) == '',
         )).count()
-        sales_users = User.query.filter(User.role.in_(('sales', 'employee'))).order_by(User.username.asc()).all()
+        sales_users_query = User.query.filter(User.role.in_(('sales', 'employee')))
+        if user.role == 'manager':
+            sales_users_query = sales_users_query.filter(User.manager_id == user.id)
+        sales_users = sales_users_query.order_by(User.username.asc()).all()
         sales_customer_counts = dict(cq.filter(
             Customer.assigned_user_id.isnot(None),
         ).with_entities(Customer.assigned_user_id, func.count(Customer.id)).group_by(Customer.assigned_user_id).all())
