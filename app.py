@@ -1956,6 +1956,7 @@ def customers():
     sort = request.args.get('sort', 'newest')
     if sort not in {'date', 'newest', 'page'}:
         sort = 'newest'
+    selected_page_name = request.args.get('page_name', '').strip()
     sync_job_id = request.args.get('sync_job', '')
     try:
         page = max(1, int(request.args.get('page', 1)))
@@ -1963,6 +1964,13 @@ def customers():
         page = 1
     per_page = 100
     base_query = visible_customer_query()
+    page_names = [
+        name for (name,) in base_query.with_entities(Customer.page_name)
+        .filter(Customer.page_name.isnot(None), db.func.trim(Customer.page_name) != '')
+        .distinct()
+        .order_by(Customer.page_name.asc())
+        .all()
+    ]
 
     if q:
         base_query = base_query.filter(
@@ -1974,6 +1982,8 @@ def customers():
                 Customer.tags.contains(q),
             )
         )
+    if selected_page_name:
+        base_query = base_query.filter(Customer.page_name == selected_page_name)
     ordered_query = base_query.order_by(*customer_sort_order(sort))
     total_count = ordered_query.count()
     total_pages = max(1, (total_count + per_page - 1) // per_page)
@@ -2010,7 +2020,8 @@ def customers():
     return render_template(
         'customers.html', customers=items, customer_stats=customer_stats,
         total_count=total_count, page=page, total_pages=total_pages,
-        q=q, sync_job_id=sync_job_id, sort=sort,
+        q=q, sync_job_id=sync_job_id, sort=sort, selected_page_name=selected_page_name,
+        page_names=page_names,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
         sales_users=User.query.filter_by(role='sales', is_active=True).order_by(User.username).all(),
     )
