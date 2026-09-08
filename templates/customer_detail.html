@@ -7,9 +7,25 @@
     </div>
     <div class="toolbar">
       <a class="btn success-btn" href="/orders/create/{{ c.id }}">Tạo đơn đặt hàng</a>
+      {% if c.phone %}
+      <button class="btn btn-warning" type="button" id="callCustomerButton">Gọi khách</button>
+      {% endif %}
       <a class="btn secondary-btn" href="/customers/{{ c.id }}/edit">Sửa</a>
       <a class="btn primary-btn" href="/customers">Quay lại</a>
     </div>
+
+    {% if c.phone %}
+    <div id="callPanel" class="panel p-3 mt-3" style="display:none;">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <strong>Chọn kênh gọi:</strong>
+        <button class="btn btn-sm btn-success call-channel" data-channel="phone">Điện thoại</button>
+        <button class="btn btn-sm btn-success call-channel" data-channel="zalo">Zalo</button>
+        <button class="btn btn-sm btn-success call-channel" data-channel="whatsapp">WhatsApp</button>
+        <button class="btn btn-sm btn-danger" type="button" id="endCustomerCall" style="display:none;">Kết thúc & lưu thời gian</button>
+        <span id="callStatus" class="small text-secondary" aria-live="polite"></span>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="panel p-4">
@@ -22,6 +38,66 @@
         <div class="col-md-4 d-grid"><button class="btn primary-btn" type="submit">Lưu phân công</button></div>
       </form>
     </div>
+    {% endif %}
+
+    {% if c.phone %}
+    <script>
+      (() => {
+        const customerId = {{ c.id }};
+        const phone = {{ c.phone|tojson }};
+        const csrf = {{ csrf_token()|tojson }};
+        const storageKey = `crm_active_call_${customerId}`;
+        const panel = document.getElementById('callPanel');
+        const endButton = document.getElementById('endCustomerCall');
+        const status = document.getElementById('callStatus');
+        const pending = () => {
+          try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (_) { return null; }
+        };
+        const showPending = () => {
+          const call = pending();
+          if (!call) return;
+          endButton.style.display = 'inline-block';
+          status.textContent = `Đang tính thời gian gọi từ ${new Date(call.started_at).toLocaleTimeString('vi-VN')}`;
+        };
+        document.getElementById('callCustomerButton').addEventListener('click', () => {
+          panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+          showPending();
+        });
+        document.querySelectorAll('.call-channel').forEach(button => button.addEventListener('click', async () => {
+          const channel = button.dataset.channel;
+          const response = await fetch(`/customers/${customerId}/call-start`, {
+            method: 'POST',
+            headers: {'X-CSRF-Token': csrf, 'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({channel}),
+          });
+          const data = await response.json();
+          if (!response.ok) { status.textContent = data.error || 'Không thể bắt đầu cuộc gọi.'; return; }
+          localStorage.setItem(storageKey, JSON.stringify({activity_id: data.activity_id, started_at: data.started_at}));
+          showPending();
+          const urls = {
+            phone: `tel:${phone}`,
+            zalo: `https://zalo.me/${phone.replace(/\D/g, '')}`,
+            whatsapp: `https://wa.me/${phone.replace(/\D/g, '')}`,
+          };
+          window.open(urls[channel], channel === 'phone' ? '_self' : '_blank', 'noopener');
+        }));
+        endButton.addEventListener('click', async () => {
+          const call = pending();
+          if (!call) return;
+          const response = await fetch(`/customers/${customerId}/call-end`, {
+            method: 'POST',
+            headers: {'X-CSRF-Token': csrf, 'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({activity_id: call.activity_id}),
+          });
+          const data = await response.json();
+          if (!response.ok) { status.textContent = data.error || 'Không thể lưu cuộc gọi.'; return; }
+          localStorage.removeItem(storageKey);
+          endButton.style.display = 'none';
+          status.textContent = `Đã lưu cuộc gọi ${data.duration_seconds} giây.`;
+        });
+        showPending();
+      })();
+    </script>
     {% endif %}
     <div class="row g-4">
       <div class="col-md-6">

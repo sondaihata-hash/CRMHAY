@@ -2027,6 +2027,54 @@ def customers():
     )
 
 
+@app.route('/customers/<int:c_id>/call-start', methods=['POST'])
+@login_required
+def start_customer_call(c_id):
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    customer = visible_customer_query().filter(Customer.id == c_id).first()
+    if not customer:
+        return {'error': 'Không tìm thấy khách hàng hoặc bạn không có quyền.'}, 404
+    channel = (request.form.get('channel') or 'phone').strip().lower()
+    if channel not in {'phone', 'zalo', 'whatsapp'}:
+        return {'error': 'Kênh gọi không hợp lệ.'}, 400
+    activity = CustomerActivity(
+        customer_id=customer.id,
+        user_id=current_user().id,
+        activity_type='call',
+        channel=channel,
+        status='initiated',
+        started_at=datetime.utcnow(),
+    )
+    db.session.add(activity)
+    db.session.commit()
+    return {'activity_id': activity.id, 'started_at': activity.started_at.isoformat()}
+
+
+@app.route('/customers/<int:c_id>/call-end', methods=['POST'])
+@login_required
+def end_customer_call(c_id):
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    customer = visible_customer_query().filter(Customer.id == c_id).first()
+    activity = CustomerActivity.query.filter_by(
+        id=request.form.get('activity_id', type=int),
+        customer_id=c_id,
+        user_id=current_user().id,
+        activity_type='call',
+        status='initiated',
+    ).first()
+    if not customer or not activity:
+        return {'error': 'Không tìm thấy cuộc gọi đang thực hiện.'}, 404
+    activity.ended_at = datetime.utcnow()
+    activity.duration_seconds = max(0, int((activity.ended_at - (activity.started_at or activity.created_at)).total_seconds()))
+    activity.status = 'completed'
+    db.session.commit()
+    return {'duration_seconds': activity.duration_seconds}
+
+
 @app.route('/customers/add', methods=['GET', 'POST'])
 def add_customer():
     if request.method == 'POST':
