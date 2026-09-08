@@ -2472,7 +2472,13 @@ def edit_order(order_id):
                     unit=unit.strip(), quantity=max(float(qty or 0), 0),
                     unit_price=max(float(price or 0), 0),
                 ))
-        order.total_amount = sum(item.quantity * item.unit_price for item in order.items)
+        order.total_amount = max(
+            sum(item.quantity * item.unit_price for item in order.items)
+            - (order.discount_amount or 0)
+            - (order.points_discount or 0)
+            + (order.vat_amount or 0),
+            0,
+        )
         db.session.commit()
         flash(f'Đã cập nhật đơn {order.code}.', 'success')
         return redirect(url_for('order_document', order_id=order.id))
@@ -3604,7 +3610,7 @@ def api_modify_order(order_id):
         order.vat_amount = max(float(data.get('vat_amount') or 0), 0)
         order.total_amount = max(
             sum(item.quantity * item.unit_price for item in order.items)
-            - order.discount_amount + order.vat_amount, 0,
+            - order.discount_amount - (order.points_discount or 0) + order.vat_amount, 0,
         )
     db.session.commit()
     return {'order': serialize_order(order)}
