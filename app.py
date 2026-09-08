@@ -478,8 +478,8 @@ def admin_required(view):
 
 
 def team_manager_required(view):
-    @wraps(view)
     @login_required
+    @wraps(view)
     def wrapped_view(*args, **kwargs):
         if current_user().role not in {'admin', 'manager'}:
             return 'Bạn không có quyền thực hiện thao tác này.', 403
