@@ -554,22 +554,37 @@ def logout():
 
 
 @app.route('/admin/users')
-@admin_required
+@team_manager_required
 def users():
+    actor = current_user()
+    user_query = User.query
+    if actor.role == 'manager':
+        user_query = user_query.filter(User.manager_id == actor.id)
     return render_template(
         'users.html',
-        users=User.query.order_by(User.role, User.username).all(),
+        users=user_query.order_by(User.role, User.username).all(),
         role_options=USER_ROLES,
         role_labels=USER_ROLES,
+        managers=User.query.filter_by(role='manager', is_active=True).order_by(User.username).all(),
+        actor=actor,
     )
 
 
 @app.route('/admin/users/add', methods=['POST'])
-@admin_required
+@team_manager_required
 def add_user():
     username = (request.form.get('username') or '').strip().lower()
     password = request.form.get('password') or ''
     role = (request.form.get('role') or 'employee').strip().lower()
+    actor = current_user()
+    manager_id = request.form.get('manager_id', type=int)
+    if actor.role == 'manager':
+        role = 'sales'
+        manager_id = actor.id
+    elif role in {'sales', 'employee'} and manager_id:
+        manager = User.query.filter_by(id=manager_id, role='manager', is_active=True).first()
+        if not manager:
+            manager_id = None
     if not username or len(password) < 8:
         flash('Tên đăng nhập và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
     elif role not in USER_ROLES:
@@ -577,22 +592,72 @@ def add_user():
     elif User.query.filter_by(username=username).first():
         flash('Tên đăng nhập đã tồn tại.', 'warning')
     else:
-        db.session.add(User(username=username, password_hash=generate_password_hash(password), role=role))
+        db.session.add(User(username=username, password_hash=generate_password_hash(password), role=role, manager_id=manager_id))
         db.session.commit()
         flash(f"Đã tạo tài khoản {USER_ROLES[role]}.", 'success')
     return redirect(url_for('users'))
 
 
 @app.route('/admin/users/<int:user_id>/toggle', methods=['POST'])
-@admin_required
+@team_manager_required
 def toggle_user(user_id):
     user = User.query.get_or_404(user_id)
-    if user.role == 'admin':
+    actor = current_user()
+    if actor.role == 'manager' and user.manager_id != actor.id:
+        return 'Bạn không có quyền quản lý tài khoản này.', 403
+    if user.role == 'admin' or (actor.role == 'manager' and user.role == 'manager'):
         flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
     else:
         user.is_active = not user.is_active
         db.session.commit()
         flash(f"Đã {'mở khóa' if user.is_active else 'khóa'} tài khoản {USER_ROLES.get(user.role, user.role)}.", 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/admin/users/<int:user_id>/edit', methods=['POST'])
+@team_manager_required
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    actor = current_user()
+    if actor.role == 'manager' and user.manager_id != actor.id:
+        return 'Bạn không có quyền quản lý tài khoản này.', 403
+    if user.role == 'admin':
+        flash('Không thể sửa tài khoản Admin từ màn hình này.', 'warning')
+        return redirect(url_for('users'))
+    username = (request.form.get('username') or '').strip().lower()
+    role = (request.form.get('role') or user.role).strip().lower()
+    password = request.form.get('password') or ''
+    duplicate = User.query.filter(User.username == username, User.id != user.id).first()
+    if not username or duplicate or role not in {'sales', 'employee'}:
+        flash('Thông tin tài khoản hoặc vai trò không hợp lệ.', 'danger')
+    else:
+        user.username = username
+        user.role = 'sales' if actor.role == 'manager' else role
+        if password:
+            if len(password) < 8:
+                flash('Mật khẩu mới tối thiểu 8 ký tự.', 'danger')
+                return redirect(url_for('users'))
+            user.password_hash = generate_password_hash(password)
+        db.session.commit()
+        flash('Đã cập nhật tài khoản.', 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@team_manager_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    actor = current_user()
+    if actor.role == 'manager' and user.manager_id != actor.id:
+        return 'Bạn không có quyền quản lý tài khoản này.', 403
+    if user.role == 'admin' or user.id == actor.id:
+        flash('Không thể xóa tài khoản Admin hoặc tài khoản đang đăng nhập.', 'warning')
+    elif user.customers or user.customer_activities or user.reminders:
+        flash('Không thể xóa tài khoản đã có dữ liệu; hãy khóa tài khoản thay thế.', 'warning')
+    else:
+        db.session.delete(user)
+        db.session.commit()
+        flash('Đã xóa tài khoản.', 'success')
     return redirect(url_for('users'))
 
 
