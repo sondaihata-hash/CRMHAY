@@ -493,6 +493,17 @@
       .trust-item strong { display:block; color:#0f766e; font-size:.9rem; }
       .trust-item span { display:block; margin-top:.3rem; color:var(--muted); font-size:.75rem; line-height:1.5; }
       .site-footer { margin-top:4rem; padding:2rem 0; border-top:1px solid var(--line); color:var(--muted); font-size:.85rem; }
+      .all-features { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1rem; }
+      .feature-panel { background:#fff; border:1px solid var(--line); border-radius:1rem; padding:1.25rem; box-shadow:0 10px 22px rgba(15,23,42,.03); }
+      .feature-panel-head { display:flex; align-items:center; gap:.7rem; margin-bottom:.9rem; }
+      .feature-panel-icon { display:grid; place-items:center; width:2.35rem; height:2.35rem; border-radius:.7rem; background:#ccfbf1; color:#0f766e; font-weight:800; }
+      .feature-panel h3 { margin:0; font-size:1rem; font-weight:800; }
+      .feature-list { list-style:none; padding:0; margin:0; display:grid; gap:.55rem; }
+      .feature-list li { color:var(--muted); font-size:.82rem; line-height:1.5; padding-left:1.1rem; position:relative; }
+      .feature-list li::before { content:"✓"; position:absolute; left:0; color:#0f766e; font-weight:800; }
+      .feature-banner { margin-top:1rem; border-radius:1rem; padding:1.2rem 1.4rem; color:#fff; background:linear-gradient(110deg,#0b2533,#0f766e); display:flex; justify-content:space-between; gap:1rem; align-items:center; }
+      .feature-banner strong { display:block; font-size:1.05rem; }
+      .feature-banner span { display:block; color:rgba(255,255,255,.75); font-size:.8rem; margin-top:.3rem; }
       @media (max-width: 991.98px) {
         .feature-grid,
         .docs,
@@ -500,7 +511,8 @@
         .product-kpis,
         .product-grid,
         .workflow,
-        .trust-strip {
+        .trust-strip,
+        .all-features {
           grid-template-columns: 1fr;
         }
         .product-window { grid-template-columns:1fr; }
