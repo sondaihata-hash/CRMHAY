@@ -3457,7 +3457,7 @@ def api_add_customer():
         notes=data.get('notes'),
         location=data.get('location'),
         tags=data.get('tags'),
-        assigned_user_id=user.id if user.role == 'sales' else None,
+        assigned_user_id=user.id if user.role in {'sales', 'employee'} else None,
     )
     db.session.add(c)
     db.session.commit()
@@ -3468,9 +3468,9 @@ def api_add_customer():
 @api_login_required
 def api_admin_users():
     if api_current_user().role != 'admin':
-        return {'error': 'Chỉ Admin mới có quyền xem danh sách Sales.'}, 403
+        return {'error': 'Chỉ Admin mới có quyền xem danh sách nhân viên.'}, 403
     users = User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username.asc()).all()
-    return {'users': [{'id': user.id, 'username': user.username} for user in users]}
+    return {'users': [{'id': user.id, 'username': user.username, 'role': user.role, 'role_label': USER_ROLES.get(user.role, user.role)} for user in users]}
 
 
 @app.route('/api/admin/customers/<int:c_id>/assign', methods=['PATCH'])
