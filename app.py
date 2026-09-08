@@ -239,6 +239,8 @@ class Order(db.Model):
     discount_amount = db.Column(db.Float, nullable=False, default=0)
     vat_amount = db.Column(db.Float, nullable=False, default=0)
     payment_details = db.Column(db.String(400), nullable=True)
+    sales_phone = db.Column(db.String(50), nullable=True)
+    sales_bank_account = db.Column(db.String(200), nullable=True)
     points_awarded = db.Column(db.Integer, nullable=False, default=0)
     production_sent_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -2154,7 +2156,7 @@ def handoff_customer_to_zalo(c_id):
 
 def ensure_order_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
-    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'points_awarded': 'INTEGER DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
+    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
@@ -2309,6 +2311,8 @@ def create_order(customer_id):
             status=request.form.get('status') or 'Mới',
             note=request.form.get('note', '').strip(),
             delivery_address=request.form.get('delivery_address', '').strip(), payment_details=request.form.get('payment_details', '').strip(),
+            sales_phone=request.form.get('sales_phone', '').strip(),
+            sales_bank_account=request.form.get('sales_bank_account', '').strip(),
             discount_amount=max(discount_amount, 0), vat_amount=max(vat_amount, 0),
         )
         db.session.add(order)
@@ -2359,6 +2363,8 @@ def edit_order(order_id):
         order.status = (request.form.get('status') or order.status).strip()
         order.note = (request.form.get('note') or '').strip()
         order.delivery_address = (request.form.get('delivery_address') or '').strip()
+        order.sales_phone = (request.form.get('sales_phone') or '').strip()
+        order.sales_bank_account = (request.form.get('sales_bank_account') or '').strip()
         order.items.clear()
         for code, name, unit, qty, price in zip(
                 request.form.getlist('product_code'),
@@ -2950,6 +2956,8 @@ def serialize_order(o):
         'id': o.id, 'code': o.code, 'total_amount': o.total_amount,
         'status': o.status, 'note': o.note,
         'delivery_address': o.delivery_address,
+        'sales_phone': o.sales_phone,
+        'sales_bank_account': o.sales_bank_account,
         'discount_amount': o.discount_amount, 'vat_amount': o.vat_amount,
         'payment_details': o.payment_details,
         'points_awarded': o.points_awarded or 0,
@@ -3414,6 +3422,8 @@ def api_create_order():
         note=(data.get('note') or '').strip(),
         delivery_address=(data.get('delivery_address') or '').strip(),
         payment_details=(data.get('payment_details') or '').strip(),
+        sales_phone=(data.get('sales_phone') or '').strip(),
+        sales_bank_account=(data.get('sales_bank_account') or '').strip(),
         discount_amount=discount, vat_amount=vat,
     )
     db.session.add(order)
@@ -3455,7 +3465,7 @@ def api_modify_order(order_id):
     data = request.get_json(silent=True) or {}
     if 'status' in data and data['status']:
         order.status = str(data['status']).strip()
-    for field in ('note', 'delivery_address', 'payment_details'):
+    for field in ('note', 'delivery_address', 'payment_details', 'sales_phone', 'sales_bank_account'):
         if field in data:
             setattr(order, field, (data[field] or '').strip())
     if 'items' in data:
