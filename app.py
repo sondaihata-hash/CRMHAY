@@ -1264,6 +1264,7 @@ def users():
         role_options=USER_ROLES,
         role_labels=USER_ROLES,
         managers=User.query.filter_by(role='manager', is_active=True).order_by(User.username).all(),
+        organizations=Organization.query.order_by(Organization.name).all() if actor.role == 'dev' else [],
         actor=actor,
     )
 
@@ -1311,16 +1312,22 @@ def add_user():
     actor = current_user()
     manager_id = request.form.get('manager_id', type=int)
     organization_id = actor.organization_id
+    if actor.role == 'dev':
+        organization_id = request.form.get('organization_id', type=int)
+        if not organization_id or not db.session.get(Organization, organization_id):
+            organization_id = None
     if actor.role == 'manager':
         role = 'sales'
         manager_id = actor.id
-    elif role in {'sales', 'employee'} and manager_id:
-        manager = User.query.filter_by(id=manager_id, role='manager', is_active=True).first()
+    elif role in USER_ROLES and manager_id:
+        manager = User.query.filter_by(
+            id=manager_id, role='manager', is_active=True, organization_id=organization_id,
+        ).first()
         if not manager:
             manager_id = None
     if not username or len(password) < 8:
         flash('Tên đăng nhập và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
-    elif role not in USER_ROLES or role == 'dev':
+    elif role not in USER_ROLES or (role == 'dev' and actor.role != 'dev') or not organization_id:
         flash('Vai trò tài khoản không hợp lệ.', 'danger')
     elif User.query.filter_by(username=username).first():
         flash('Tên đăng nhập đã tồn tại.', 'warning')
@@ -1328,6 +1335,7 @@ def add_user():
         db.session.add(User(
             username=username, password_hash=generate_password_hash(password),
             role=role, manager_id=manager_id, organization_id=organization_id,
+            is_platform_admin=(role == 'dev'),
         ))
         db.session.commit()
         flash(f"Đã tạo tài khoản {USER_ROLES[role]}.", 'success')
@@ -1341,7 +1349,9 @@ def toggle_user(user_id):
     actor = current_user()
     if actor.role == 'manager' and user.manager_id != actor.id:
         return 'Bạn không có quyền quản lý tài khoản này.', 403
-    if user.role in {'admin', 'dev'} or (actor.role == 'manager' and user.role == 'manager'):
+    if actor.role != 'dev' and (
+        user.role in {'admin', 'dev'} or (actor.role == 'manager' and user.role == 'manager')
+    ):
         flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
     else:
         user.is_active = not user.is_active
@@ -1357,18 +1367,32 @@ def edit_user(user_id):
     actor = current_user()
     if actor.role == 'manager' and user.manager_id != actor.id:
         return 'Bạn không có quyền quản lý tài khoản này.', 403
-    if user.role in {'admin', 'dev'}:
+    if actor.role != 'dev' and user.role in {'admin', 'dev'}:
         flash('Không thể sửa tài khoản Admin từ màn hình này.', 'warning')
         return redirect(url_for('users'))
     username = (request.form.get('username') or '').strip().lower()
     role = (request.form.get('role') or user.role).strip().lower()
     password = request.form.get('password') or ''
+    organization_id = user.organization_id
+    if actor.role == 'dev':
+        organization_id = request.form.get('organization_id', type=int)
     duplicate = User.query.filter(User.username == username, User.id != user.id).first()
-    if not username or duplicate or role not in {'sales', 'employee'}:
+    allowed_roles = set(USER_ROLES) if actor.role == 'dev' else {'sales', 'employee'}
+    if (
+        not username or duplicate or role not in allowed_roles
+        or not organization_id or not db.session.get(Organization, organization_id)
+    ):
         flash('Thông tin tài khoản hoặc vai trò không hợp lệ.', 'danger')
     else:
         user.username = username
         user.role = 'sales' if actor.role == 'manager' else role
+        user.organization_id = organization_id
+        user.is_platform_admin = actor.role == 'dev' and role == 'dev'
+        if actor.role == 'dev':
+            manager_id = request.form.get('manager_id', type=int)
+            user.manager_id = manager_id if User.query.filter_by(
+                id=manager_id, role='manager', is_active=True, organization_id=organization_id,
+            ).first() else None
         if password:
             if len(password) < 8:
                 flash('Mật khẩu mới tối thiểu 8 ký tự.', 'danger')
@@ -1386,8 +1410,10 @@ def delete_user(user_id):
     actor = current_user()
     if actor.role == 'manager' and user.manager_id != actor.id:
         return 'Bạn không có quyền quản lý tài khoản này.', 403
-    if user.role in {'admin', 'dev'} or user.id == actor.id:
+    if user.id == actor.id:
         flash('Không thể xóa tài khoản Admin hoặc tài khoản đang đăng nhập.', 'warning')
+    elif actor.role != 'dev' and user.role in {'admin', 'dev'}:
+        flash('Không thể xóa tài khoản Admin từ màn hình này.', 'warning')
     elif (
         Customer.query.filter_by(assigned_user_id=user.id).first()
         or CustomerActivity.query.filter_by(user_id=user.id).first()
