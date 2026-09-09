@@ -37,7 +37,10 @@ $persistentMobileVersionCode = [Environment]::GetEnvironmentVariable('CRM_MOBILE
 if ($persistentMobileVersionCode) {
     $env:CRM_MOBILE_VERSION_CODE = $persistentMobileVersionCode
 }
-foreach ($name in @('PAYOS_CLIENT_ID', 'PAYOS_API_KEY', 'PAYOS_CHECKSUM_KEY', 'PAYOS_WEBHOOK_SECRET', 'PAYOS_API_URL')) {
+foreach ($name in @(
+        'PAYOS_CLIENT_ID', 'PAYOS_API_KEY', 'PAYOS_CHECKSUM_KEY', 'PAYOS_WEBHOOK_SECRET', 'PAYOS_API_URL',
+        'CRM_DEV_USERNAME', 'CRM_DEV_PASSWORD', 'CRM_DEV_RESET_PASSWORD'
+    )) {
     $value = [Environment]::GetEnvironmentVariable($name, 'User')
     if ($value) {
         Set-Item -Path "Env:$name" -Value $value
