@@ -39,6 +39,7 @@ if ($persistentMobileVersionCode) {
 }
 foreach ($name in @(
         'PAYOS_CLIENT_ID', 'PAYOS_API_KEY', 'PAYOS_CHECKSUM_KEY', 'PAYOS_WEBHOOK_SECRET', 'PAYOS_API_URL',
+        'CRM_ADMIN_USERNAME', 'CRM_ADMIN_PASSWORD', 'CRM_ADMIN_RESET_PASSWORD',
         'CRM_DEV_USERNAME', 'CRM_DEV_PASSWORD', 'CRM_DEV_RESET_PASSWORD'
     )) {
     $value = [Environment]::GetEnvironmentVariable($name, 'User')
