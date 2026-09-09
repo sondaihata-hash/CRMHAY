@@ -6,6 +6,8 @@ import tempfile
 import unittest.mock as mock
 import uuid
 
+from openpyxl import load_workbook
+
 from app import app, Customer, PLAN_FEATURES, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json, write_customer_snapshot
 from auth_helpers import login_admin
 
@@ -50,6 +52,14 @@ def test_customer_csv_is_utf8_vietnamese_and_business_ready():
         assert 'Số điện thoại' in rows[0]
         assert customer_name in csv_text
         assert 'Khách cần tư vấn' in csv_text
+        excel_response = login_admin(app.test_client()).get('/facebook/export.xlsx')
+        assert excel_response.status_code == 200
+        workbook = load_workbook(filename=__import__('io').BytesIO(excel_response.data))
+        sheet = workbook['Khách hàng']
+        assert sheet.freeze_panes == 'A2'
+        assert sheet.auto_filter.ref == sheet.dimensions
+        assert sheet.cell(1, 1).value == 'STT'
+        assert customer_name in [cell.value for row in sheet.iter_rows() for cell in row]
     finally:
         with app.app_context():
             db = __import__('app').db
