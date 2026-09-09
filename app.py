@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, Res
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from sqlalchemy import text, inspect, func
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 if not hasattr(pkgutil, 'get_loader'):
@@ -1590,12 +1590,23 @@ def delete_user(user_id):
         Customer.query.filter_by(assigned_user_id=user.id).first()
         or CustomerActivity.query.filter_by(user_id=user.id).first()
         or Reminder.query.filter_by(assigned_user_id=user.id).first()
+        or Payment.query.filter_by(user_id=user.id).first()
+        or ApiToken.query.filter_by(user_id=user.id).first()
+        or DeveloperCommandLog.query.filter_by(user_id=user.id).first()
     ):
         flash('Không thể xóa tài khoản đã có dữ liệu; hãy khóa tài khoản thay thế.', 'warning')
     else:
-        db.session.delete(user)
-        db.session.commit()
-        flash('Đã xóa tài khoản.', 'success')
+        User.query.filter_by(manager_id=user.id).update(
+            {User.manager_id: None}, synchronize_session=False,
+        )
+        try:
+            db.session.delete(user)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash('Không thể xóa tài khoản vì vẫn còn dữ liệu liên kết; hãy khóa tài khoản thay thế.', 'warning')
+        else:
+            flash('Đã xóa tài khoản.', 'success')
     return redirect(url_for('users'))
 
 
