@@ -125,9 +125,10 @@ def test_sales_seat_purchase_and_webhook_activation():
         db.session.add_all([admin, subscription])
         db.session.flush()
         admin_id, subscription_id, organization_id = admin.id, subscription.id, organization.id
+        admin_username = admin.username
         db.session.commit()
     client = app.test_client()
-    client.post('/login', data={'username': admin.username, 'password': 'Password123!'})
+    client.post('/login', data={'username': admin_username, 'password': 'Password123!'})
     token = csrf_token(client, '/admin/sales-seats')
     with mock.patch('app._payos_create_link', return_value=('https://payos.test/seats', {'code': '00'})):
         response = client.post('/admin/sales-seats', data={'_csrf_token': token, 'quantity': '2'})
