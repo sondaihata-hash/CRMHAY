@@ -1361,6 +1361,8 @@ def users():
         role_labels=USER_ROLES,
         managers=User.query.filter_by(role='manager', is_active=True).order_by(User.username).all(),
         organizations=Organization.query.order_by(Organization.name).all() if actor.role == 'dev' else [],
+        active_sales_count=active_sales_count(actor.organization_id),
+        sales_seat_limit=sales_seat_limit(actor),
         actor=actor,
     )
 
