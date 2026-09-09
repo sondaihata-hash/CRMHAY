@@ -261,3 +261,37 @@ def test_manager_can_view_customers_assigned_directly_to_manager():
             db.session.delete(db.session.get(User, manager_id))
             db.session.delete(db.session.get(Organization, organization_id))
             db.session.commit()
+
+
+def test_dashboard_counts_customers_held_by_manager():
+    client = login_admin(app.test_client())
+    with app.app_context():
+        admin = User.query.filter_by(username='test_admin').one()
+        manager = User(
+            username=f'manager_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('ManagerPass123!'),
+            role='manager',
+            organization_id=admin.organization_id,
+        )
+        db.session.add(manager)
+        db.session.flush()
+        customer = Customer(
+            name=f'Manager dashboard customer {uuid.uuid4().hex}',
+            assigned_user_id=manager.id,
+            organization_id=admin.organization_id,
+        )
+        db.session.add(customer)
+        db.session.commit()
+        manager_id, customer_id = manager.id, customer.id
+
+    try:
+        response = client.get('/')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert manager.username in html
+        assert '1 khách' in html
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(Customer, customer_id))
+            db.session.delete(db.session.get(User, manager_id))
+            db.session.commit()
