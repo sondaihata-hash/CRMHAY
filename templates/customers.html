@@ -7,7 +7,8 @@
     </div>
     <div class="toolbar">
       <a class="btn primary-btn" href="/customers/add">Thêm khách hàng</a>
-      {% if can_export %}<a class="btn btn-outline-success" href="/facebook/export">Tải CSV</a>{% endif %}
+      {% if can_export %}<a class="btn btn-outline-success" href="/facebook/export.xlsx">Tải Excel</a>{% endif %}
+      {% if can_export %}<a class="btn btn-outline-secondary" href="/facebook/export">CSV</a>{% endif %}
       {% if current_plan == 'basic' %}<a class="btn btn-outline-primary" href="/upgrade/growth">Nâng cấp Growth</a>{% elif current_plan == 'growth' %}<a class="btn btn-outline-primary" href="/upgrade/business">Nâng cấp Business</a>{% endif %}
     </div>
   </div>

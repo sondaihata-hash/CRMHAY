@@ -51,6 +51,9 @@ import time
 import threading
 import uuid
 from contextvars import ContextVar
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from sqlalchemy import event, or_
 from sqlalchemy.orm import Session, with_loader_criteria
 
@@ -4379,21 +4382,16 @@ def facebook_import_legacy():
     return redirect(url_for('customers'))
 
 
-@app.route('/facebook/export')
-def facebook_export():
-    if not plan_allows('export'):
-        return 'Tính năng tải danh sách khách hàng cần nâng cấp lên gói Growth hoặc Business.', 403
-    output = io.StringIO(newline='')
-    writer = csv.writer(output, lineterminator='\r\n')
-    writer.writerow([
+CUSTOMER_EXPORT_HEADERS = [
         'STT', 'Mã khách hàng', 'Họ và tên', 'Tên', 'Họ', 'Số điện thoại',
         'Email', 'Địa chỉ', 'Facebook ID', 'Conversation ID', 'Page',
         'Sales phụ trách', 'Vai trò phụ trách', 'Nguồn', 'Trạng thái chăm sóc',
         'Số tin nhắn', 'Tin nhắn cuối', 'Thời gian tin nhắn cuối', 'Ngày tạo',
         'Nhãn', 'Giới tính', 'Ngôn ngữ', 'Facebook Lead ID', 'Link ảnh đại diện',
         'Ghi chú',
-    ])
+]
 
+def customer_export_rows():
     customers_list = visible_customer_query().order_by(
         Customer.page_name.asc(),
         Customer.assigned_user_id.is_(None).asc(),
@@ -4414,9 +4412,10 @@ def facebook_export():
         ).with_entities(CustomerActivity.customer_id).distinct().all()
     } if customers_list else set()
 
+    rows = []
     for index, customer in enumerate(customers_list, start=1):
         assigned_user = assigned_users.get(customer.assigned_user_id)
-        writer.writerow([
+        rows.append([
             index,
             customer.id,
             customer.name or '',
@@ -4443,6 +4442,22 @@ def facebook_export():
             customer.profile_pic or '',
             customer.notes or '',
         ])
+    return rows
+
+
+@app.route('/facebook/export')
+def facebook_export():
+    if not plan_allows('export'):
+        return 'Tính năng tải danh sách khách hàng cần nâng cấp lên gói Growth hoặc Business.', 403
+    output = io.StringIO(newline='')
+    writer = csv.writer(output, lineterminator='\r\n')
+    writer.writerow(CUSTOMER_EXPORT_HEADERS)
+    for row in customer_export_rows():
+        writer.writerow([
+            str(value).replace('\r\n', ' | ').replace('\n', ' | ').replace('\r', ' | ')
+            if isinstance(value, str) else value
+            for value in row
+        ])
 
     csv_data = '\ufeff' + output.getvalue()
     return Response(
@@ -4452,6 +4467,46 @@ def facebook_export():
             'Content-Disposition': 'attachment; filename=facebook_customers.csv',
             'X-Content-Type-Options': 'nosniff',
         },
+    )
+
+
+@app.route('/facebook/export.xlsx')
+def facebook_export_xlsx():
+    if not plan_allows('export'):
+        return 'Tính năng tải danh sách khách hàng cần nâng cấp lên gói Growth hoặc Business.', 403
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Khách hàng'
+    sheet.append(CUSTOMER_EXPORT_HEADERS)
+    for row in customer_export_rows():
+        sheet.append(row)
+
+    header_fill = PatternFill('solid', fgColor='1F4E78')
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = Font(color='FFFFFF', bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    sheet.freeze_panes = 'A2'
+    sheet.auto_filter.ref = sheet.dimensions
+    sheet.row_dimensions[1].height = 32
+    widths = [7, 14, 24, 16, 16, 16, 28, 28, 22, 28, 28, 20, 18, 14, 20, 12, 42, 21, 21, 24, 14, 14, 24, 42, 42]
+    for index, width in enumerate(widths, start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    for row in sheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical='top', wrap_text=True)
+    for row in range(2, sheet.max_row + 1):
+        sheet.cell(row, 1).alignment = Alignment(horizontal='center', vertical='top')
+        sheet.row_dimensions[row].height = 36
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='khach_hang_crmhay.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
 
 
