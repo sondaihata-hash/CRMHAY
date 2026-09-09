@@ -5,6 +5,12 @@
   </div>
   <section class="panel p-3 p-md-4 mb-4">
     <h2 class="section-title mb-3">Tạo tài khoản có phân quyền</h2>
+    {% if actor.role == 'admin' or actor.role == 'dev' %}
+      <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>Sales: {{ active_sales_count if active_sales_count is defined else '—' }} / {{ sales_seat_limit if sales_seat_limit is defined else '—' }} tài khoản.</span>
+        <a class="btn btn-sm btn-primary" href="{{ url_for('purchase_sales_seats') }}">Mua thêm Sales · 30.000đ/tháng/tài khoản</a>
+      </div>
+    {% endif %}
     <form action="{{ url_for('add_user') }}" method="post" class="row g-3 align-items-end">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="col-md-5"><label class="form-label fw-semibold" for="username">Tên đăng nhập</label><input class="form-control" id="username" name="username" required></div>

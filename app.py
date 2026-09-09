@@ -1473,6 +1473,8 @@ def add_user():
         flash('Tên đăng nhập và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
     elif role not in USER_ROLES or (role == 'dev' and actor.role != 'dev') or not organization_id:
         flash('Vai trò tài khoản không hợp lệ.', 'danger')
+    elif role == 'sales' and actor.role != 'dev' and sales_seat_limit(actor) is not None and active_sales_count(organization_id) >= sales_seat_limit(actor):
+        flash('Workspace đã đạt giới hạn tài khoản Sales. Hãy mua thêm quyền Sales theo tháng.', 'warning')
     elif User.query.filter_by(username=username).first():
         flash('Tên đăng nhập đã tồn tại.', 'warning')
     else:
