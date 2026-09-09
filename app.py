@@ -772,7 +772,23 @@ def organization_plan(user=None):
     return subscription.plan if subscription and subscription.plan in PLAN_RANK else 'basic'
 
 
+def is_default_admin(user=None):
+    user = user or current_user()
+    if not user or user.role != 'admin':
+        return False
+    default_organization = Organization.query.filter_by(slug='default').first()
+    configured_username = os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower()
+    return bool(
+        default_organization
+        and user.organization_id == default_organization.id
+        and configured_username
+        and user.username == configured_username
+    )
+
+
 def plan_allows(feature, user=None):
+    if feature == 'hourly_sync' and is_default_admin(user):
+        return True
     return PLAN_FEATURES[organization_plan(user)].get(feature, False)
 
 
