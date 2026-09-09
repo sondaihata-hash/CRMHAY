@@ -1,6 +1,6 @@
 import re
 
-from app import DeveloperCommandLog, User, app, db
+from app import DeveloperCommandLog, Organization, User, app, db
 from auth_helpers import csrf_token
 from werkzeug.security import generate_password_hash
 
@@ -50,3 +50,58 @@ def test_regular_admin_cannot_open_developer_console():
 
     client = login_admin(app.test_client())
     assert client.get('/developer').status_code == 403
+
+
+def test_developer_can_manage_accounts_across_organizations():
+    client = app.test_client()
+    login_developer(client)
+    with app.app_context():
+        organization = Organization(
+            name='Developer Test Company',
+            slug='developer-test-company',
+        )
+        db.session.add(organization)
+        db.session.commit()
+        organization_id = organization.id
+
+    token = csrf_token(client, '/admin/users')
+    username = 'developer_managed_user'
+    response = client.post(
+        '/admin/users/add',
+        data={
+            '_csrf_token': token,
+            'username': username,
+            'password': 'ManagedUserPass123!',
+            'role': 'admin',
+            'organization_id': organization_id,
+        },
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        user = User.query.filter_by(username=username).one()
+        user_id = user.id
+        assert user.organization_id == organization_id
+
+    token = csrf_token(client, '/admin/users')
+    response = client.post(
+        f'/admin/users/{user_id}/edit',
+        data={
+            '_csrf_token': token,
+            'username': username + '_edited',
+            'password': 'EditedUserPass123!',
+            'role': 'dev',
+            'organization_id': organization_id,
+        },
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        assert User.query.get(user_id).role == 'dev'
+
+    token = csrf_token(client, '/admin/users')
+    response = client.post(
+        f'/admin/users/{user_id}/delete',
+        data={'_csrf_token': token},
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        assert User.query.get(user_id) is None
