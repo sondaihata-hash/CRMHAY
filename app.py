@@ -1066,7 +1066,7 @@ def run_system_health_check():
     with app.app_context():
         try:
             db.session.execute(text('SELECT 1'))
-        except Exception as exc:
+        except OperationalError as exc:
             db.session.rollback()
             record_developer_alert('critical', 'database', f'Cơ sở dữ liệu không phản hồi: {exc}')
 
