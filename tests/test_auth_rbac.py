@@ -188,6 +188,7 @@ def test_manager_can_view_and_reassign_team_customers():
         customer.assigned_user_id = sales_one.id
         db.session.commit()
         manager_username = manager.username
+        organization_id = organization.id
         manager_id, sales_one_id, sales_two_id, customer_id = (
             manager.id, sales_one.id, sales_two.id, customer.id,
         )
@@ -218,4 +219,5 @@ def test_manager_can_view_and_reassign_team_customers():
                 item = db.session.get(model, item_id)
                 if item:
                     db.session.delete(item)
+            db.session.delete(db.session.get(Organization, organization_id))
             db.session.commit()
