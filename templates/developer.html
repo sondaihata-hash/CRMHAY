@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="kpi-label">Developer Console</div>
+    <h1 class="page-title">Điều hành hệ thống</h1>
+    <p class="text-secondary mt-2 mb-0">Chatbot chỉ thực hiện các lệnh cấu hình an toàn đã được cho phép.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <section class="panel p-4 mb-4">
+      <h2 class="section-title mb-3">Chatbot cài đặt</h2>
+      <form method="post" action="{{ url_for('developer_chat') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="input-group">
+          <input class="form-control" name="command" placeholder="Ví dụ: kiểm tra hệ thống" required maxlength="500">
+          <button class="btn primary-btn" type="submit">Gửi lệnh</button>
+        </div>
+      </form>
+      <div class="small text-secondary mt-3">Gợi ý: “cài đặt hệ thống”, “xem cảnh báo”, “đặt ngưỡng lưu trữ 15”.</div>
+      {% if commands %}
+      <div class="mt-4">
+        {% for item in commands %}
+        <div class="border rounded p-3 mb-2">
+          <div class="small text-secondary">{{ item.created_at.strftime('%d/%m/%Y %H:%M:%S') }} · {{ item.command }}</div>
+          <div class="mt-1" style="white-space: pre-line;">{{ item.result }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+  </div>
+  <div class="col-xl-5">
+    <section class="panel p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="section-title mb-0">Cảnh báo chưa xử lý</h2>
+        <span class="badge-soft">{{ alerts|length }}</span>
+      </div>
+      {% for alert in alerts %}
+      <div class="border-start border-{{ 'danger' if alert.severity == 'critical' else 'warning' }} border-3 ps-3 mb-3">
+        <div class="fw-semibold">{{ alert.category|capitalize }} · {{ alert.severity|upper }}</div>
+        <div class="small">{{ alert.message }}</div>
+        <div class="small text-secondary mb-2">{{ alert.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</div>
+        <form method="post" action="{{ url_for('resolve_developer_alert', alert_id=alert.id) }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-success" type="submit">Đã xử lý</button>
+        </form>
+      </div>
+      {% else %}
+      <p class="text-secondary mb-0">Không có cảnh báo chưa xử lý.</p>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+{% endblock %}
