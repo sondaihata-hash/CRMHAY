@@ -29,6 +29,10 @@ try:
     from celery import Celery
 except ImportError:  # Allows local development before optional worker deps install.
     Celery = None
+try:
+    import psutil
+except ImportError:  # Optional locally; disk/database checks remain available.
+    psutil = None
 import ast
 import csv
 import io
@@ -39,6 +43,7 @@ import logging
 import os
 import re
 import tempfile
+import shutil
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -161,6 +166,7 @@ ADMIN_ENDPOINTS = {
     'facebook_import_legacy', 'reminders', 'complete_reminder',
 }
 USER_ROLES = {
+    'dev': 'Developer',
     'admin': 'Quản trị viên',
     'manager': 'Quản lý',
     'employee': 'Nhân viên',
@@ -237,6 +243,26 @@ class User(db.Model):
     customers = db.relationship('Customer', backref='assigned_user', lazy=True)
     manager = db.relationship('User', remote_side=[id], backref=db.backref('managed_users', lazy=True))
     organization = db.relationship('Organization', backref=db.backref('users', lazy=True))
+
+
+class DeveloperAlert(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    severity = db.Column(db.String(20), nullable=False, default='warning', index=True)
+    category = db.Column(db.String(40), nullable=False, index=True)
+    message = db.Column(db.Text, nullable=False)
+    fingerprint = db.Column(db.String(200), nullable=False, index=True)
+    is_resolved = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+
+
+class DeveloperCommandLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    command = db.Column(db.String(500), nullable=False)
+    result = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    user = db.relationship('User')
 
 
 class Organization(db.Model):
@@ -552,6 +578,17 @@ def current_user():
     return db.session.get(User, user_id) if user_id else None
 
 
+def developer_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        user = current_user()
+        if user.role != 'dev':
+            return 'Chỉ tài khoản Developer mới có quyền thực hiện thao tác này.', 403
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
 @app.context_processor
 def inject_current_user():
     return {'current_user': current_user, 'csrf_token': csrf_token}
@@ -591,7 +628,7 @@ def admin_required(view):
     @wraps(view)
     @login_required
     def wrapped_view(*args, **kwargs):
-        if current_user().role != 'admin':
+        if current_user().role not in {'admin', 'dev'}:
             return 'Bạn không có quyền thực hiện thao tác này.', 403
         return view(*args, **kwargs)
     return wrapped_view
@@ -601,7 +638,7 @@ def team_manager_required(view):
     @login_required
     @wraps(view)
     def wrapped_view(*args, **kwargs):
-        if current_user().role not in {'admin', 'manager'}:
+        if current_user().role not in {'admin', 'dev', 'manager'}:
             return 'Bạn không có quyền thực hiện thao tác này.', 403
         return view(*args, **kwargs)
     return wrapped_view
@@ -611,7 +648,7 @@ def platform_admin_required(view):
     @wraps(view)
     @login_required
     def wrapped_view(*args, **kwargs):
-        if not current_user().is_platform_admin:
+        if not current_user().is_platform_admin and current_user().role != 'dev':
             return 'Chỉ Platform Admin mới có quyền thực hiện thao tác này.', 403
         return view(*args, **kwargs)
     return wrapped_view
