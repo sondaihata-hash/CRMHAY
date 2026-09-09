@@ -1421,7 +1421,7 @@ def require_authentication():
         session.clear()
         return redirect(url_for('login', next=request.full_path))
     set_tenant_context(None if user.is_platform_admin else user.organization_id)
-    if request.endpoint in ADMIN_ENDPOINTS and user.role != 'admin':
+    if request.endpoint in ADMIN_ENDPOINTS and user.role not in {'admin', 'dev'}:
         return 'Bạn không có quyền thực hiện thao tác này.', 403
     if request.method == 'POST':
         return validate_csrf_token()
