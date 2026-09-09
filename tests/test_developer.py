@@ -105,3 +105,45 @@ def test_developer_can_manage_accounts_across_organizations():
     assert response.status_code == 302
     with app.app_context():
         assert User.query.get(user_id) is None
+
+
+def test_developer_can_create_and_edit_company_information():
+    client = app.test_client()
+    login_developer(client)
+    token = csrf_token(client, '/platform/organizations')
+    response = client.post(
+        '/platform/organizations',
+        data={
+            '_csrf_token': token,
+            'name': 'Managed Company',
+            'slug': 'managed-company',
+            'username': 'managed-company-admin',
+            'password': 'ManagedCompanyPass123!',
+            'company_address': '1 Test Street',
+            'company_phone': '0900000000',
+            'company_email': 'admin@managed.test',
+        },
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        organization = Organization.query.filter_by(slug='managed-company').one()
+        organization_id = organization.id
+        assert organization.company_address == '1 Test Street'
+
+    token = csrf_token(client, '/platform/organizations')
+    response = client.post(
+        f'/platform/organizations/{organization_id}/edit',
+        data={
+            '_csrf_token': token,
+            'name': 'Managed Company Updated',
+            'slug': 'managed-company-updated',
+            'company_address': '2 Updated Street',
+            'company_phone': '0911111111',
+            'company_email': 'updated@managed.test',
+        },
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        organization = db.session.get(Organization, organization_id)
+        assert organization.name == 'Managed Company Updated'
+        assert organization.company_address == '2 Updated Street'
