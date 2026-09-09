@@ -273,6 +273,8 @@ class Organization(db.Model):
     company_phone = db.Column(db.String(50), nullable=True)
     company_email = db.Column(db.String(200), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    sales_seat_addons = db.Column(db.Integer, nullable=False, default=0)
+    sales_seat_addons_expires_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -730,6 +732,8 @@ PAYOS_PLANS = {
     'growth': {'name': 'Growth', 'monthly_amount': 349500, 'yearly_amount': 3495000},
     'business': {'name': 'Business', 'monthly_amount': 745000, 'yearly_amount': 7450000},
 }
+SALES_SEATS_PER_PLAN = {'basic': 6, 'growth': 12, 'business': 30}
+SALES_SEAT_MONTHLY_PRICE = 30000
 PLAN_RANK = {'basic': 1, 'growth': 2, 'business': 3}
 PLAN_FEATURES = {
     'basic': {'manual_sync': True, 'export': False, 'hourly_sync': False},
@@ -756,6 +760,24 @@ def organization_plan(user=None):
 
 def plan_allows(feature, user=None):
     return PLAN_FEATURES[organization_plan(user)].get(feature, False)
+
+
+def sales_seat_limit(user=None):
+    user = user or current_user()
+    if user.is_platform_admin:
+        return None
+    organization = db.session.get(Organization, user.organization_id)
+    base_limit = SALES_SEATS_PER_PLAN.get(organization_plan(user), SALES_SEATS_PER_PLAN['basic'])
+    addon_limit = 0
+    if organization and organization.sales_seat_addons_expires_at and organization.sales_seat_addons_expires_at >= datetime.utcnow():
+        addon_limit = organization.sales_seat_addons
+    return base_limit + addon_limit
+
+
+def active_sales_count(organization_id):
+    return User.query.filter_by(
+        organization_id=organization_id, role='sales',
+    ).count()
 
 
 def _payos_config():
