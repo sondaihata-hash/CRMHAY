@@ -152,7 +152,7 @@
         </thead>
         <tbody>
           {% for c in customers %}
-          <tr>
+          <tr class="{% if c.message_needs_attention %}customer-row-message-returned{% elif c.needs_call %}customer-row-uncalled{% elif not c.has_contact %}customer-row-uncontacted{% endif %}">
             {% if current_user and current_user().role in ['admin', 'dev'] %}<td><input type="checkbox" name="customer_ids" value="{{ c.id }}" form="bulkAssignForm" class="customer-select" aria-label="Chọn {{ c.name }}"></td>{% endif %}
             <td><small class="text-muted">{{ c.id }}</small></td>
             <td>
@@ -170,6 +170,16 @@
                 <div>
                   <div class="fw-semibold text-primary">
                     <a href="/customers/{{ c.id }}" class="btn-link-like text-decoration-none text-primary">{{ c.name }}</a>
+                  </div>
+                  <div class="d-flex flex-wrap gap-1 mt-1">
+                    {% if c.message_needs_attention %}
+                    <span class="badge bg-warning text-dark">Khách cũ vừa nhắn lại</span>
+                    {% endif %}
+                    {% if c.needs_call %}
+                    <span class="badge bg-danger">Chưa gọi</span>
+                    {% elif not c.has_contact %}
+                    <span class="badge bg-secondary">Chưa liên hệ</span>
+                    {% endif %}
                   </div>
                   {% if c.facebook_id %}
                     <small class="text-muted d-block">ID: {{ c.facebook_id }}</small>

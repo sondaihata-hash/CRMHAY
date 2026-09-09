@@ -3290,32 +3290,32 @@ def customers():
     page = min(page, total_pages)
     items = ordered_query.offset((page - 1) * per_page).limit(per_page).all()
     item_ids = [customer.id for customer in items]
-    called_customer_ids = set()
+    latest_call_at = {}
     contacted_customer_ids = set()
     if item_ids:
         activity_rows = CustomerActivity.query.filter(
             CustomerActivity.customer_id.in_(item_ids),
         ).with_entities(
             CustomerActivity.customer_id, CustomerActivity.activity_type,
+            CustomerActivity.created_at,
         ).all()
-        called_customer_ids = {
-            customer_id for customer_id, activity_type in activity_rows
-            if activity_type == 'call'
-        }
-        contacted_customer_ids = {customer_id for customer_id, _ in activity_rows}
+        for customer_id, activity_type, created_at in activity_rows:
+            contacted_customer_ids.add(customer_id)
+            if activity_type == 'call' and (
+                customer_id not in latest_call_at
+                or created_at > latest_call_at[customer_id]
+            ):
+                latest_call_at[customer_id] = created_at
     for customer in items:
-        customer.has_call = customer.id in called_customer_ids
+        customer.last_call_at = latest_call_at.get(customer.id)
+        customer.has_call = customer.last_call_at is not None
         customer.has_contact = customer.id in contacted_customer_ids
         customer.needs_call = not customer.has_call
         customer.message_needs_attention = bool(
             customer.last_customer_message_at
             and (
                 not customer.has_call
-                or not CustomerActivity.query.filter(
-                    CustomerActivity.customer_id == customer.id,
-                    CustomerActivity.activity_type == 'call',
-                    CustomerActivity.created_at >= customer.last_customer_message_at,
-                ).first()
+                or customer.last_customer_message_at > customer.last_call_at
             )
         )
 
