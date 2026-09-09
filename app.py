@@ -1560,6 +1560,8 @@ def edit_user(user_id):
         user.role = 'sales' if actor.role == 'manager' else role
         user.organization_id = organization_id
         user.is_platform_admin = actor.role == 'dev' and role == 'dev'
+        if user.role == 'manager':
+            user.manager_id = None
         if actor.role == 'dev':
             manager_id = request.form.get('manager_id', type=int)
             user.manager_id = manager_id if User.query.filter_by(
