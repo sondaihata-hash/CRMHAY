@@ -129,6 +129,12 @@
         <option value="{{ user.id }}">{{ user.username }}</option>
         {% endfor %}
       </select>
+      <select name="page_name" class="form-select form-select-sm" style="width:auto; min-width:180px;" aria-label="Chuyển toàn bộ khách theo Page">
+        <option value="">Chỉ chuyển khách đã chọn</option>
+        {% for page_option in page_names %}
+        <option value="{{ page_option }}">Toàn bộ khách Page: {{ page_option }}</option>
+        {% endfor %}
+      </select>
       <button type="submit" class="btn btn-sm btn-primary action-btn">Chuyển khách đã chọn</button>
       <span id="selectedCustomerCount" class="text-muted small">Chưa chọn khách nào</span>
     </form>
@@ -435,9 +441,10 @@
       });
       customerSelects.forEach((checkbox) => checkbox.addEventListener('change', updateSelectedCustomerCount));
       document.getElementById('bulkAssignForm').addEventListener('submit', (event) => {
-        if (!customerSelects.some((checkbox) => checkbox.checked)) {
+        const pageSelect = document.querySelector('#bulkAssignForm select[name="page_name"]');
+        if (!customerSelects.some((checkbox) => checkbox.checked) && !pageSelect.value) {
           event.preventDefault();
-          alert('Hãy chọn ít nhất một khách hàng để chuyển.');
+          alert('Hãy chọn khách hàng hoặc chọn toàn bộ một Page để chuyển.');
         }
       });
     }

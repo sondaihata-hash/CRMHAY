@@ -1632,15 +1632,25 @@ def assign_customer(c_id):
 def assign_customers_bulk():
     customer_ids = request.form.getlist('customer_ids', type=int)
     user_id = request.form.get('assigned_user_id', type=int)
-    user = db.session.get(User, user_id) if user_id else None
-    if not customer_ids:
+    page_name = (request.form.get('page_name') or '').strip()
+    user = User.query.filter(
+        User.id == user_id,
+        User.role.in_(('sales', 'employee')),
+        User.is_active.is_(True),
+    ).first() if user_id else None
+    if not customer_ids and not page_name:
         flash('Hãy chọn ít nhất một khách hàng để chuyển.', 'warning')
         return redirect(url_for('customers'))
-    if user_id and (not user or user.role not in {'sales', 'employee'} or not user.is_active):
+    if user_id and not user:
         flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
         return redirect(url_for('customers'))
 
-    customers_to_assign = Customer.query.filter(Customer.id.in_(customer_ids)).all()
+    customer_query = visible_customer_query()
+    if page_name:
+        customer_query = customer_query.filter(Customer.page_name == page_name)
+    elif customer_ids:
+        customer_query = customer_query.filter(Customer.id.in_(customer_ids))
+    customers_to_assign = customer_query.all()
     for customer in customers_to_assign:
         customer.assigned_user_id = user.id if user else None
     db.session.commit()
