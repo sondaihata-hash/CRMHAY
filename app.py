@@ -3313,10 +3313,8 @@ def customers():
         customer.needs_call = not customer.has_call
         customer.message_needs_attention = bool(
             customer.last_customer_message_at
-            and (
-                not customer.has_call
-                or customer.last_customer_message_at > customer.last_call_at
-            )
+            and customer.has_call
+            and customer.last_customer_message_at > customer.last_call_at
         )
 
     if request.args.get('format') == 'json':

@@ -152,7 +152,7 @@
         </thead>
         <tbody>
           {% for c in customers %}
-          <tr class="{% if c.message_needs_attention %}customer-row-message-returned{% elif c.needs_call %}customer-row-uncalled{% elif not c.has_contact %}customer-row-uncontacted{% endif %}">
+          <tr class="{% if c.needs_call %}customer-row-uncalled{% elif c.message_needs_attention %}customer-row-message-returned{% elif not c.has_contact %}customer-row-uncontacted{% endif %}">
             {% if current_user and current_user().role in ['admin', 'dev'] %}<td><input type="checkbox" name="customer_ids" value="{{ c.id }}" form="bulkAssignForm" class="customer-select" aria-label="Chọn {{ c.name }}"></td>{% endif %}
             <td><small class="text-muted">{{ c.id }}</small></td>
             <td>
@@ -308,6 +308,20 @@
       z-index: 2;
       background: var(--panel);
       box-shadow: 0 1px 0 var(--line);
+    }
+
+    .customer-row-uncalled > td {
+      background: #fff1f2;
+      border-top: 2px solid #dc3545;
+    }
+
+    .customer-row-message-returned > td {
+      background: #fff8e1;
+      border-top: 2px solid #f0ad4e;
+    }
+
+    .customer-row-uncontacted > td {
+      background: #f8fafc;
     }
 
     .customer-location-cell {
