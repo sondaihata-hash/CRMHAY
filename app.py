@@ -2438,6 +2438,34 @@ def init_db():
                 raise RuntimeError('CRM_ADMIN_RESET_PASSWORD must be at least 8 characters.')
             configured_admin.password_hash = generate_password_hash(admin_reset_password)
             db.session.commit()
+        dev_username = os.environ.get('CRM_DEV_USERNAME', '').strip().lower()
+        dev_password = os.environ.get('CRM_DEV_PASSWORD', '')
+        if dev_username and len(dev_password) < 12:
+            raise RuntimeError('CRM_DEV_PASSWORD must be at least 12 characters.')
+        configured_dev = User.query.filter_by(username=dev_username).first() if dev_username else None
+        if dev_username and dev_password and not configured_dev:
+            db.session.add(User(
+                username=dev_username,
+                password_hash=generate_password_hash(dev_password),
+                role='dev',
+                organization_id=default_organization.id,
+                is_platform_admin=True,
+            ))
+            db.session.commit()
+        elif configured_dev:
+            changed = False
+            if configured_dev.role != 'dev' or not configured_dev.is_platform_admin:
+                configured_dev.role = 'dev'
+                configured_dev.is_platform_admin = True
+                changed = True
+            if os.environ.get('CRM_DEV_RESET_PASSWORD'):
+                reset_password = os.environ['CRM_DEV_RESET_PASSWORD']
+                if len(reset_password) < 12:
+                    raise RuntimeError('CRM_DEV_RESET_PASSWORD must be at least 12 characters.')
+                configured_dev.password_hash = generate_password_hash(reset_password)
+                changed = True
+            if changed:
+                db.session.commit()
         if not Customer.query.first():
             sample = Customer(
                 name='Nguyen Van A',
@@ -4834,3 +4862,4 @@ else:
     init_db()
     if is_production:
         threading.Thread(target=_hourly_business_sync_loop, daemon=True).start()
+        threading.Thread(target=_developer_monitor_loop, daemon=True).start()
