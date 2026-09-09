@@ -3201,6 +3201,11 @@ def index():
     if current_user().role == 'manager':
         sales_user_query = sales_user_query.filter(User.manager_id == current_user().id)
     sales_users = sales_user_query.order_by(User.username.asc()).all()
+    holding_users = list(sales_users)
+    manager_query = User.query.filter(User.role == 'manager', User.is_active.is_(True))
+    if current_user().role == 'manager':
+        manager_query = manager_query.filter(User.id == current_user().id)
+    holding_users.extend(manager_query.order_by(User.username.asc()).all())
     sales_customer_counts = dict(
         customer_query.filter(Customer.assigned_user_id.isnot(None)).with_entities(
             Customer.assigned_user_id,
@@ -3223,7 +3228,7 @@ def index():
                 'customer_count': sales_customer_counts.get(user.id, 0),
                 'revenue': sales_revenues.get(user.id, 0) or 0,
             }
-            for user in sales_users
+            for user in holding_users
         ],
         key=lambda item: item['customer_count'],
         reverse=True,
