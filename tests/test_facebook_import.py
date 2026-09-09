@@ -6,7 +6,7 @@ import tempfile
 import unittest.mock as mock
 import uuid
 
-from app import app, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json, write_customer_snapshot
+from app import app, Customer, PLAN_FEATURES, build_customer_from_message, extract_phone_numbers, extract_location, resolve_page_access_tokens, resolve_facebook_pages, get_setting_value, fetch_facebook_json, write_customer_snapshot
 from auth_helpers import login_admin
 
 
@@ -15,6 +15,46 @@ def test_database_uses_persistent_project_path():
     sqlite_path = db_uri.replace('sqlite:///', '', 1)
     assert os.path.isabs(sqlite_path)
     assert 'instance' in sqlite_path.lower()
+
+
+def test_customer_csv_is_utf8_vietnamese_and_business_ready():
+    customer_name = f'CSV Test {uuid.uuid4().hex}'
+    with app.app_context():
+        customer = Customer(
+            name=customer_name,
+            first_name='Test',
+            last_name='CSV',
+            phone='0987654321',
+            email='csv@example.com',
+            page_name='Page Test',
+            source='facebook',
+            message_count=3,
+            message_excerpt='Khách cần tư vấn',
+        )
+        db = __import__('app').db
+        db.session.add(customer)
+        db.session.commit()
+        customer_id = customer.id
+
+    try:
+        with mock.patch.dict(PLAN_FEATURES['basic'], {'export': True}):
+            response = login_admin(app.test_client()).get('/facebook/export')
+        assert response.status_code == 200
+        assert response.mimetype == 'text/csv'
+        assert response.headers['Content-Disposition'].endswith(
+            'filename=facebook_customers.csv'
+        )
+        csv_text = response.data.decode('utf-8-sig')
+        rows = csv_text.splitlines()
+        assert rows[0].startswith('STT,Mã khách hàng,Họ và tên')
+        assert 'Số điện thoại' in rows[0]
+        assert customer_name in csv_text
+        assert 'Khách cần tư vấn' in csv_text
+    finally:
+        with app.app_context():
+            db = __import__('app').db
+            db.session.delete(db.session.get(Customer, customer_id))
+            db.session.commit()
 
 
 def test_dashboard_route_exposes_crm_summary():
