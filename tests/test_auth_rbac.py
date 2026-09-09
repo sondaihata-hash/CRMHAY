@@ -335,3 +335,35 @@ def test_admin_customer_list_filters_assignment_status_and_shows_sales():
             db.session.delete(db.session.get(Customer, unassigned_id))
             db.session.delete(db.session.get(User, sales_id))
             db.session.commit()
+
+
+def test_customer_table_places_sales_column_before_phone():
+    client = login_admin(app.test_client())
+    with app.app_context():
+        admin = User.query.filter_by(username='test_admin').one()
+        sales = User(
+            username=f'sales_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            organization_id=admin.organization_id,
+        )
+        customer = Customer(
+            name=f'Column order customer {uuid.uuid4().hex}',
+            phone='0900000000',
+            page_name='Page Order',
+            assigned_user=sales,
+            organization_id=admin.organization_id,
+        )
+        db.session.add_all([sales, customer])
+        db.session.commit()
+        sales_id, customer_id = sales.id, customer.id
+
+    try:
+        html = client.get('/customers').get_data(as_text=True)
+        assert html.index('>Page<') < html.index('Sales phụ trách')
+        assert html.index('Sales phụ trách') < html.index('Số điện thoại')
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(Customer, customer_id))
+            db.session.delete(db.session.get(User, sales_id))
+            db.session.commit()
