@@ -880,6 +880,56 @@ def _payos_upgrade_link(organization, user, target_plan):
     return checkout_url
 
 
+def _payos_sales_seat_link(organization, user, quantity):
+    subscription = active_subscription(organization.id)
+    if not subscription:
+        raise RuntimeError('Workspace chưa có gói thuê bao đang hoạt động.')
+    amount = quantity * SALES_SEAT_MONTHLY_PRICE
+    payment = Payment(
+        order_code=int(datetime.utcnow().timestamp() * 1000) % 900000000 + 100000000,
+        organization_id=organization.id,
+        user_id=user.id,
+        subscription_id=subscription.id,
+        plan='sales_seats',
+        billing_interval='monthly',
+        amount=amount,
+    )
+    db.session.add(payment)
+    db.session.flush()
+    checkout_url, result = _payos_create_link(
+        payment, f'{quantity} Sales seats', 'monthly'
+    )
+    payment.checkout_url = checkout_url
+    payment.provider_payload = json.dumps(
+        {'quantity': quantity, 'payos': result}, ensure_ascii=False
+    )
+    db.session.commit()
+    return checkout_url
+
+
+@app.route('/admin/sales-seats', methods=['GET', 'POST'])
+@admin_required
+def purchase_sales_seats():
+    if current_user().role != 'dev' and current_user().role != 'admin':
+        return 'Chỉ Company Admin mới có quyền mua thêm tài khoản Sales.', 403
+    organization = db.session.get(Organization, current_user().organization_id)
+    if request.method == 'GET':
+        return render_template(
+            'sales_seats.html',
+            sales_count=active_sales_count(organization.id),
+            seat_limit=sales_seat_limit(),
+            seat_price=SALES_SEAT_MONTHLY_PRICE,
+        )
+    quantity = request.form.get('quantity', type=int)
+    if not quantity or quantity < 1 or quantity > 100:
+        return {'ok': False, 'message': 'Số tài khoản Sales phải từ 1 đến 100.'}, 400
+    try:
+        checkout_url = _payos_sales_seat_link(organization, current_user(), quantity)
+    except RuntimeError as exc:
+        return {'ok': False, 'message': str(exc)}, 400
+    return redirect(checkout_url)
+
+
 @app.route('/upgrade/<plan>', methods=['GET', 'POST'])
 @admin_required
 def upgrade_plan(plan):
