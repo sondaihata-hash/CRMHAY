@@ -162,7 +162,7 @@ ADMIN_ENDPOINTS = {
     'settings', 'add_setting', 'edit_setting', 'sales_groups',
     'add_sales_group', 'delete_sales_group', 'update_sales_group_link',
     'sync_facebook_customers', 'sync_facebook_status', 'save_facebook_token', 'facebook_export',
-    'delete_customer', 'assign_customer',
+    'delete_customer',
     'facebook_import_legacy', 'reminders', 'complete_reminder',
 }
 USER_ROLES = {
