@@ -133,7 +133,7 @@
       <span id="selectedCustomerCount" class="text-muted small">Chưa chọn khách nào</span>
     </form>
     {% endif %}
-    <div id="customerList" class="table-responsive">
+    <div id="customerList" class="table-responsive customer-list-scroll">
       <table class="table mb-0 align-middle customer-table-fixed" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
@@ -282,6 +282,22 @@
       vertical-align: middle;
       word-wrap: break-word;
       overflow-wrap: anywhere;
+    }
+
+    .customer-list-scroll {
+      max-height: min(62vh, 720px);
+      overflow-x: auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .customer-list-scroll thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel);
+      box-shadow: 0 1px 0 var(--line);
     }
 
     .customer-location-cell {
