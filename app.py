@@ -1948,9 +1948,9 @@ def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
     # Production sync always scans every page returned by the token. Keep the
     # explicit argument for focused tests and controlled one-off imports.
     page_limit = min(MAX_CONVERSATION_PAGES, max(1, int(max_pages))) if max_pages else None
-    conversation_limit = 5000
+    conversation_limit = None
     if configured_conversation_limit:
-        conversation_limit = min(5000, max(1, int(configured_conversation_limit)))
+        conversation_limit = max(1, int(configured_conversation_limit))
     return page_limit, conversation_limit
 
 

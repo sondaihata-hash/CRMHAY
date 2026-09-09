@@ -584,7 +584,7 @@ def test_fetch_managed_facebook_messages_uses_high_default_limit():
 def test_sync_default_limit_allows_thousands_of_conversations():
     from app import get_facebook_sync_limits
 
-    assert get_facebook_sync_limits() == (None, 5000)
+    assert get_facebook_sync_limits() == (None, None)
 
 
 def test_fetch_managed_facebook_messages_scans_multiple_pages_and_filters_phone_and_location():
