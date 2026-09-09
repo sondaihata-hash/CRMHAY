@@ -375,7 +375,20 @@ def test_customers_sort_route_supports_date_newest_and_page():
         page_html = page_resp.get_data(as_text=True)
         assert page_html.index('Sort Beta') < page_html.index('Sort Gamma') < page_html.index('Sort Alpha')
 
-        Customer.query.filter(Customer.name.in_(names)).delete()
+        location_names = ["Sort Hà Nội", "Sort Đà Nẵng", "Sort Không rõ"]
+        location_customers = [
+            Customer(name=location_names[0], location="Hà Nội", created_at=now),
+            Customer(name=location_names[1], location="Đà Nẵng", created_at=now),
+            Customer(name=location_names[2], location=None, created_at=now),
+        ]
+        db.session.add_all(location_customers)
+        db.session.commit()
+        location_resp = client.get('/customers?sort=location')
+        assert location_resp.status_code == 200
+        location_html = location_resp.get_data(as_text=True)
+        assert location_html.index('Sort Đà Nẵng') < location_html.index('Sort Hà Nội') < location_html.index('Sort Không rõ')
+
+        Customer.query.filter(Customer.name.in_(names + location_names)).delete()
         db.session.commit()
 
 

@@ -3280,6 +3280,13 @@ def customer_sort_order(sort_key):
         return [Customer.last_message_date.desc(), Customer.created_at.desc(), Customer.id.desc()]
     if sort_key == 'page':
         return [Customer.page_name.asc(), Customer.name.asc(), Customer.id.desc()]
+    if sort_key == 'location':
+        return [
+            Customer.location.is_(None).asc(),
+            Customer.location.asc(),
+            Customer.name.asc(),
+            Customer.id.desc(),
+        ]
     return [Customer.created_at.desc(), Customer.id.desc()]
 
 
