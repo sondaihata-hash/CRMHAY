@@ -29,7 +29,7 @@
   </div>
 
   <div class="panel p-4">
-    {% if current_user and current_user().role == 'admin' %}
+    {% if current_user and current_user().role in ['admin', 'dev'] %}
     <div class="mb-4 pb-4 border-bottom">
       <div class="kpi-label mb-2">Phân công công việc</div>
       <form action="{{ url_for('assign_customer', c_id=c.id) }}" method="post" class="row g-2 align-items-end">
@@ -312,7 +312,7 @@
         <div class="kpi-label">Chuyển khách cho Sales qua Zalo</div>
         <div class="text-secondary mt-1">CRM chỉ sao chép 3 thông tin cần thiết. Bấm mở Zalo Desktop riêng để không rời khỏi CRM sang Zalo Web.</div>
       </div>
-      {% if current_user().role == 'admin' %}<a class="btn btn-sm btn-outline-secondary" href="/sales-groups">Quản lý nhóm</a>{% endif %}
+      {% if current_user().role in ['admin', 'dev'] %}<a class="btn btn-sm btn-outline-secondary" href="/sales-groups">Quản lý nhóm</a>{% endif %}
     </div>
     {% if sales_groups %}
       <form id="zaloHandoffForm" class="row g-2 mt-3" action="/customers/{{ c.id }}/handoff-zalo" method="post">
