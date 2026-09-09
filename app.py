@@ -1549,7 +1549,7 @@ def edit_user(user_id):
     if actor.role == 'dev':
         organization_id = request.form.get('organization_id', type=int)
     duplicate = User.query.filter(User.username == username, User.id != user.id).first()
-    allowed_roles = set(USER_ROLES) if actor.role == 'dev' else {'sales', 'employee'}
+    allowed_roles = set(USER_ROLES) if actor.role == 'dev' else {'sales', 'employee', 'manager'}
     if (
         not username or duplicate or role not in allowed_roles
         or not organization_id or not db.session.get(Organization, organization_id)
