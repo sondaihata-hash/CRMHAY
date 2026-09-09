@@ -3495,7 +3495,13 @@ def customer_detail(c_id):
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
     activities = CustomerActivity.query.filter_by(customer_id=c.id).order_by(CustomerActivity.created_at.desc()).all()
-    sales_users = User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username).all()
+    sales_user_query = User.query.filter(
+        User.role.in_(('sales', 'employee')),
+        User.is_active.is_(True),
+    )
+    if current_user().role == 'manager':
+        sales_user_query = sales_user_query.filter(User.manager_id == current_user().id)
+    sales_users = sales_user_query.order_by(User.username).all()
     return render_template(
         'customer_detail.html',
         c=c,

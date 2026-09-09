@@ -1,6 +1,6 @@
 import uuid
 
-from app import Customer, User, app, db
+from app import Customer, Organization, User, app, db
 from auth_helpers import csrf_token, login_admin
 from werkzeug.security import generate_password_hash
 
@@ -153,39 +153,33 @@ def test_admin_can_assign_all_customers_from_page_to_sales():
 
 def test_manager_can_view_and_reassign_team_customers():
     with app.app_context():
-        admin = User.query.filter_by(username='test_admin').first()
-        if not admin:
-            admin = User(
-                username='test_admin',
-                password_hash=generate_password_hash('TestAdminPass123!'),
-                role='admin',
-            )
-            db.session.add(admin)
-            db.session.flush()
+        organization = Organization(name=f'Manager Company {uuid.uuid4().hex}', slug=f'manager-company-{uuid.uuid4().hex}')
+        db.session.add(organization)
+        db.session.flush()
         manager = User(
             username=f'manager_{uuid.uuid4().hex}',
             password_hash=generate_password_hash('ManagerPass123!'),
             role='manager',
-            organization_id=admin.organization_id,
+            organization_id=organization.id,
         )
         sales_one = User(
             username=f'sales_{uuid.uuid4().hex}',
             password_hash=generate_password_hash('SalesPass123!'),
             role='sales',
             manager=manager,
-            organization_id=admin.organization_id,
+            organization_id=organization.id,
         )
         sales_two = User(
             username=f'sales_{uuid.uuid4().hex}',
             password_hash=generate_password_hash('SalesPass123!'),
             role='sales',
             manager=manager,
-            organization_id=admin.organization_id,
+            organization_id=organization.id,
         )
         customer = Customer(
             name=f'Team customer {uuid.uuid4().hex}',
             assigned_user=sales_one,
-            organization_id=admin.organization_id,
+            organization_id=organization.id,
         )
         db.session.add_all([manager, sales_one, sales_two, customer])
         db.session.flush()
