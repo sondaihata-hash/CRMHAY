@@ -103,3 +103,49 @@ def test_admin_can_promote_sales_to_manager():
         with app.app_context():
             db.session.delete(db.session.get(User, sales_id))
             db.session.commit()
+
+
+def test_admin_can_assign_all_customers_from_page_to_sales():
+    client = login_admin(app.test_client())
+    with app.app_context():
+        admin = User.query.filter_by(username='test_admin').one()
+        sales = User(
+            username=f'sales_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            organization_id=admin.organization_id,
+        )
+        customers = [
+            Customer(name=f'Page customer {uuid.uuid4().hex}', page_name='Page A', organization_id=admin.organization_id),
+            Customer(name=f'Page customer {uuid.uuid4().hex}', page_name='Page A', organization_id=admin.organization_id),
+            Customer(name=f'Other page customer {uuid.uuid4().hex}', page_name='Page B', organization_id=admin.organization_id),
+        ]
+        db.session.add(sales)
+        db.session.add_all(customers)
+        db.session.commit()
+        sales_id = sales.id
+        customer_ids = [customer.id for customer in customers]
+
+    try:
+        response = client.post(
+            '/customers/assign-bulk',
+            data={
+                'assigned_user_id': sales_id,
+                'page_name': 'Page A',
+                '_csrf_token': csrf_token(client, '/customers'),
+            },
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            assigned = [db.session.get(Customer, customer_id) for customer_id in customer_ids]
+            assert assigned[0].assigned_user_id == sales_id
+            assert assigned[1].assigned_user_id == sales_id
+            assert assigned[2].assigned_user_id is None
+    finally:
+        with app.app_context():
+            for customer_id in customer_ids:
+                customer = db.session.get(Customer, customer_id)
+                if customer:
+                    db.session.delete(customer)
+            db.session.delete(db.session.get(User, sales_id))
+            db.session.commit()
