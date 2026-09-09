@@ -4143,21 +4143,30 @@ def _hourly_business_sync_loop():
         time.sleep(3600)
         try:
             with app.app_context():
-                subscriptions = Subscription.query.filter_by(
-                    plan='business', status='active'
-                ).all()
-                for subscription in subscriptions:
-                    set_tenant_context(subscription.organization_id)
+                sync_organizations = {
+                    subscription.organization_id
+                    for subscription in Subscription.query.filter_by(
+                        plan='business', status='active'
+                    ).all()
+                }
+                default_admin = User.query.filter_by(
+                    username=os.environ.get('CRM_ADMIN_USERNAME', '').strip().lower(),
+                    role='admin', is_active=True,
+                ).join(Organization).filter(Organization.slug == 'default').first()
+                if default_admin and plan_allows('hourly_sync', default_admin):
+                    sync_organizations.add(default_admin.organization_id)
+                for organization_id in sync_organizations:
+                    set_tenant_context(organization_id)
                     try:
                         active_job = SyncJob.query.filter(
-                            SyncJob.organization_id == subscription.organization_id,
+                            SyncJob.organization_id == organization_id,
                             SyncJob.status.in_(('queued', 'running')),
                         ).first()
                         if active_job:
                             continue
                         job = SyncJob(
                             id=str(uuid.uuid4()),
-                            organization_id=subscription.organization_id,
+                            organization_id=organization_id,
                             status='queued',
                             message='Đồng bộ tự động theo giờ đang chờ xử lý...',
                             incremental=True,
