@@ -176,6 +176,8 @@ def test_manager_can_view_and_reassign_team_customers():
             manager=manager,
             organization_id=organization.id,
         )
+        db.session.add(manager)
+        db.session.flush()
         customer = Customer(
             name=f'Team customer {uuid.uuid4().hex}',
             assigned_user=sales_one,
@@ -239,7 +241,7 @@ def test_manager_can_view_customers_assigned_directly_to_manager():
             assigned_user_id=manager.id,
             organization_id=organization.id,
         )
-        db.session.add_all([manager, customer])
+        db.session.add(customer)
         db.session.commit()
         manager_username, manager_id = manager.username, manager.id
         customer_id, organization_id = customer.id, organization.id
