@@ -7,6 +7,8 @@
     </div>
     <div class="toolbar">
       <a class="btn primary-btn" href="/customers/add">Thêm khách hàng</a>
+      {% if can_export %}<a class="btn btn-outline-success" href="/facebook/export">Tải CSV</a>{% endif %}
+      {% if current_plan == 'basic' %}<a class="btn btn-outline-primary" href="/upgrade/growth">Nâng cấp Growth</a>{% elif current_plan == 'growth' %}<a class="btn btn-outline-primary" href="/upgrade/business">Nâng cấp Business</a>{% endif %}
     </div>
   </div>
 
@@ -401,6 +403,7 @@
     }
 
     let selectedZaloCustomerId = null;
+    let zaloHandoffData = {};
     const zaloModal = document.getElementById('zaloHandoffModal');
     const closeZaloModal = () => { zaloModal.hidden = true; document.body.classList.remove('modal-open'); };
 
@@ -434,6 +437,7 @@
       try {
         const response = await fetch(`/customers/${selectedZaloCustomerId}/handoff-zalo`, {method: 'POST', headers: {'X-CSRF-Token': '{{ csrf_token() }}'}, body: new URLSearchParams({group_id: document.getElementById('zaloGroupId').value})});
         const data = await response.json();
+        zaloHandoffData = data;
         if (!response.ok) throw new Error(data.message || 'Không thể chuẩn bị nội dung chuyển khách.');
         try {
           await navigator.clipboard.writeText(data.message);
@@ -461,8 +465,8 @@
     });
 
     document.getElementById('customerZaloOpen').addEventListener('click', (event) => {
-      const groupUrl = event.currentTarget.dataset.groupUrl;
-      if (groupUrl) window.open(groupUrl, '_blank', 'noopener');
+      const data = zaloHandoffData;
+      window.open(data.group_url || data.desktop_app_url || 'zalo://', '_blank', 'noopener');
     });
     document.getElementById('customerZaloDesktop').addEventListener('click', () => {
       window.location.href = 'zalo://';

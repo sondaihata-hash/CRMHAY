@@ -18,3 +18,23 @@ services:
         sync: false
       - key: CRM_HOTLINE_NUMBERS
         sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CRM_USE_CELERY
+        value: "true"
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: FACEBOOK_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: ZALO_WEBHOOK_SECRET
+        sync: false
+      - key: PAYOS_CLIENT_ID
+        sync: false
+      - key: PAYOS_API_KEY
+        sync: false
+      - key: PAYOS_CHECKSUM_KEY
+        sync: false
+      - key: PAYOS_WEBHOOK_SECRET
+        sync: false
+      - key: PAYOS_API_URL
+        sync: false

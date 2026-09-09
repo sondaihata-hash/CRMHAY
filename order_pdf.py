@@ -6,7 +6,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 
-def build_order_pdf(order):
+def build_order_pdf(order, organization=None):
     stream = io.BytesIO()
     pdf = canvas.Canvas(stream, pagesize=A4)
     font = 'Helvetica'
@@ -19,9 +19,13 @@ def build_order_pdf(order):
     pdf.setStrokeColorRGB(.25, .25, .25)
     pdf.rect(10*mm, 10*mm, width-20*mm, height-20*mm)
     pdf.setFont(font, 8)
-    pdf.drawString(14*mm, height-16*mm, 'CÔNG TY CỔ PHẦN SƠN IHATA VIỆT NAM')
-    pdf.drawString(14*mm, height-21*mm, 'Địa chỉ: 34/1B đường Trung Đông 7, xã Thới Tam Thôn, huyện Hóc Môn, TP HCM')
-    pdf.drawString(14*mm, height-26*mm, 'Chi nhánh Hà Nội: 8A Đường Tri Thức, khu Đồng Non, thôn Thanh Vân, xã Tân Dân, huyện Sóc Sơn, thành phố Hà Nội')
+    company_name = getattr(organization, 'name', None) or 'CRM HAY'
+    company_address = getattr(organization, 'company_address', None) or 'Chưa cập nhật'
+    company_phone = getattr(organization, 'company_phone', None) or '-'
+    company_email = getattr(organization, 'company_email', None) or '-'
+    pdf.drawString(14*mm, height-16*mm, company_name)
+    pdf.drawString(14*mm, height-21*mm, f'Địa chỉ: {company_address}')
+    pdf.drawString(14*mm, height-26*mm, f'Điện thoại: {company_phone} | Email: {company_email}')
     pdf.setFont(font, 14); pdf.drawCentredString(width/2, height-34*mm, 'ĐƠN ĐẶT HÀNG')
     pdf.setFont(font, 9)
     pdf.drawString(14*mm, height-44*mm, f'Tên khách hàng: {order.customer.name}')

@@ -8,6 +8,19 @@
   </div>
 
   <div class="panel p-3 p-md-4 mb-4">
+    <h2 class="section-title mb-2">Thông tin công ty trên mẫu đơn hàng</h2>
+    <p class="text-secondary small mb-3">Mỗi Company Admin có thể chỉnh sửa tên workspace, địa chỉ, số điện thoại và email hiển thị trên đơn hàng/PDF.</p>
+    <form action="/settings/company-profile" method="post" class="row g-3">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4"><label class="form-label fw-semibold">Tên công ty</label><input class="form-control" value="{{ organization.name }}" disabled></div>
+      <div class="col-md-8"><label class="form-label fw-semibold">Địa chỉ công ty</label><input name="company_address" class="form-control" value="{{ organization.company_address or '' }}" placeholder="Địa chỉ hiển thị trên đơn hàng"></div>
+      <div class="col-md-4"><label class="form-label fw-semibold">Số điện thoại công ty</label><input name="company_phone" class="form-control" value="{{ organization.company_phone or '' }}"></div>
+      <div class="col-md-5"><label class="form-label fw-semibold">Email công ty</label><input name="company_email" type="email" class="form-control" value="{{ organization.company_email or '' }}"></div>
+      <div class="col-md-3 d-grid"><button class="btn primary-btn" type="submit">Lưu thông tin đơn hàng</button></div>
+    </form>
+  </div>
+
+  <div class="panel p-3 p-md-4 mb-4">
     <form class="row g-3 align-items-end" action="/settings/add" method="post">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="col-md-4">

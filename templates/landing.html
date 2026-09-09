@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CRM HAY | Giải pháp quản lý khách hàng và sales</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/crmhay-logo.svg') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -532,6 +533,8 @@
           <a href="#quy-trinh">Quy trình</a>
           <a href="#tin-cay">Tin cậy</a>
           <a href="#huong-dan">Hướng dẫn</a>
+          <a href="#lien-he">Liên hệ</a>
+          <a href="/pricing">Bảng giá</a>
         </div>
         <div class="ms-auto">
           <a class="btn btn-secondary" href="/login">Đăng nhập</a>
@@ -759,9 +762,24 @@
       <div class="cta text-center pb-5">
         <a class="btn btn-primary" href="/login">Bắt đầu với CRM HAY</a>
       </div>
+      <section class="section" id="lien-he">
+        <div class="section-header"><div class="eyebrow" style="background:#ecfdf5;color:#047857;">Liên hệ CRM HAY</div><h2>Đội ngũ sẵn sàng hỗ trợ doanh nghiệp</h2></div>
+        <div class="trust-strip">
+          <div class="trust-item"><strong>Hotline / Zalo</strong><a href="https://zalo.me/0707866676" target="_blank" rel="noopener">0707866676</a></div>
+          <div class="trust-item"><strong>Địa chỉ</strong><span>34/15 đường Trung Đông 7, ấp Trung Đông 2, Đông Thạnh, HCM</span></div>
+          <div class="trust-item"><strong>Email hỗ trợ</strong><a href="mailto:hotro.crmhay@gmail.com">hotro.crmhay@gmail.com</a></div>
+        </div>
+      </section>
       <footer class="site-footer d-flex justify-content-between flex-wrap gap-2">
         <span>© CRM HAY · Nền tảng vận hành bán hàng</span>
-        <span>Hỗ trợ bằng tiếng Việt · crmhay.cloud</span>
+        <span class="d-flex flex-wrap gap-3">
+          <a href="/pricing">Bảng giá</a>
+          <a href="/privacy-policy">Chính sách bảo mật</a>
+          <a href="/terms">Điều khoản sử dụng</a>
+          <a href="/data-deletion">Xóa dữ liệu</a>
+          <a href="https://zalo.me/0707866676" target="_blank" rel="noopener">Chat Zalo</a>
+          <a href="mailto:hotro.crmhay@gmail.com">hotro.crmhay@gmail.com</a>
+        </span>
       </footer>
     </div>
   </body>

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-12 col-md-7 col-lg-5">
+    <section class="panel p-4">
+      <p class="kpi-label mb-2">NÂNG CẤP GÓI</p>
+      <h1 class="page-title fs-2">{{ current_plan|title }} → {{ target_plan|title }}</h1>
+      <p class="text-secondary">Bạn sẽ thanh toán phần chênh lệch theo chu kỳ hiện tại. Sau khi PayOS xác nhận, quyền mới được kích hoạt tự động.</p>
+      <form method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="btn primary-btn w-100" type="submit">Tạo thanh toán nâng cấp</button>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

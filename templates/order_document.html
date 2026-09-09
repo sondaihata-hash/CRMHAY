@@ -6,9 +6,9 @@
 </div>
 <div class="panel p-4" style="max-width:850px;margin:auto;border:1px solid #555;color:#111">
   <small>
-    CÔNG TY CỔ PHẦN SƠN IHATA VIỆT NAM<br>
-    Địa chỉ: 34/1B đường Trung Đông 7, xã Thới Tam Thôn, huyện Hóc Môn, TP HCM<br>
-    Chi nhánh Hà Nội: 8A Đường Tri Thức, khu Đồng Non, thôn Thanh Vân, xã Tân Dân, huyện Sóc Sơn, thành phố Hà Nội
+    {{ organization.name if organization else 'CRM HAY' }}<br>
+    Địa chỉ: {{ organization.company_address if organization and organization.company_address else 'Chưa cập nhật' }}<br>
+    Điện thoại: {{ organization.company_phone if organization and organization.company_phone else '—' }} · Email: {{ organization.company_email if organization and organization.company_email else '—' }}
   </small>
   <h4 class="text-center mt-3">ĐƠN ĐẶT HÀNG</h4>
   <div class="row">

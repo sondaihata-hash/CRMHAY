@@ -30,7 +30,7 @@
 <div class="section-header"><div><p class="kpi-label mb-2">Đơn đặt hàng mới</p><h1 class="page-title">Tạo đơn cho {{ customer.name }}</h1></div><a class="btn secondary-btn" href="/customers/{{ customer.id }}">Quay lại</a></div>
 <form method="post" class="order-sheet">
 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-  <div class="order-heading"><p><b>CÔNG TY CỔ PHẦN SƠN IHATA VIỆT NAM</b></p><p>- 34/1B đường Trung Đông 7, xã Thới Tam Thôn, huyện Hóc Môn, TP HCM.</p><p>- Chi nhánh Hà Nội: 8A Đường Tri Thức, khu Đồng Non, thôn Thanh Vân, xã Tân Dân, huyện Sóc Sơn, thành phố Hà Nội.</p><p>- Số tài khoản: ....................................................</p><p>Tel: .................................................................</p></div>
+  <div class="order-heading"><p><b>{{ organization.name if organization else 'CRM HAY' }}</b></p><p>- {{ organization.company_address if organization and organization.company_address else 'Chưa cập nhật địa chỉ công ty' }}.</p><p>- Email: {{ organization.company_email if organization and organization.company_email else '—' }} · Tel: {{ organization.company_phone if organization and organization.company_phone else '—' }}</p></div>
   <div class="order-title">ĐƠN ĐẶT HÀNG</div>
   <div class="order-meta">
     <div><label>Tên khách hàng:</label><input name="customer_name_display" value="{{ customer.name }}" readonly></div>

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-12 col-md-7 col-lg-5">
+    <section class="panel p-4">
+      <p class="kpi-label mb-2">ĐĂNG KÝ VÀ THANH TOÁN</p>
+      <h1 class="page-title fs-2">{{ selected.name }} · {{ '{:,.0f}'.format(amount) }}đ/{{ 'tháng' if billing_interval == 'monthly' else 'năm' }}</h1>
+      {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" class="mt-4">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <label class="form-label">Chu kỳ thanh toán</label>
+        <div class="d-flex gap-3 mb-4">
+          <label class="form-check flex-fill border rounded p-3">
+            <input class="form-check-input" type="radio" name="billing_interval" value="monthly" {% if billing_interval == 'monthly' %}checked{% endif %}>
+            <span class="form-check-label">Theo tháng<br><strong>{{ '{:,.0f}'.format(selected.monthly_amount) }}đ/tháng</strong></span>
+          </label>
+          <label class="form-check flex-fill border rounded p-3">
+            <input class="form-check-input" type="radio" name="billing_interval" value="yearly" {% if billing_interval == 'yearly' %}checked{% endif %}>
+            <span class="form-check-label">Theo năm<br><strong>{{ '{:,.0f}'.format(selected.yearly_amount) }}đ/năm</strong></span>
+          </label>
+        </div>
+        <label class="form-label">Tên doanh nghiệp</label>
+        <input class="form-control mb-3" name="organization_name" required>
+        <label class="form-label">Tên đăng nhập quản trị</label>
+        <input class="form-control mb-3" name="username" required autocomplete="username">
+        <label class="form-label">Mật khẩu (tối thiểu 8 ký tự)</label>
+        <input class="form-control mb-4" name="password" type="password" minlength="8" required autocomplete="new-password">
+        <button class="btn primary-btn w-100" type="submit">Tạo tài khoản và thanh toán PayOS</button>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

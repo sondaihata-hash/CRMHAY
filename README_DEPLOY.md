@@ -191,6 +191,35 @@ dọn các số hotline từng bị lưu nhầm trên hồ sơ khách. Nếu s�
 cập nhật biến môi trường rồi khởi động lại dịch vụ hoặc chạy lại **Đồng bộ dữ
 liệu Facebook**.
 
+### 1.5 Cấu hình thanh toán PayOS
+
+Checkout công khai tại `/checkout/<plan>` tạo workspace và tài khoản ở trạng
+thái chờ thanh toán. PayOS chỉ kích hoạt workspace và tài khoản sau khi webhook
+đã xác minh chữ ký, mã giao dịch và số tiền. Cấu hình các biến sau trong
+**Render → Web Service → Environment** (không commit giá trị thật vào Git):
+
+```text
+PAYOS_CLIENT_ID=<Client ID từ PayOS>
+PAYOS_API_KEY=<API key từ PayOS>
+PAYOS_WEBHOOK_SECRET=<Webhook secret từ PayOS>
+PAYOS_API_URL=https://api-merchant.payos.vn
+```
+
+`PAYOS_API_URL` là tùy chọn và mặc định là `https://api-merchant.payos.vn`;
+giữ biến này khi dùng sandbox hoặc endpoint riêng. Trong trang quản trị PayOS,
+đặt webhook URL là:
+
+```text
+https://crmhay.cloud/api/payos/webhook
+```
+
+Không bật checkout production nếu thiếu `PAYOS_CLIENT_ID` hoặc
+`PAYOS_API_KEY`: ứng dụng sẽ trả lỗi cấu hình rõ ràng thay vì tạo tài khoản
+đã kích hoạt. Không dùng `PAYOS_API_KEY` hoặc webhook secret trong template,
+log, issue hay file cấu hình được commit. Sau khi cấu hình, kiểm tra `/pricing`,
+tạo một checkout thử nghiệm và xác nhận webhook trả HTTP 200; không kích hoạt
+thủ công trong database.
+
 Mặc định CRM quét lần lượt toàn bộ cuộc hội thoại và tự đi qua tất cả các trang
 phân trang của Facebook cho mọi Page đã tìm thấy. CRM lấy 25 cuộc hội thoại mỗi
 lượt gọi API; các tin nhắn trong từng hội thoại vẫn được phân trang đầy đủ.
@@ -201,7 +230,7 @@ khi không đặt các biến giới hạn hội thoại/API này,
 CRM sẽ quét toàn bộ Page, toàn bộ hội thoại và toàn bộ các trang tin nhắn mà
 Facebook trả về.
 
-### 1.5 Đặt lại mật khẩu Admin trên Render Free
+### 1.6 Đặt lại mật khẩu Admin trên Render Free
 
 Nếu Admin đã tồn tại và quên mật khẩu, vào **Render → Web Service → Environment**
 và thêm tạm thời:
@@ -221,7 +250,7 @@ CRM_ADMIN_USERNAME=admin
 CRM_ADMIN_RESET_PASSWORD=<mat-khau-moi>
 ```
 
-### 1.6 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
+### 1.7 Bổ sung nơi ở từ Facebook Profile (tuỳ quyền ứng dụng)
 
 CRM luôn ưu tiên nơi ở khách tự ghi trong tin nhắn. Với khách không ghi nơi ở,
 có thể bật fallback từ Facebook Profile API bằng biến môi trường:
@@ -363,3 +392,33 @@ Khi muốn đổi domain mới (VD: crmhay.vn):
 - [Render Docs](https://render.com/docs)
 - [Cloudflare DNS](https://www.cloudflare.com/learning/dns/)
 - [Mắt Bào Support](https://support.matbao.vn)
+## Production security checklist
+
+Before exposing CRM HAY to customers, configure these secrets in the hosting
+provider; do not commit them to Git:
+
+- `CRM_SECRET_KEY`: a long random value, unique per environment.
+- `CRM_ADMIN_USERNAME` and `CRM_ADMIN_PASSWORD`: bootstrap credentials only.
+- `FACEBOOK_APP_SECRET`: required for signed Facebook webhook requests.
+- `FACEBOOK_WEBHOOK_VERIFY_TOKEN`: private Meta webhook verification value.
+- `ZALO_WEBHOOK_SECRET`: HMAC secret sent in the `X-Zalo-Signature` header.
+- `DATABASE_URL`: managed PostgreSQL with SSL enabled.
+- `REDIS_URL` and `CRM_USE_CELERY=true`: durable background Facebook sync jobs.
+
+For production, run a separate Celery worker alongside the web service:
+
+```bash
+celery -A app.celery worker --loglevel=INFO --concurrency=2
+```
+
+The web service intentionally refuses Facebook sync when production is
+configured without a durable worker.
+
+Health endpoints:
+
+- `GET /healthz` checks that the web process is responding.
+- `GET /readyz` checks that the database connection is available.
+
+The production container exposes `/readyz` as its Docker health check. Use a
+managed database and scheduled off-site backups; the local SQLite database is
+only suitable for development or a single-PC installation.

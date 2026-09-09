@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-12 col-md-7">
+    <section class="panel p-5 text-center">
+      <p class="kpi-label">THANH TOÁN CRM HAY</p>
+      <h1 class="page-title fs-2">Trạng thái: {{ payment.status }}</h1>
+      {% if payment.status == 'paid' %}
+        <p class="text-success">Thanh toán thành công. Tài khoản của bạn đã được kích hoạt.</p>
+        <a class="btn primary-btn" href="{{ url_for('login') }}">Đăng nhập CRM</a>
+      {% elif payment.checkout_url %}
+        <p class="text-secondary">Chưa nhận được xác nhận thanh toán. Bạn có thể tiếp tục thanh toán.</p>
+        <a class="btn primary-btn" href="{{ payment.checkout_url }}">Mở PayOS</a>
+      {% else %}
+        <p class="text-secondary">Đang chờ tạo liên kết thanh toán.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
