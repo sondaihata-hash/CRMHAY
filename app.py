@@ -4236,7 +4236,6 @@ def _run_facebook_sync(job_id=None):
 
 def _hourly_business_sync_loop():
     while True:
-        time.sleep(3600)
         try:
             with app.app_context():
                 sync_organizations = {
@@ -4251,6 +4250,10 @@ def _hourly_business_sync_loop():
                 ).join(Organization).filter(Organization.slug == 'default').first()
                 if default_admin and plan_allows('hourly_sync', default_admin):
                     sync_organizations.add(default_admin.organization_id)
+                logger.info(
+                    'Hourly Facebook sync scheduler: eligible organizations=%s',
+                    sorted(sync_organizations),
+                )
                 for organization_id in sync_organizations:
                     set_tenant_context(organization_id)
                     try:
@@ -4281,6 +4284,7 @@ def _hourly_business_sync_loop():
                         set_tenant_context(None)
         except Exception:
             logger.exception('Hourly Business sync scheduler failed')
+        time.sleep(3600)
 
 
 if celery:
