@@ -149,3 +149,75 @@ def test_admin_can_assign_all_customers_from_page_to_sales():
                     db.session.delete(customer)
             db.session.delete(db.session.get(User, sales_id))
             db.session.commit()
+
+
+def test_manager_can_view_and_reassign_team_customers():
+    with app.app_context():
+        admin = User.query.filter_by(username='test_admin').first()
+        if not admin:
+            admin = User(
+                username='test_admin',
+                password_hash=generate_password_hash('TestAdminPass123!'),
+                role='admin',
+            )
+            db.session.add(admin)
+            db.session.flush()
+        manager = User(
+            username=f'manager_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('ManagerPass123!'),
+            role='manager',
+            organization_id=admin.organization_id,
+        )
+        sales_one = User(
+            username=f'sales_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            manager=manager,
+            organization_id=admin.organization_id,
+        )
+        sales_two = User(
+            username=f'sales_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            manager=manager,
+            organization_id=admin.organization_id,
+        )
+        customer = Customer(
+            name=f'Team customer {uuid.uuid4().hex}',
+            assigned_user=sales_one,
+            organization_id=admin.organization_id,
+        )
+        db.session.add_all([manager, sales_one, sales_two, customer])
+        db.session.commit()
+        manager_username = manager.username
+        manager_id, sales_one_id, sales_two_id, customer_id = (
+            manager.id, sales_one.id, sales_two.id, customer.id,
+        )
+
+    try:
+        client = app.test_client()
+        assert client.post(
+            '/login',
+            data={'username': manager_username, 'password': 'ManagerPass123!'},
+        ).status_code == 302
+        assert client.get(f'/customers/{customer_id}').status_code == 200
+        response = client.post(
+            f'/customers/{customer_id}/assign',
+            data={
+                'assigned_user_id': sales_two_id,
+                '_csrf_token': csrf_token(client, '/customers'),
+            },
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            assert db.session.get(Customer, customer_id).assigned_user_id == sales_two_id
+    finally:
+        with app.app_context():
+            for model, item_id in (
+                (Customer, customer_id), (User, sales_one_id),
+                (User, sales_two_id), (User, manager_id),
+            ):
+                item = db.session.get(model, item_id)
+                if item:
+                    db.session.delete(item)
+            db.session.commit()
