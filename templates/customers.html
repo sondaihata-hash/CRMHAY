@@ -223,13 +223,6 @@
                 <small class="text-muted">—</small>
               {% endif %}
             </td>
-            <td>
-              {% if c.phone %}
-                <small class="fw-semibold">{{ c.phone }}</small>
-              {% else %}
-                <small class="text-muted">—</small>
-              {% endif %}
-            </td>
             {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}
             <td>
               {% if c.assigned_user %}
@@ -239,6 +232,13 @@
               {% endif %}
             </td>
             {% endif %}
+            <td>
+              {% if c.phone %}
+                <small class="fw-semibold">{{ c.phone }}</small>
+              {% else %}
+                <small class="text-muted">—</small>
+              {% endif %}
+            </td>
             <td>
               <small class="text-muted">{{ c.message_count or 0 }}</small>
             </td>
