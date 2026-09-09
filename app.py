@@ -4383,34 +4383,76 @@ def facebook_import_legacy():
 def facebook_export():
     if not plan_allows('export'):
         return 'Tính năng tải danh sách khách hàng cần nâng cấp lên gói Growth hoặc Business.', 403
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['id', 'name', 'first_name', 'last_name', 'facebook_id', 'conversation_id', 'email', 'phone', 'location', 'page_name', 'gender', 'locale', 'message_count', 'tags', 'last_message_date', 'source', 'profile_pic'])
+    output = io.StringIO(newline='')
+    writer = csv.writer(output, lineterminator='\r\n')
+    writer.writerow([
+        'STT', 'Mã khách hàng', 'Họ và tên', 'Tên', 'Họ', 'Số điện thoại',
+        'Email', 'Địa chỉ', 'Facebook ID', 'Conversation ID', 'Page',
+        'Sales phụ trách', 'Vai trò phụ trách', 'Nguồn', 'Trạng thái chăm sóc',
+        'Số tin nhắn', 'Tin nhắn cuối', 'Thời gian tin nhắn cuối', 'Ngày tạo',
+        'Nhãn', 'Giới tính', 'Ngôn ngữ', 'Facebook Lead ID', 'Link ảnh đại diện',
+        'Ghi chú',
+    ])
 
-    customers_list = Customer.query.order_by(Customer.created_at.desc()).all()
-    for customer in customers_list:
+    customers_list = visible_customer_query().order_by(
+        Customer.page_name.asc(),
+        Customer.assigned_user_id.is_(None).asc(),
+        Customer.assigned_user_id.asc(),
+        Customer.name.asc(),
+        Customer.id.asc(),
+    ).all()
+    assigned_user_ids = {
+        customer.assigned_user_id for customer in customers_list
+        if customer.assigned_user_id is not None
+    }
+    assigned_users = {
+        user.id: user for user in User.query.filter(User.id.in_(assigned_user_ids)).all()
+    } if assigned_user_ids else {}
+    contacted_customer_ids = {
+        customer_id for (customer_id,) in CustomerActivity.query.filter(
+            CustomerActivity.customer_id.in_([customer.id for customer in customers_list])
+        ).with_entities(CustomerActivity.customer_id).distinct().all()
+    } if customers_list else set()
+
+    for index, customer in enumerate(customers_list, start=1):
+        assigned_user = assigned_users.get(customer.assigned_user_id)
         writer.writerow([
+            index,
             customer.id,
-            customer.name,
+            customer.name or '',
             customer.first_name or '',
             customer.last_name or '',
+            customer.phone or '',
+            customer.email or '',
+            customer.location or '',
             customer.facebook_id or '',
             customer.conversation_id or '',
-            customer.email or '',
-            customer.phone or '',
-            customer.location or '',
             customer.page_name or '',
+            assigned_user.username if assigned_user else '',
+            assigned_user.role if assigned_user else '',
+            customer.source or '',
+            'Đã liên hệ' if customer.id in contacted_customer_ids else 'Chưa liên hệ',
+            customer.message_count or 0,
+            customer.message_excerpt or '',
+            customer.last_message_date.strftime('%Y-%m-%d %H:%M:%S') if customer.last_message_date else '',
+            customer.created_at.strftime('%Y-%m-%d %H:%M:%S') if customer.created_at else '',
+            customer.tags or '',
             customer.gender or '',
             customer.locale or '',
-            customer.message_count or 0,
-            customer.tags or '',
-            customer.last_message_date.strftime('%Y-%m-%d %H:%M:%S') if customer.last_message_date else '',
-            customer.source or '',
+            customer.facebook_lead_id or '',
             customer.profile_pic or '',
+            customer.notes or '',
         ])
 
-    csv_data = output.getvalue()
-    return Response(csv_data, mimetype='text/csv', headers={'Content-Disposition': 'attachment; filename=facebook_customers.csv'})
+    csv_data = '\ufeff' + output.getvalue()
+    return Response(
+        csv_data,
+        mimetype='text/csv; charset=utf-8',
+        headers={
+            'Content-Disposition': 'attachment; filename=facebook_customers.csv',
+            'X-Content-Type-Options': 'nosniff',
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
