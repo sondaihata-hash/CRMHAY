@@ -687,7 +687,12 @@ def visible_customer_query():
         query = query.filter(Customer.organization_id == user.organization_id)
     if user.role == 'manager':
         managed_ids = User.query.filter(User.manager_id == user.id).with_entities(User.id)
-        query = query.filter(Customer.assigned_user_id.in_(managed_ids))
+        query = query.filter(
+            db.or_(
+                Customer.assigned_user_id == user.id,
+                Customer.assigned_user_id.in_(managed_ids),
+            )
+        )
     elif user.role != 'admin':
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
@@ -701,11 +706,11 @@ def assignable_sales_user(user_id):
     actor = current_user()
     query = User.query.filter(
         User.id == user_id,
-        User.role.in_(('sales', 'employee')),
+        User.role.in_(('sales', 'employee', 'manager')),
         User.is_active.is_(True),
     )
     if actor.role == 'manager':
-        query = query.filter(User.manager_id == actor.id)
+        query = query.filter(User.role.in_(('sales', 'employee')), User.manager_id == actor.id)
     return query.first()
 
 
@@ -3392,7 +3397,7 @@ def customers():
         page_names=page_names,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
         sales_users=User.query.filter(
-            User.role.in_(('sales', 'employee')),
+            User.role.in_(('sales', 'employee', 'manager') if current_user().role in {'admin', 'dev'} else ('sales', 'employee')),
             User.is_active.is_(True),
             *([User.manager_id == current_user().id] if current_user().role == 'manager' else []),
         ).order_by(User.username).all(),
@@ -4514,7 +4519,12 @@ def api_visible_customer_query():
     query = Customer.query
     if user.role == 'manager':
         managed_ids = User.query.filter(User.manager_id == user.id).with_entities(User.id)
-        query = query.filter(Customer.assigned_user_id.in_(managed_ids))
+        query = query.filter(
+            db.or_(
+                Customer.assigned_user_id == user.id,
+                Customer.assigned_user_id.in_(managed_ids),
+            )
+        )
     elif user.role != 'admin':
         query = query.filter(Customer.assigned_user_id == user.id)
     return query
