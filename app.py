@@ -1100,7 +1100,15 @@ def payos_webhook():
                     quantity = 0
                 if not isinstance(quantity, int) or quantity < 1:
                     return {'ok': False, 'message': 'Invalid Sales seat quantity.'}, 400
-                payment.organization.sales_seat_addons = quantity
+                existing_quantity = payment.organization.sales_seat_addons or 0
+                if (
+                    payment.organization.sales_seat_addons_expires_at
+                    and payment.organization.sales_seat_addons_expires_at >= payment.paid_at
+                ):
+                    existing_quantity = payment.organization.sales_seat_addons
+                else:
+                    existing_quantity = 0
+                payment.organization.sales_seat_addons = existing_quantity + quantity
                 payment.organization.sales_seat_addons_expires_at = payment.paid_at + timedelta(days=30)
             else:
                 payment.subscription.status = 'active'
