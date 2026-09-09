@@ -188,6 +188,10 @@ def test_manager_can_view_and_reassign_team_customers():
             organization_id=admin.organization_id,
         )
         db.session.add_all([manager, sales_one, sales_two, customer])
+        db.session.flush()
+        sales_one.manager_id = manager.id
+        sales_two.manager_id = manager.id
+        customer.assigned_user_id = sales_one.id
         db.session.commit()
         manager_username = manager.username
         manager_id, sales_one_id, sales_two_id, customer_id = (
