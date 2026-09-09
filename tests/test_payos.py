@@ -4,7 +4,7 @@ from unittest import mock
 
 from app import (
     Payment, Subscription, User, Organization, _payos_signature, PLAN_FEATURES,
-    SALES_SEAT_MONTHLY_PRICE, app, db,
+    SALES_SEAT_MONTHLY_PRICE, is_default_admin, plan_allows, app, db,
 )
 from werkzeug.security import generate_password_hash
 
@@ -149,3 +149,39 @@ def test_sales_seat_purchase_and_webhook_activation():
         db.session.delete(db.session.get(User, admin_id))
         db.session.delete(organization)
         db.session.commit()
+
+
+def test_only_configured_default_admin_gets_hourly_sync_without_business():
+    username = f'default-admin-{uuid.uuid4().hex}'
+    with app.app_context():
+        default_org = Organization.query.filter_by(slug='default').first()
+        user = User(
+            username=username,
+            password_hash=generate_password_hash('Password123!'),
+            role='admin',
+            organization_id=default_org.id,
+        )
+        other_org = Organization(name='Other Hourly Test', slug=f'other-hourly-{uuid.uuid4().hex}')
+        db.session.add(other_org)
+        db.session.flush()
+        other = User(
+            username=f'other-admin-{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('Password123!'),
+            role='admin',
+            organization_id=other_org.id,
+        )
+        db.session.add_all([user, other])
+        db.session.commit()
+        user_id, other_id, other_org_id = user.id, other.id, other_org.id
+    try:
+        with mock.patch.dict('os.environ', {'CRM_ADMIN_USERNAME': username}, clear=False):
+            with app.app_context():
+                assert is_default_admin(db.session.get(User, user_id))
+                assert plan_allows('hourly_sync', db.session.get(User, user_id))
+                assert not plan_allows('hourly_sync', db.session.get(User, other_id))
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(User, user_id))
+            db.session.delete(db.session.get(User, other_id))
+            db.session.delete(db.session.get(Organization, other_org_id))
+            db.session.commit()
