@@ -140,7 +140,7 @@ def test_developer_can_create_and_edit_company_information():
         data={
             '_csrf_token': token,
             'name': 'Managed Company Updated',
-            'slug': 'managed-company-updated',
+            'slug': f'managed-company-updated-{suffix}',
             'company_address': '2 Updated Street',
             'company_phone': '0911111111',
             'company_email': 'updated@managed.test',
