@@ -3289,6 +3289,35 @@ def customers():
     total_pages = max(1, (total_count + per_page - 1) // per_page)
     page = min(page, total_pages)
     items = ordered_query.offset((page - 1) * per_page).limit(per_page).all()
+    item_ids = [customer.id for customer in items]
+    called_customer_ids = set()
+    contacted_customer_ids = set()
+    if item_ids:
+        activity_rows = CustomerActivity.query.filter(
+            CustomerActivity.customer_id.in_(item_ids),
+        ).with_entities(
+            CustomerActivity.customer_id, CustomerActivity.activity_type,
+        ).all()
+        called_customer_ids = {
+            customer_id for customer_id, activity_type in activity_rows
+            if activity_type == 'call'
+        }
+        contacted_customer_ids = {customer_id for customer_id, _ in activity_rows}
+    for customer in items:
+        customer.has_call = customer.id in called_customer_ids
+        customer.has_contact = customer.id in contacted_customer_ids
+        customer.needs_call = not customer.has_call
+        customer.message_needs_attention = bool(
+            customer.last_customer_message_at
+            and (
+                not customer.has_call
+                or not CustomerActivity.query.filter(
+                    CustomerActivity.customer_id == customer.id,
+                    CustomerActivity.activity_type == 'call',
+                    CustomerActivity.created_at >= customer.last_customer_message_at,
+                ).first()
+            )
+        )
 
     if request.args.get('format') == 'json':
         return {
