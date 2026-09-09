@@ -1070,14 +1070,19 @@ def run_system_health_check():
             db.session.rollback()
             record_developer_alert('critical', 'database', f'Cơ sở dữ liệu không phản hồi: {exc}')
 
+        threshold_setting = Setting.query.filter_by(
+            organization_id=None, key='developer.storage_warning_percent'
+        ).first()
+        warning_percent = int(threshold_setting.value) if threshold_setting and threshold_setting.value.isdigit() else 20
+        critical_percent = max(5, warning_percent // 2)
         usage = shutil.disk_usage(BASE_DIR)
         free_percent = (usage.free / usage.total * 100) if usage.total else 0
-        if free_percent < 10:
+        if free_percent < critical_percent:
             record_developer_alert(
                 'critical', 'storage',
                 f'Ổ đĩa còn {free_percent:.1f}% dung lượng trống ({usage.free / 1024**3:.1f} GB).',
             )
-        elif free_percent < 20:
+        elif free_percent < warning_percent:
             record_developer_alert(
                 'warning', 'storage',
                 f'Ổ đĩa còn {free_percent:.1f}% dung lượng trống; cần dọn dẹp hoặc nâng cấp.',
