@@ -8,15 +8,19 @@
   <form method="post" class="row g-3 align-items-end">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <div class="col-md-4"><label class="form-label fw-semibold">Tên công ty</label><input class="form-control" name="name" required placeholder="Công ty ABC"></div>
+    <div class="col-md-3"><label class="form-label fw-semibold">Slug tùy chọn</label><input class="form-control" name="slug" placeholder="cong-ty-abc"></div>
     <div class="col-md-3"><label class="form-label fw-semibold">Tài khoản Company Admin</label><input class="form-control" name="username" required></div>
     <div class="col-md-3"><label class="form-label fw-semibold">Mật khẩu tạm thời</label><input class="form-control" name="password" type="password" minlength="8" required></div>
+    <div class="col-md-3"><label class="form-label fw-semibold">Địa chỉ</label><input class="form-control" name="company_address"></div>
+    <div class="col-md-2"><label class="form-label fw-semibold">Điện thoại</label><input class="form-control" name="company_phone"></div>
+    <div class="col-md-3"><label class="form-label fw-semibold">Email</label><input class="form-control" name="company_email" type="email"></div>
     <div class="col-md-2 d-grid"><button class="btn primary-btn">Tạo công ty</button></div>
   </form>
 </section>
 <section class="panel table-card">
   <div class="customer-list-toolbar"><span>Workspace</span><span class="text-secondary">{{ organizations|length }} công ty</span></div>
-  <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Công ty</th><th>Slug</th><th>Trạng thái</th><th>Ngày tạo</th><th>Người dùng</th></tr></thead><tbody>
-  {% for organization in organizations %}<tr><td class="fw-semibold">{{ organization.name }}</td><td>{{ organization.slug }}</td><td>{{ 'Đang hoạt động' if organization.is_active else 'Đã khóa' }}</td><td>{{ organization.created_at.strftime('%d/%m/%Y') }}</td><td>{{ organization.users|length }}</td></tr>{% else %}<tr><td colspan="5" class="text-center text-secondary py-4">Chưa có workspace.</td></tr>{% endfor %}
+  <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Công ty</th><th>Liên hệ</th><th>Slug</th><th>Trạng thái</th><th>Ngày tạo</th><th>Người dùng</th><th>Thao tác</th></tr></thead><tbody>
+  {% for organization in organizations %}<tr><td class="fw-semibold">{{ organization.name }}</td><td class="small">{{ organization.company_address or 'Chưa có địa chỉ' }}<br>{{ organization.company_phone or '' }}{% if organization.company_email %}<br>{{ organization.company_email }}{% endif %}</td><td>{{ organization.slug }}</td><td>{{ 'Đang hoạt động' if organization.is_active else 'Đã khóa' }}</td><td>{{ organization.created_at.strftime('%d/%m/%Y') }}</td><td>{{ organization.users|length }}</td><td><details><summary class="btn btn-sm btn-outline-primary">Sửa</summary><form method="post" action="{{ url_for('edit_organization', organization_id=organization.id) }}" class="p-2 bg-light rounded mt-2" style="min-width:280px"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input class="form-control form-control-sm mb-2" name="name" value="{{ organization.name }}" required><input class="form-control form-control-sm mb-2" name="slug" value="{{ organization.slug }}" required><input class="form-control form-control-sm mb-2" name="company_address" value="{{ organization.company_address or '' }}" placeholder="Địa chỉ"><input class="form-control form-control-sm mb-2" name="company_phone" value="{{ organization.company_phone or '' }}" placeholder="Điện thoại"><input class="form-control form-control-sm mb-2" name="company_email" type="email" value="{{ organization.company_email or '' }}" placeholder="Email"><button class="btn btn-sm btn-primary">Lưu</button></form></details> <form method="post" action="{{ url_for('toggle_organization', organization_id=organization.id) }}" class="d-inline"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary">{{ 'Khóa' if organization.is_active else 'Mở khóa' }}</button></form></td></tr>{% else %}<tr><td colspan="7" class="text-center text-secondary py-4">Chưa có workspace.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% endblock %}
