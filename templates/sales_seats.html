@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="section-header">
+  <div><p class="kpi-label mb-2">MỞ RỘNG WORKSPACE</p><h1 class="page-title">Mua thêm tài khoản Sales</h1></div>
+</div>
+<section class="panel p-4" style="max-width: 720px;">
+  <p class="text-secondary">Mỗi tài khoản Sales bổ sung có giá <strong>30.000đ/tháng</strong>. Quyền được kích hoạt sau khi PayOS xác nhận thanh toán.</p>
+  <div class="alert alert-info">Hiện tại: {{ sales_count }} / {{ seat_limit if seat_limit is not none else 'Không giới hạn' }} tài khoản Sales.</div>
+  <form method="post" class="row g-3 align-items-end">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="col-sm-7">
+      <label class="form-label fw-semibold" for="quantity">Số tài khoản Sales muốn mua thêm</label>
+      <input class="form-control" id="quantity" name="quantity" type="number" min="1" max="100" value="1" required>
+    </div>
+    <div class="col-sm-5 d-grid">
+      <button class="btn primary-btn" type="submit">Thanh toán PayOS</button>
+    </div>
+  </form>
+  <p class="small text-secondary mt-3 mb-0">Gói bổ sung có hiệu lực 30 ngày kể từ lúc thanh toán thành công.</p>
+</section>
+{% endblock %}
