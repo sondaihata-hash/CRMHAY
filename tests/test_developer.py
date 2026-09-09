@@ -111,14 +111,17 @@ def test_developer_can_manage_accounts_across_organizations():
 def test_developer_can_create_and_edit_company_information():
     client = app.test_client()
     login_developer(client)
+    suffix = uuid.uuid4().hex[:8]
+    slug = f'managed-company-{suffix}'
+    username = f'managed-company-admin-{suffix}'
     token = csrf_token(client, '/platform/organizations')
     response = client.post(
         '/platform/organizations',
         data={
             '_csrf_token': token,
             'name': 'Managed Company',
-            'slug': 'managed-company',
-            'username': 'managed-company-admin',
+            'slug': slug,
+            'username': username,
             'password': 'ManagedCompanyPass123!',
             'company_address': '1 Test Street',
             'company_phone': '0900000000',
@@ -127,7 +130,7 @@ def test_developer_can_create_and_edit_company_information():
     )
     assert response.status_code == 302
     with app.app_context():
-        organization = Organization.query.filter_by(slug='managed-company').one()
+        organization = Organization.query.filter_by(slug=slug).one()
         organization_id = organization.id
         assert organization.company_address == '1 Test Street'
 
