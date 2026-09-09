@@ -107,6 +107,13 @@
             <option value="date" {% if sort == 'date' %}selected{% endif %}>Theo ngày</option>
             <option value="page" {% if sort == 'page' %}selected{% endif %}>Theo Page</option>
           </select>
+          {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}
+          <select class="form-select form-select-sm" name="assignment" onchange="this.form.submit()" aria-label="Lọc trạng thái Sales">
+            <option value="all" {% if assignment_filter == 'all' %}selected{% endif %}>Tất cả trạng thái Sales</option>
+            <option value="assigned" {% if assignment_filter == 'assigned' %}selected{% endif %}>Đã có Sales</option>
+            <option value="unassigned" {% if assignment_filter == 'unassigned' %}selected{% endif %}>Chưa có Sales</option>
+          </select>
+          {% endif %}
           {% if sort == 'page' %}
           <select class="form-select form-select-sm" name="page_name" onchange="this.form.submit()" aria-label="Chọn Page">
             <option value="">Tất cả Page</option>
@@ -148,6 +155,7 @@
             <th style="width: 24%; min-width: 180px;">Tên Khách</th>
             <th style="width: 12%; min-width: 110px;">Nơi ở</th>
             <th style="width: 14%; min-width: 110px;">Page</th>
+            {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}<th style="width: 13%; min-width: 130px;">Sales phụ trách</th>{% endif %}
             <th style="width: 12%; min-width: 110px;">Số điện thoại</th>
             <th style="width: 7%; min-width: 70px;">Tin nhắn</th>
             <th style="width: 12%; min-width: 110px;">Ngày nhắn</th>
@@ -221,6 +229,15 @@
                 <small class="text-muted">—</small>
               {% endif %}
             </td>
+            {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}
+            <td>
+              {% if c.assigned_user %}
+                <span class="badge bg-primary">{{ c.assigned_user.username }}</span>
+              {% else %}
+                <span class="text-muted">Chưa có Sales</span>
+              {% endif %}
+            </td>
+            {% endif %}
             <td>
               <small class="text-muted">{{ c.message_count or 0 }}</small>
             </td>
@@ -260,7 +277,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 11 if current_user and current_user().role in ['admin', 'dev', 'manager'] else 10 }}" class="text-center text-muted py-4">Không có khách hàng nào.</td>
+            <td colspan="{{ 12 if current_user and current_user().role in ['admin', 'dev', 'manager'] else 10 }}" class="text-center text-muted py-4">Không có khách hàng nào.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -273,19 +290,19 @@
         </span>
         <div class="btn-group" role="group">
           {% if page > 1 %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, page=page - 1) }}">← Trước</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, page=page - 1) }}">← Trước</a>
           {% endif %}
           {% for page_number in range(1, total_pages + 1) %}
             {% if page_number == page %}
             <span class="btn btn-sm btn-primary">{{ page_number }}</span>
             {% elif page_number <= 3 or page_number > total_pages - 2 or (page_number >= page - 1 and page_number <= page + 1) %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, page=page_number) }}">{{ page_number }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, page=page_number) }}">{{ page_number }}</a>
             {% elif page_number == 4 or page_number == total_pages - 2 %}
             <span class="btn btn-sm btn-outline-secondary disabled">…</span>
             {% endif %}
           {% endfor %}
           {% if page < total_pages %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, page=page + 1) }}">Sau →</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, page=page + 1) }}">Sau →</a>
           {% endif %}
         </div>
       </div>

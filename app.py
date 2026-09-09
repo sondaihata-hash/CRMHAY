@@ -3308,6 +3308,9 @@ def customers():
     if sort not in {'date', 'newest', 'page'}:
         sort = 'newest'
     selected_page_name = request.args.get('page_name', '').strip()
+    assignment_filter = request.args.get('assignment', 'all').strip().lower()
+    if assignment_filter not in {'all', 'assigned', 'unassigned'}:
+        assignment_filter = 'all'
     sync_job_id = request.args.get('sync_job', '')
     try:
         page = max(1, int(request.args.get('page', 1)))
@@ -3335,6 +3338,10 @@ def customers():
         )
     if selected_page_name:
         base_query = base_query.filter(Customer.page_name == selected_page_name)
+    if assignment_filter == 'assigned':
+        base_query = base_query.filter(Customer.assigned_user_id.isnot(None))
+    elif assignment_filter == 'unassigned':
+        base_query = base_query.filter(Customer.assigned_user_id.is_(None))
     ordered_query = base_query.order_by(*customer_sort_order(sort))
     total_count = ordered_query.count()
     total_pages = max(1, (total_count + per_page - 1) // per_page)
@@ -3399,6 +3406,7 @@ def customers():
         'customers.html', customers=items, customer_stats=customer_stats,
         total_count=total_count, page=page, total_pages=total_pages,
         q=q, sync_job_id=sync_job_id, sort=sort, selected_page_name=selected_page_name,
+        assignment_filter=assignment_filter,
         page_names=page_names,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
         sales_users=User.query.filter(
