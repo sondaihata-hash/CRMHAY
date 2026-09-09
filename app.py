@@ -1044,6 +1044,181 @@ def readyz():
     return {'ok': True, 'service': 'crmhay', 'database': 'ready'}
 
 
+def record_developer_alert(severity, category, message):
+    fingerprint = hashlib.sha256(f'{category}:{message}'.encode('utf-8')).hexdigest()
+    existing = DeveloperAlert.query.filter_by(
+        fingerprint=fingerprint, is_resolved=False,
+    ).first()
+    if existing:
+        return existing
+    alert = DeveloperAlert(
+        severity=severity, category=category, message=message,
+        fingerprint=fingerprint,
+    )
+    db.session.add(alert)
+    db.session.commit()
+    logger.warning('Developer alert [%s] %s: %s', severity, category, message)
+    return alert
+
+
+def run_system_health_check():
+    """Run inexpensive checks that are safe to execute from the web process."""
+    with app.app_context():
+        try:
+            db.session.execute(text('SELECT 1'))
+        except Exception as exc:
+            db.session.rollback()
+            record_developer_alert('critical', 'database', f'Cơ sở dữ liệu không phản hồi: {exc}')
+
+        usage = shutil.disk_usage(BASE_DIR)
+        free_percent = (usage.free / usage.total * 100) if usage.total else 0
+        if free_percent < 10:
+            record_developer_alert(
+                'critical', 'storage',
+                f'Ổ đĩa còn {free_percent:.1f}% dung lượng trống ({usage.free / 1024**3:.1f} GB).',
+            )
+        elif free_percent < 20:
+            record_developer_alert(
+                'warning', 'storage',
+                f'Ổ đĩa còn {free_percent:.1f}% dung lượng trống; cần dọn dẹp hoặc nâng cấp.',
+            )
+
+        if psutil:
+            memory = psutil.virtual_memory()
+            cpu = psutil.cpu_percent(interval=0.2)
+            if memory.percent >= 90:
+                record_developer_alert('critical', 'hardware', f'RAM đang sử dụng {memory.percent:.1f}%.')
+            elif memory.percent >= 80:
+                record_developer_alert('warning', 'hardware', f'RAM đang sử dụng {memory.percent:.1f}%.')
+            if cpu >= 95:
+                record_developer_alert('critical', 'hardware', f'CPU đang sử dụng {cpu:.1f}%.')
+            elif cpu >= 85:
+                record_developer_alert('warning', 'hardware', f'CPU đang sử dụng {cpu:.1f}%.')
+        else:
+            record_developer_alert(
+                'info', 'hardware',
+                'Chưa cài psutil nên chưa đo được CPU/RAM; hãy cài dependencies của ứng dụng.',
+            )
+
+        log_path = os.path.join(BASE_DIR, 'logs', 'vps-supervisor.log')
+        if os.path.isfile(log_path):
+            try:
+                with open(log_path, 'rb') as log_file:
+                    log_file.seek(max(0, os.path.getsize(log_path) - 65536))
+                    recent_log = log_file.read().decode('utf-8', errors='replace')
+                if 'Traceback (most recent call last)' in recent_log or re.search(r'\b(ERROR|CRITICAL)\b', recent_log):
+                    record_developer_alert(
+                        'warning', 'application',
+                        'Nhật ký supervisor có lỗi ERROR/CRITICAL hoặc traceback gần đây.',
+                    )
+            except OSError as exc:
+                logger.warning('Không đọc được supervisor log: %s', exc)
+
+
+def _developer_monitor_loop():
+    while True:
+        try:
+            run_system_health_check()
+        except Exception:
+            logger.exception('Developer health monitor failed')
+        time.sleep(300)
+
+
+def developer_command_response(command):
+    normalized = re.sub(r'\s+', ' ', (command or '').strip().lower())
+    if not normalized:
+        return 'Hãy nhập lệnh. Ví dụ: “kiểm tra hệ thống” hoặc “xem cảnh báo”.'
+    if normalized in {'kiểm tra hệ thống', 'kiem tra he thong', 'status', 'health'}:
+        run_system_health_check()
+        unresolved = DeveloperAlert.query.filter_by(is_resolved=False).order_by(
+            DeveloperAlert.created_at.desc()
+        ).all()
+        if not unresolved:
+            return 'Hệ thống đang hoạt động và chưa có cảnh báo chưa xử lý.'
+        return 'Có {} cảnh báo chưa xử lý:\n{}'.format(
+            len(unresolved),
+            '\n'.join(f'- [{alert.severity}] {alert.message}' for alert in unresolved[:10]),
+        )
+    if normalized in {'xem cảnh báo', 'xem canh bao', 'alerts'}:
+        alerts = DeveloperAlert.query.filter_by(is_resolved=False).order_by(
+            DeveloperAlert.created_at.desc()
+        ).all()
+        return '\n'.join(f'- [{alert.severity}] {alert.message}' for alert in alerts[:20]) or 'Chưa có cảnh báo.'
+    if normalized in {'cài đặt hệ thống', 'cai dat he thong', 'setup'}:
+        return (
+            'Các lệnh an toàn được hỗ trợ: “kiểm tra hệ thống”, “xem cảnh báo”, '
+            '“đặt ngưỡng lưu trữ 15”, “bật đồng bộ mỗi giờ”, “tắt đồng bộ mỗi giờ”. '
+            'Chatbot không chạy lệnh PowerShell/shell tùy ý.'
+        )
+    storage_match = re.fullmatch(r'(?:đặt|dat) ngưỡng lưu trữ (\d{1,2})', normalized)
+    if storage_match:
+        threshold = int(storage_match.group(1))
+        if threshold < 5 or threshold > 50:
+            return 'Ngưỡng lưu trữ phải từ 5% đến 50%.'
+        setting = Setting.query.filter_by(organization_id=None, key='developer.storage_warning_percent').first()
+        if not setting:
+            setting = Setting(organization_id=None, key='developer.storage_warning_percent')
+            db.session.add(setting)
+        setting.value = str(threshold)
+        db.session.commit()
+        return f'Đã đặt cảnh báo khi dung lượng trống dưới {threshold}%.'
+    if normalized in {'bật đồng bộ mỗi giờ', 'bat dong bo moi gio'}:
+        setting = Setting.query.filter_by(organization_id=None, key='developer.hourly_sync_enabled').first()
+        if not setting:
+            setting = Setting(organization_id=None, key='developer.hourly_sync_enabled')
+            db.session.add(setting)
+        setting.value = 'true'
+        db.session.commit()
+        return 'Đã bật cờ cấu hình đồng bộ mỗi giờ. Gói Business vẫn là điều kiện bắt buộc.'
+    if normalized in {'tắt đồng bộ mỗi giờ', 'tat dong bo moi gio'}:
+        setting = Setting.query.filter_by(organization_id=None, key='developer.hourly_sync_enabled').first()
+        if not setting:
+            setting = Setting(organization_id=None, key='developer.hourly_sync_enabled')
+            db.session.add(setting)
+        setting.value = 'false'
+        db.session.commit()
+        return 'Đã tắt cờ cấu hình đồng bộ mỗi giờ.'
+    return 'Tôi chưa hiểu lệnh này. Gõ “cài đặt hệ thống” để xem các lệnh được hỗ trợ.'
+
+
+@app.route('/developer')
+@developer_required
+def developer_console():
+    run_system_health_check()
+    return render_template(
+        'developer.html',
+        alerts=DeveloperAlert.query.filter_by(is_resolved=False).order_by(
+            DeveloperAlert.created_at.desc()
+        ).all(),
+        commands=DeveloperCommandLog.query.order_by(
+            DeveloperCommandLog.created_at.desc()
+        ).limit(20).all(),
+    )
+
+
+@app.route('/developer/chat', methods=['POST'])
+@developer_required
+def developer_chat():
+    command = (request.form.get('command') or '').strip()
+    result = developer_command_response(command)
+    db.session.add(DeveloperCommandLog(
+        user_id=current_user().id, command=command[:500], result=result,
+    ))
+    db.session.commit()
+    return redirect(url_for('developer_console'))
+
+
+@app.route('/developer/alerts/<int:alert_id>/resolve', methods=['POST'])
+@developer_required
+def resolve_developer_alert(alert_id):
+    alert = DeveloperAlert.query.get_or_404(alert_id)
+    alert.is_resolved = True
+    alert.resolved_at = datetime.utcnow()
+    db.session.commit()
+    flash('Đã đánh dấu cảnh báo là đã xử lý.', 'success')
+    return redirect(url_for('developer_console'))
+
+
 @app.route('/downloads/<path:filename>')
 def mobile_download(filename):
     if filename != APP_DOWNLOAD_FILE:
