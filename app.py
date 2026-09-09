@@ -517,6 +517,20 @@ def ensure_organization_contact_columns():
     db.session.commit()
 
 
+def ensure_sales_seat_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('organization')}
+    new_columns = {
+        'sales_seat_addons': 'INTEGER NOT NULL DEFAULT 0',
+        'sales_seat_addons_expires_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME',
+    }
+    for column_name, column_type in new_columns.items():
+        if column_name not in columns:
+            db.session.execute(text(
+                f'ALTER TABLE organization ADD COLUMN {column_name} {column_type}'
+            ))
+    db.session.commit()
+
+
 def ensure_message_log_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('message_log')}
     media_type = {'media_url': 'TEXT', 'media_type': 'VARCHAR(30)'}
@@ -2574,6 +2588,7 @@ def init_db():
         ensure_sync_job_columns()
         ensure_subscription_payment_columns()
         ensure_organization_contact_columns()
+        ensure_sales_seat_columns()
         ensure_setting_key_is_tenant_scoped()
         ensure_api_token_columns()
         ensure_sales_group_name_is_tenant_scoped()
