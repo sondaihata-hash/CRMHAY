@@ -4244,7 +4244,7 @@ def _run_facebook_sync(job_id=None):
                     db.session.commit()
 
 
-def _hourly_business_sync_loop():
+def _scheduled_business_sync_loop():
     while True:
         try:
             with app.app_context():
@@ -4294,7 +4294,7 @@ def _hourly_business_sync_loop():
                         set_tenant_context(None)
         except Exception:
             logger.exception('Hourly Business sync scheduler failed')
-        time.sleep(3600)
+        time.sleep(3 * 60 * 60)
 
 
 if celery:
@@ -5283,5 +5283,5 @@ if __name__ == '__main__':
 else:
     init_db()
     if is_production:
-        threading.Thread(target=_hourly_business_sync_loop, daemon=True).start()
+        threading.Thread(target=_scheduled_business_sync_loop, daemon=True).start()
         threading.Thread(target=_developer_monitor_loop, daemon=True).start()
