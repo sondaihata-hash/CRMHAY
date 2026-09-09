@@ -236,6 +236,8 @@ def test_manager_can_view_customers_assigned_directly_to_manager():
             role='manager',
             organization_id=organization.id,
         )
+        db.session.add(manager)
+        db.session.flush()
         customer = Customer(
             name=f'Direct manager customer {uuid.uuid4().hex}',
             assigned_user_id=manager.id,
