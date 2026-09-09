@@ -119,7 +119,7 @@
         <span class="text-muted small">100 khách/trang</span>
       </div>
     </div>
-    {% if current_user and current_user().role in ['admin', 'dev'] %}
+    {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}
     <form id="bulkAssignForm" method="post" action="{{ url_for('assign_customers_bulk') }}" class="bulk-assign-toolbar d-flex flex-wrap align-items-center gap-2 p-3 border-top border-bottom">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <strong class="me-2">Chuyển Sales:</strong>

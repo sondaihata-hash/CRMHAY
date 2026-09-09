@@ -660,6 +660,16 @@ def team_manager_required(view):
     return wrapped_view
 
 
+def customer_assignment_required(view):
+    @login_required
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if current_user().role not in {'admin', 'dev', 'manager'}:
+            return 'Bạn không có quyền phân công khách hàng.', 403
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
 def platform_admin_required(view):
     @wraps(view)
     @login_required
@@ -685,6 +695,18 @@ def visible_customer_query():
 
 def get_visible_customer(customer_id):
     return visible_customer_query().filter(Customer.id == customer_id).first_or_404()
+
+
+def assignable_sales_user(user_id):
+    actor = current_user()
+    query = User.query.filter(
+        User.id == user_id,
+        User.role.in_(('sales', 'employee')),
+        User.is_active.is_(True),
+    )
+    if actor.role == 'manager':
+        query = query.filter(User.manager_id == actor.id)
+    return query.first()
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -1613,12 +1635,12 @@ def delete_user(user_id):
 
 
 @app.route('/customers/<int:c_id>/assign', methods=['POST'])
-@admin_required
+@customer_assignment_required
 def assign_customer(c_id):
-    customer = Customer.query.get_or_404(c_id)
+    customer = get_visible_customer(c_id)
     user_id = request.form.get('assigned_user_id', type=int)
-    user = db.session.get(User, user_id) if user_id else None
-    if user_id and (not user or user.role not in {'sales', 'employee'} or not user.is_active):
+    user = assignable_sales_user(user_id) if user_id else None
+    if user_id and not user:
         flash('Sales được chọn không hợp lệ hoặc đã bị khóa.', 'danger')
     else:
         customer.assigned_user_id = user.id if user else None
@@ -1628,16 +1650,12 @@ def assign_customer(c_id):
 
 
 @app.route('/customers/assign-bulk', methods=['POST'])
-@admin_required
+@customer_assignment_required
 def assign_customers_bulk():
     customer_ids = request.form.getlist('customer_ids', type=int)
     user_id = request.form.get('assigned_user_id', type=int)
     page_name = (request.form.get('page_name') or '').strip()
-    user = User.query.filter(
-        User.id == user_id,
-        User.role.in_(('sales', 'employee')),
-        User.is_active.is_(True),
-    ).first() if user_id else None
+    user = assignable_sales_user(user_id) if user_id else None
     if not customer_ids and not page_name:
         flash('Hãy chọn ít nhất một khách hàng để chuyển.', 'warning')
         return redirect(url_for('customers'))
@@ -3373,7 +3391,11 @@ def customers():
         q=q, sync_job_id=sync_job_id, sort=sort, selected_page_name=selected_page_name,
         page_names=page_names,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
-        sales_users=User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username).all(),
+        sales_users=User.query.filter(
+            User.role.in_(('sales', 'employee')),
+            User.is_active.is_(True),
+            *([User.manager_id == current_user().id] if current_user().role == 'manager' else []),
+        ).order_by(User.username).all(),
         can_export=plan_allows('export'),
         current_plan=organization_plan(),
     )
