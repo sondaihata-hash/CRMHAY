@@ -70,3 +70,34 @@ def test_sales_cannot_access_admin_area_or_assign_customer():
             db.session.delete(db.session.get(Customer, customer_id))
             db.session.delete(db.session.get(User, sales_id))
             db.session.commit()
+
+
+def test_admin_can_promote_sales_to_manager():
+    username = f'sales_{uuid.uuid4().hex}'
+    with app.app_context():
+        sales = User(
+            username=username,
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+        )
+        db.session.add(sales)
+        db.session.commit()
+        sales_id = sales.id
+
+    try:
+        client = login_admin(app.test_client())
+        response = client.post(
+            f'/admin/users/{sales_id}/edit',
+            data={
+                'username': username,
+                'role': 'manager',
+                '_csrf_token': csrf_token(client, '/admin/users'),
+            },
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            assert db.session.get(User, sales_id).role == 'manager'
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(User, sales_id))
+            db.session.commit()
