@@ -1079,12 +1079,22 @@ def payos_webhook():
             payment.paid_at = datetime.utcnow()
             payment.organization.is_active = True
             payment.user.is_active = True
-            payment.subscription.status = 'active'
-            payment.subscription.plan = payment.plan
-            payment.subscription.starts_at = payment.paid_at
-            payment.subscription.ends_at = payment.paid_at + timedelta(
-                days=30 if payment.billing_interval == 'monthly' else 365
-            )
+            if payment.plan == 'sales_seats':
+                try:
+                    quantity = json.loads(payment.provider_payload or '{}').get('quantity', 0)
+                except (TypeError, ValueError):
+                    quantity = 0
+                if not isinstance(quantity, int) or quantity < 1:
+                    return {'ok': False, 'message': 'Invalid Sales seat quantity.'}, 400
+                payment.organization.sales_seat_addons = quantity
+                payment.organization.sales_seat_addons_expires_at = payment.paid_at + timedelta(days=30)
+            else:
+                payment.subscription.status = 'active'
+                payment.subscription.plan = payment.plan
+                payment.subscription.starts_at = payment.paid_at
+                payment.subscription.ends_at = payment.paid_at + timedelta(
+                    days=30 if payment.billing_interval == 'monthly' else 365
+                )
             payment.provider_payload = json.dumps(payload, ensure_ascii=False)
             db.session.commit()
     return {'ok': True}
