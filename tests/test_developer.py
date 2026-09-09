@@ -1,4 +1,5 @@
 import re
+import uuid
 
 from app import DeveloperCommandLog, Organization, User, app, db
 from auth_helpers import csrf_token
@@ -58,7 +59,7 @@ def test_developer_can_manage_accounts_across_organizations():
     with app.app_context():
         organization = Organization(
             name='Developer Test Company',
-            slug='developer-test-company',
+            slug=f'developer-test-company-{uuid.uuid4().hex[:8]}',
         )
         db.session.add(organization)
         db.session.commit()
