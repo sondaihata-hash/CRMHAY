@@ -373,12 +373,13 @@
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/customers') %}active{% endif %}" {% if request.path.startswith('/customers') %}aria-current="page"{% endif %} href="/customers">Khách hàng</a></li>
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/reminders') %}active{% endif %}" {% if request.path.startswith('/reminders') %}aria-current="page"{% endif %} href="/reminders">Nhắc việc</a></li>
             <li class="nav-item"><a class="nav-link {% if request.path.startswith('/orders') %}active{% endif %}" {% if request.path.startswith('/orders') %}aria-current="page"{% endif %} href="/orders">Đơn hàng</a></li>
-            {% if user and user.role == 'admin' %}
+            {% if user and user.role in ['admin', 'dev'] %}
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/sales-groups') %}active{% endif %}" {% if request.path.startswith('/sales-groups') %}aria-current="page"{% endif %} href="/sales-groups">Nhóm Sales</a></li>
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/settings') %}active{% endif %}" {% if request.path.startswith('/settings') %}aria-current="page"{% endif %} href="/settings">Settings</a></li>
               {% if user.is_platform_admin %}<li class="nav-item"><a class="nav-link {% if request.path.startswith('/platform/organizations') %}active{% endif %}" href="/platform/organizations">Công ty</a></li>{% endif %}
+              {% if user.role == 'dev' %}<li class="nav-item"><a class="nav-link {% if request.path.startswith('/developer') %}active{% endif %}" href="/developer">Developer Console</a></li>{% endif %}
             {% endif %}
-            {% if user and user.role in ['admin', 'manager'] %}
+            {% if user and user.role in ['admin', 'dev', 'manager'] %}
               <li class="nav-item"><a class="nav-link {% if request.path.startswith('/admin/users') %}active{% endif %}" {% if request.path.startswith('/admin/users') %}aria-current="page"{% endif %} href="/admin/users">Tài khoản & phân quyền</a></li>
             {% endif %}
           </ul>
