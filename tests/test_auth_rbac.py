@@ -74,18 +74,20 @@ def test_sales_cannot_access_admin_area_or_assign_customer():
 
 def test_admin_can_promote_sales_to_manager():
     username = f'sales_{uuid.uuid4().hex}'
+    client = login_admin(app.test_client())
     with app.app_context():
+        admin = User.query.filter_by(username='test_admin').one()
         sales = User(
             username=username,
             password_hash=generate_password_hash('SalesPass123!'),
             role='sales',
+            organization_id=admin.organization_id,
         )
         db.session.add(sales)
         db.session.commit()
         sales_id = sales.id
 
     try:
-        client = login_admin(app.test_client())
         response = client.post(
             f'/admin/users/{sales_id}/edit',
             data={
