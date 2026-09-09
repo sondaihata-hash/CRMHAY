@@ -221,3 +221,39 @@ def test_manager_can_view_and_reassign_team_customers():
                     db.session.delete(item)
             db.session.delete(db.session.get(Organization, organization_id))
             db.session.commit()
+
+
+def test_manager_can_view_customers_assigned_directly_to_manager():
+    with app.app_context():
+        organization = Organization(name=f'Direct Manager Company {uuid.uuid4().hex}', slug=f'direct-manager-{uuid.uuid4().hex}')
+        db.session.add(organization)
+        db.session.flush()
+        manager = User(
+            username=f'manager_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('ManagerPass123!'),
+            role='manager',
+            organization_id=organization.id,
+        )
+        customer = Customer(
+            name=f'Direct manager customer {uuid.uuid4().hex}',
+            assigned_user_id=manager.id,
+            organization_id=organization.id,
+        )
+        db.session.add_all([manager, customer])
+        db.session.commit()
+        manager_username, manager_id = manager.username, manager.id
+        customer_id, organization_id = customer.id, organization.id
+
+    try:
+        client = app.test_client()
+        assert client.post(
+            '/login',
+            data={'username': manager_username, 'password': 'ManagerPass123!'},
+        ).status_code == 302
+        assert client.get(f'/customers/{customer_id}').status_code == 200
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(Customer, customer_id))
+            db.session.delete(db.session.get(User, manager_id))
+            db.session.delete(db.session.get(Organization, organization_id))
+            db.session.commit()
