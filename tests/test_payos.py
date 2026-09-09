@@ -2,7 +2,10 @@ import json
 import uuid
 from unittest import mock
 
-from app import Payment, Subscription, User, Organization, _payos_signature, PLAN_FEATURES, app, db
+from app import (
+    Payment, Subscription, User, Organization, _payos_signature, PLAN_FEATURES,
+    SALES_SEAT_MONTHLY_PRICE, app, db,
+)
 from werkzeug.security import generate_password_hash
 
 
@@ -100,3 +103,48 @@ def test_plan_features_limit_export_and_hourly_sync():
     assert PLAN_FEATURES['basic']['export'] is False
     assert PLAN_FEATURES['growth']['export'] is True
     assert PLAN_FEATURES['business']['hourly_sync'] is True
+
+
+def test_sales_seat_purchase_and_webhook_activation():
+    from auth_helpers import csrf_token
+
+    with app.app_context():
+        organization = Organization(name='Seat Company', slug=f'seat-company-{uuid.uuid4().hex}')
+        db.session.add(organization)
+        db.session.flush()
+        admin = User(
+            username=f'seat-admin-{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('Password123!'),
+            role='admin',
+            organization_id=organization.id,
+        )
+        subscription = Subscription(
+            organization_id=organization.id, plan='basic', status='active',
+            billing_interval='monthly',
+        )
+        db.session.add_all([admin, subscription])
+        db.session.flush()
+        admin_id, subscription_id, organization_id = admin.id, subscription.id, organization.id
+        db.session.commit()
+    client = app.test_client()
+    client.post('/login', data={'username': admin.username, 'password': 'Password123!'})
+    token = csrf_token(client, '/admin/sales-seats')
+    with mock.patch('app._payos_create_link', return_value=('https://payos.test/seats', {'code': '00'})):
+        response = client.post('/admin/sales-seats', data={'_csrf_token': token, 'quantity': '2'})
+    assert response.status_code == 302
+    with app.app_context():
+        payment = Payment.query.filter_by(organization_id=organization_id, plan='sales_seats').order_by(Payment.id.desc()).first()
+        assert payment.amount == 2 * SALES_SEAT_MONTHLY_PRICE
+        data = {'orderCode': payment.order_code, 'amount': payment.amount, 'code': '00'}
+        payload = {'code': '00', 'success': True, 'data': data, 'signature': _payos_signature(data, 'seat-secret')}
+    with mock.patch.dict('os.environ', {'PAYOS_WEBHOOK_SECRET': 'seat-secret'}, clear=False):
+        response = app.test_client().post('/api/payos/webhook', json=payload)
+    assert response.status_code == 200
+    with app.app_context():
+        organization = db.session.get(Organization, organization_id)
+        assert organization.sales_seat_addons == 2
+        db.session.delete(db.session.get(Payment, payment.id))
+        db.session.delete(db.session.get(Subscription, subscription_id))
+        db.session.delete(db.session.get(User, admin_id))
+        db.session.delete(organization)
+        db.session.commit()
