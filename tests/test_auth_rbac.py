@@ -295,3 +295,43 @@ def test_dashboard_counts_customers_held_by_manager():
             db.session.delete(db.session.get(Customer, customer_id))
             db.session.delete(db.session.get(User, manager_id))
             db.session.commit()
+
+
+def test_admin_customer_list_filters_assignment_status_and_shows_sales():
+    client = login_admin(app.test_client())
+    with app.app_context():
+        admin = User.query.filter_by(username='test_admin').one()
+        sales = User(
+            username=f'sales_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            organization_id=admin.organization_id,
+        )
+        assigned = Customer(
+            name=f'Assigned list customer {uuid.uuid4().hex}',
+            assigned_user=sales,
+            organization_id=admin.organization_id,
+        )
+        unassigned = Customer(
+            name=f'Unassigned list customer {uuid.uuid4().hex}',
+            organization_id=admin.organization_id,
+        )
+        db.session.add_all([sales, assigned, unassigned])
+        db.session.commit()
+        sales_id, assigned_id, unassigned_id = sales.id, assigned.id, unassigned.id
+
+    try:
+        assigned_html = client.get('/customers?assignment=assigned').get_data(as_text=True)
+        assert 'Đã có Sales' in assigned_html
+        assert f'Assigned list customer' in assigned_html
+        assert 'Unassigned list customer' not in assigned_html
+        assert 'Sales phụ trách' in assigned_html
+        unassigned_html = client.get('/customers?assignment=unassigned').get_data(as_text=True)
+        assert 'Unassigned list customer' in unassigned_html
+        assert 'Assigned list customer' not in unassigned_html
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(Customer, assigned_id))
+            db.session.delete(db.session.get(Customer, unassigned_id))
+            db.session.delete(db.session.get(User, sales_id))
+            db.session.commit()
