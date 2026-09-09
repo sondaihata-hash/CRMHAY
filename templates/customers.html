@@ -143,7 +143,7 @@
       <table class="table mb-0 align-middle customer-table-fixed" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            {% if current_user and current_user().role in ['admin', 'dev'] %}<th style="width: 42px;"><input type="checkbox" id="selectAllCustomers" aria-label="Chọn tất cả khách hàng"></th>{% endif %}
+            {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}<th style="width: 42px;"><input type="checkbox" id="selectAllCustomers" aria-label="Chọn tất cả khách hàng"></th>{% endif %}
             <th style="width: 56px;">#</th>
             <th style="width: 24%; min-width: 180px;">Tên Khách</th>
             <th style="width: 12%; min-width: 110px;">Nơi ở</th>
@@ -159,7 +159,7 @@
         <tbody>
           {% for c in customers %}
           <tr class="{% if c.needs_call %}customer-row-uncalled{% elif c.message_needs_attention %}customer-row-message-returned{% elif not c.has_contact %}customer-row-uncontacted{% endif %}">
-            {% if current_user and current_user().role in ['admin', 'dev'] %}<td><input type="checkbox" name="customer_ids" value="{{ c.id }}" form="bulkAssignForm" class="customer-select" aria-label="Chọn {{ c.name }}"></td>{% endif %}
+            {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}<td><input type="checkbox" name="customer_ids" value="{{ c.id }}" form="bulkAssignForm" class="customer-select" aria-label="Chọn {{ c.name }}"></td>{% endif %}
             <td><small class="text-muted">{{ c.id }}</small></td>
             <td>
               <div class="d-flex align-items-center gap-2">
@@ -260,7 +260,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 11 if current_user and current_user().role in ['admin', 'dev'] else 10 }}" class="text-center text-muted py-4">Không có khách hàng nào.</td>
+            <td colspan="{{ 11 if current_user and current_user().role in ['admin', 'dev', 'manager'] else 10 }}" class="text-center text-muted py-4">Không có khách hàng nào.</td>
           </tr>
           {% endfor %}
         </tbody>
