@@ -1320,7 +1320,7 @@ def add_user():
             manager_id = None
     if not username or len(password) < 8:
         flash('Tên đăng nhập và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
-    elif role not in USER_ROLES:
+    elif role not in USER_ROLES or role == 'dev':
         flash('Vai trò tài khoản không hợp lệ.', 'danger')
     elif User.query.filter_by(username=username).first():
         flash('Tên đăng nhập đã tồn tại.', 'warning')
@@ -1341,7 +1341,7 @@ def toggle_user(user_id):
     actor = current_user()
     if actor.role == 'manager' and user.manager_id != actor.id:
         return 'Bạn không có quyền quản lý tài khoản này.', 403
-    if user.role == 'admin' or (actor.role == 'manager' and user.role == 'manager'):
+    if user.role in {'admin', 'dev'} or (actor.role == 'manager' and user.role == 'manager'):
         flash('Không thể khóa tài khoản Admin từ màn hình này.', 'warning')
     else:
         user.is_active = not user.is_active
@@ -1357,7 +1357,7 @@ def edit_user(user_id):
     actor = current_user()
     if actor.role == 'manager' and user.manager_id != actor.id:
         return 'Bạn không có quyền quản lý tài khoản này.', 403
-    if user.role == 'admin':
+    if user.role in {'admin', 'dev'}:
         flash('Không thể sửa tài khoản Admin từ màn hình này.', 'warning')
         return redirect(url_for('users'))
     username = (request.form.get('username') or '').strip().lower()
@@ -1386,7 +1386,7 @@ def delete_user(user_id):
     actor = current_user()
     if actor.role == 'manager' and user.manager_id != actor.id:
         return 'Bạn không có quyền quản lý tài khoản này.', 403
-    if user.role == 'admin' or user.id == actor.id:
+    if user.role in {'admin', 'dev'} or user.id == actor.id:
         flash('Không thể xóa tài khoản Admin hoặc tài khoản đang đăng nhập.', 'warning')
     elif (
         Customer.query.filter_by(assigned_user_id=user.id).first()
