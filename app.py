@@ -1276,7 +1276,13 @@ def platform_organizations():
         name = (request.form.get('name') or '').strip()
         username = (request.form.get('username') or '').strip().lower()
         password = request.form.get('password') or ''
-        slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or f'company-{uuid.uuid4().hex[:8]}'
+        slug = (request.form.get('slug') or '').strip().lower()
+        slug = re.sub(r'[^a-z0-9-]+', '-', slug).strip('-') or re.sub(
+            r'[^a-z0-9]+', '-', name.lower()
+        ).strip('-') or f'company-{uuid.uuid4().hex[:8]}'
+        company_address = (request.form.get('company_address') or '').strip()
+        company_phone = (request.form.get('company_phone') or '').strip()
+        company_email = (request.form.get('company_email') or '').strip()
         if not name or not username or len(password) < 8:
             flash('Tên công ty, tài khoản Admin và mật khẩu tối thiểu 8 ký tự là bắt buộc.', 'danger')
         elif Organization.query.filter_by(slug=slug).first():
@@ -1284,7 +1290,10 @@ def platform_organizations():
         elif User.query.filter_by(username=username).first():
             flash('Tên đăng nhập Admin đã tồn tại.', 'warning')
         else:
-            organization = Organization(name=name, slug=slug)
+            organization = Organization(
+                name=name, slug=slug, company_address=company_address,
+                company_phone=company_phone, company_email=company_email,
+            )
             db.session.add(organization)
             db.session.flush()
             db.session.add(User(
@@ -1301,6 +1310,45 @@ def platform_organizations():
         'organizations.html',
         organizations=Organization.query.order_by(Organization.created_at.desc()).all(),
     )
+
+
+@app.route('/platform/organizations/<int:organization_id>/edit', methods=['POST'])
+@platform_admin_required
+def edit_organization(organization_id):
+    organization = db.session.get(Organization, organization_id)
+    if not organization:
+        return 'Không tìm thấy công ty.', 404
+    name = (request.form.get('name') or '').strip()
+    slug = re.sub(r'[^a-z0-9-]+', '-', (request.form.get('slug') or '').strip().lower()).strip('-')
+    duplicate = Organization.query.filter(
+        Organization.slug == slug, Organization.id != organization.id,
+    ).first()
+    if not name or not slug or duplicate:
+        flash('Tên công ty và slug hợp lệ, không trùng là bắt buộc.', 'danger')
+    else:
+        organization.name = name
+        organization.slug = slug
+        organization.company_address = (request.form.get('company_address') or '').strip()
+        organization.company_phone = (request.form.get('company_phone') or '').strip()
+        organization.company_email = (request.form.get('company_email') or '').strip()
+        db.session.commit()
+        flash(f'Đã cập nhật thông tin công ty {organization.name}.', 'success')
+    return redirect(url_for('platform_organizations'))
+
+
+@app.route('/platform/organizations/<int:organization_id>/toggle', methods=['POST'])
+@platform_admin_required
+def toggle_organization(organization_id):
+    organization = db.session.get(Organization, organization_id)
+    if not organization:
+        return 'Không tìm thấy công ty.', 404
+    if organization.slug == 'default':
+        flash('Không thể khóa workspace mặc định.', 'warning')
+    else:
+        organization.is_active = not organization.is_active
+        db.session.commit()
+        flash(f"Đã {'mở khóa' if organization.is_active else 'khóa'} công ty {organization.name}.", 'success')
+    return redirect(url_for('platform_organizations'))
 
 
 @app.route('/admin/users/add', methods=['POST'])
