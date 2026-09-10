@@ -22,6 +22,7 @@ if (-not $env:CRM_SECRET_KEY -or $env:CRM_SECRET_KEY.Length -lt 32) {
 }
 
 $env:FLASK_ENV = 'production'
+$env:CRM_SUPERVISOR_PROCESS = 'true'
 $env:PORT = $Port
 if (-not $env:CRM_USE_CELERY) {
     $env:CRM_USE_CELERY = 'false'
