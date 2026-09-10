@@ -1987,6 +1987,7 @@ def require_authentication():
         'login', 'index', 'static', 'mobile_download', 'privacy_policy',
         'pricing', 'checkout', 'payment_status', 'terms_of_service', 'data_deletion', 'healthz', 'readyz',
         'facebook_webhook', 'zalo_webhook', 'payos_webhook',
+        'customer_order_payment',
     } or (request.endpoint or '').startswith('api_'):
         return None
     user = current_user()
