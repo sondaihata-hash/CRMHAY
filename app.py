@@ -2605,7 +2605,7 @@ def fetch_managed_facebook_messages(
 
                     message_count = len(messages)
 
-                    message_batch.append({
+                    customer_payload = {
                         'name': customer_name,
                         'first_name': first_name,
                         'last_name': last_name,
@@ -2622,12 +2622,17 @@ def fetch_managed_facebook_messages(
                         'page_name': page_name,
                         'message_count': message_count,
                         'from_facebook_sync': True,
-                    })
+                    }
+                    if message_callback:
+                        message_batch.append(customer_payload)
+                    else:
+                        facebook_messages.append(customer_payload)
                     if message_callback and len(message_batch) >= batch_size:
                         message_callback(message_batch)
                         message_batch.clear()
                         gc.collect()
                     collected_for_page += 1
+                    del messages, customer_messages, all_texts, customer_payload
 
                 paging = payload.get('paging', {})
                 next_page = paging.get('next')
@@ -4203,12 +4208,29 @@ def _run_facebook_sync(job_id=None):
                 job.message = 'Đang chuẩn bị kết nối Facebook...'
                 db.session.commit()
 
+            streamed_imported = 0
+            streamed_updated = 0
+
+            def import_batch(batch):
+                nonlocal streamed_imported, streamed_updated
+                imported_count, updated_count = import_facebook_messages(batch)
+                streamed_imported += imported_count
+                streamed_updated += updated_count
+                if job:
+                    job.imported = streamed_imported
+                    job.updated = streamed_updated
+                    job.last_activity_at = datetime.utcnow()
+                    db.session.commit()
+
             messages = fetch_managed_facebook_messages(
                 *get_facebook_sync_limits(),
                 progress_callback=update_progress,
                 incremental=bool(job and job.incremental),
+                message_callback=import_batch,
             )
-            if not messages:
+            if streamed_imported or streamed_updated:
+                imported, updated = streamed_imported, streamed_updated
+            elif not messages:
                 # Still refresh the recovery copy: an empty API result must
                 # never erase customers already stored in the database.
                 try:
@@ -4227,7 +4249,8 @@ def _run_facebook_sync(job_id=None):
                 logger.info("END background Facebook sync: no customers (%.2fs)", time.time() - t0)
                 return
 
-            imported, updated = import_facebook_messages(messages)
+            else:
+                imported, updated = import_facebook_messages(messages)
             # A snapshot failure must not mark an already committed import as failed.
             try:
                 write_customer_snapshot()
