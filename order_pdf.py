@@ -7,6 +7,7 @@ from reportlab.pdfgen import canvas
 from reportlab.graphics.barcode import qr
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics import renderPDF
+from reportlab.lib.utils import ImageReader
 
 
 def build_order_pdf(order, organization=None):
@@ -57,11 +58,14 @@ def build_order_pdf(order, organization=None):
     pdf.setFont(font, 9); pdf.drawString(14*mm, 40*mm, 'Người lập'); pdf.drawCentredString(width/2, 40*mm, 'Kế toán trưởng'); pdf.drawRightString(196*mm, 40*mm, 'Khách hàng')
     payment = getattr(order, 'payment', None)
     if payment and payment.status != 'paid' and payment.qr_code:
-        qr_widget = qr.QrCodeWidget(payment.qr_code)
-        bounds = qr_widget.getBounds()
-        drawing = Drawing(32*mm, 32*mm, transform=[32*mm/(bounds[2] - bounds[0]), 0, 0, 32*mm/(bounds[3] - bounds[1]), 0, 0])
-        drawing.add(qr_widget)
-        renderPDF.draw(drawing, pdf, 158*mm, 43*mm)
+        if payment.payment_method == 'bank':
+            pdf.drawImage(ImageReader(payment.qr_code), 158*mm, 43*mm, 32*mm, 32*mm)
+        else:
+            qr_widget = qr.QrCodeWidget(payment.qr_code)
+            bounds = qr_widget.getBounds()
+            drawing = Drawing(32*mm, 32*mm, transform=[32*mm/(bounds[2] - bounds[0]), 0, 0, 32*mm/(bounds[3] - bounds[1]), 0, 0])
+            drawing.add(qr_widget)
+            renderPDF.draw(drawing, pdf, 158*mm, 43*mm)
         pdf.setFont(font, 7)
         pdf.drawCentredString(174*mm, 40*mm, 'Quét để thanh toán')
     pdf.save(); stream.seek(0); return stream
