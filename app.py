@@ -942,6 +942,57 @@ def _payos_create_link(payment, plan_name, billing_interval='yearly'):
     return result['data']['checkoutUrl'], result
 
 
+def _payos_create_order_link(order_payment):
+    client_id, api_key, checksum_key = _payos_config()
+    base = os.environ.get('PAYOS_API_URL', 'https://api-merchant.payos.vn').rstrip('/')
+    status_url = url_for(
+        'order_document', order_id=order_payment.order_id, _external=True,
+    )
+    description = f'CRM {order_payment.order.code}'[:25]
+    payload = {
+        'orderCode': order_payment.order_code,
+        'amount': order_payment.amount,
+        'description': description,
+        'cancelUrl': status_url,
+        'returnUrl': status_url,
+        'signature': hmac.new(
+            checksum_key.encode(),
+            (
+                f'amount={order_payment.amount}&cancelUrl={status_url}'
+                f'&description={description}&orderCode={order_payment.order_code}'
+                f'&returnUrl={status_url}'
+            ).encode(),
+            hashlib.sha256,
+        ).hexdigest(),
+    }
+    request_obj = Request(
+        f'{base}/v2/payment-requests',
+        data=json.dumps(payload).encode(),
+        headers={
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'CRM-HAY-PayOS/1.0',
+            'x-client-id': client_id,
+            'x-api-key': api_key,
+        },
+        method='POST',
+    )
+    try:
+        with urlopen(request_obj, timeout=15) as response:
+            result = json.loads(response.read().decode())
+    except HTTPError as exc:
+        detail = exc.read().decode('utf-8', errors='replace')[:500]
+        raise RuntimeError(
+            f'PayOS từ chối tạo QR đơn hàng (HTTP {exc.code}): {detail}'
+        ) from exc
+    if result.get('code') not in (None, '00'):
+        raise RuntimeError(result.get('desc') or 'PayOS không tạo được QR đơn hàng.')
+    data = result.get('data') or {}
+    if not data.get('checkoutUrl') or not data.get('qrCode'):
+        raise RuntimeError('PayOS không trả về đủ liên kết hoặc dữ liệu QR.')
+    return data['checkoutUrl'], data['qrCode'], result
+
+
 def _payos_upgrade_link(organization, user, target_plan):
     current = active_subscription(organization.id)
     if not current or target_plan not in PLAN_RANK or PLAN_RANK[target_plan] <= PLAN_RANK.get(current.plan, 1):
@@ -1156,6 +1207,28 @@ def payos_webhook():
     if not signature or not hmac.compare_digest(signature, _payos_signature(data, secret)):
         return {'ok': False, 'message': 'Invalid PayOS signature.'}, 403
     order_code = data.get('orderCode')
+    order_payment = (
+        OrderPayment.query.filter_by(order_code=int(order_code)).first()
+        if order_code else None
+    )
+    if order_payment:
+        successful = (
+            str(payload.get('code', data.get('code', '00'))) == '00'
+            and payload.get('success', True) is not False
+        )
+        amount = int(data.get('amount', order_payment.amount) or 0)
+        if successful and amount != order_payment.amount:
+            return {'ok': False, 'message': 'Payment amount mismatch.'}, 400
+        if successful and order_payment.status != 'paid':
+            order_payment.status = 'paid'
+            order_payment.paid_at = datetime.utcnow()
+            order_payment.provider_payload = json.dumps(payload, ensure_ascii=False)
+            db.session.commit()
+        return {
+            'ok': True,
+            'payment': order_payment.status,
+            'orderCode': order_payment.order_code,
+        }
     payment = Payment.query.filter_by(order_code=int(order_code)).first() if order_code else None
     if not payment:
         return {'ok': False, 'message': 'Payment not found.'}, 404
