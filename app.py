@@ -3772,6 +3772,21 @@ def update_customer_points(customer_id):
     db.session.commit()
 
 
+def sales_user_for_phone(phone, organization_id):
+    digits = re.sub(r'\D', '', phone or '')
+    if not digits or not organization_id:
+        return None
+    users = User.query.filter(
+        User.organization_id == organization_id,
+        User.role.in_(('sales', 'employee', 'manager')),
+        User.is_active.is_(True),
+    ).all()
+    for user in users:
+        if re.sub(r'\D', '', user.username or '') == digits:
+            return user
+    return None
+
+
 def recalculate_all_points():
     for c in Customer.query.all():
         update_customer_points(c.id)
