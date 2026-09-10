@@ -34,6 +34,7 @@ try:
 except ImportError:  # Optional locally; disk/database checks remain available.
     psutil = None
 import ast
+import base64
 import csv
 import io
 import json
@@ -55,6 +56,7 @@ from contextvars import ContextVar
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+import qrcode
 from sqlalchemy import event, or_
 from sqlalchemy.orm import Session, with_loader_criteria
 
@@ -1018,6 +1020,13 @@ def _bank_qr_url(order):
         f'https://img.vietqr.io/image/{quote(bank_code)}-{quote(account)}-compact2.png'
         f'?{query}'
     )
+
+
+def _qr_data_uri(value):
+    image = qrcode.make(value)
+    output = io.BytesIO()
+    image.save(output, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(output.getvalue()).decode('ascii')
 
 
 def _payos_upgrade_link(organization, user, target_plan):
