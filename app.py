@@ -4272,7 +4272,30 @@ def _scheduled_business_sync_loop():
                             SyncJob.status.in_(('queued', 'running')),
                         ).first()
                         if active_job:
-                            continue
+                            last_activity = (
+                                active_job.last_activity_at
+                                or active_job.started_at
+                                or active_job.created_at
+                            )
+                            if (
+                                last_activity
+                                and (datetime.utcnow() - last_activity).total_seconds() > 120
+                            ):
+                                active_job.status = 'error'
+                                active_job.message = (
+                                    'Tác vụ đồng bộ trước đã bị treo và được đóng tự động '
+                                    'để bắt đầu lượt quét mới.'
+                                )
+                                active_job.finished_at = datetime.utcnow()
+                                active_job.last_activity_at = datetime.utcnow()
+                                db.session.commit()
+                                logger.warning(
+                                    'Closed stale Facebook sync job %s for organization %s',
+                                    active_job.id,
+                                    organization_id,
+                                )
+                            else:
+                                continue
                         job = SyncJob(
                             id=str(uuid.uuid4()),
                             organization_id=organization_id,
