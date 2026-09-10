@@ -44,6 +44,7 @@ import os
 import re
 import tempfile
 import shutil
+import gc
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -2376,6 +2377,7 @@ def fetch_managed_facebook_messages(
     max_conversations_per_page=None,
     progress_callback=None,
     incremental=False,
+    message_callback=None,
 ):
     token = get_facebook_token()
     if not token:
@@ -2409,6 +2411,8 @@ def fetch_managed_facebook_messages(
         page_limit, conversation_limit = get_facebook_sync_limits(max_pages, max_conversations_per_page)
 
         facebook_messages = []
+        message_batch = []
+        batch_size = 100
         known_conversations = set()
         if incremental:
             known_conversations = {
@@ -2601,7 +2605,7 @@ def fetch_managed_facebook_messages(
 
                     message_count = len(messages)
 
-                    facebook_messages.append({
+                    message_batch.append({
                         'name': customer_name,
                         'first_name': first_name,
                         'last_name': last_name,
@@ -2619,6 +2623,10 @@ def fetch_managed_facebook_messages(
                         'message_count': message_count,
                         'from_facebook_sync': True,
                     })
+                    if message_callback and len(message_batch) >= batch_size:
+                        message_callback(message_batch)
+                        message_batch.clear()
+                        gc.collect()
                     collected_for_page += 1
 
                 paging = payload.get('paging', {})
@@ -2633,12 +2641,21 @@ def fetch_managed_facebook_messages(
 
             logger.info("END sync page %s collected=%d in %.2fs api_calls=%d",
                         page_name, collected_for_page, time.time() - t_page_start, api_call_count)
+            if message_callback and message_batch:
+                message_callback(message_batch)
+                message_batch.clear()
+            del payload
+            gc.collect()
 
             if api_call_limit is not None and api_call_count >= api_call_limit:
                 break
 
+        if message_callback:
+            logger.info("END Facebook sync streamed api_calls=%d time=%.2fs",
+                        api_call_count, time.time() - t_sync_start)
+            return []
         logger.info("END Facebook sync total=%d api_calls=%d time=%.2fs",
-                     len(facebook_messages), api_call_count, time.time() - t_sync_start)
+                    len(facebook_messages), api_call_count, time.time() - t_sync_start)
         return facebook_messages
     except (HTTPError, URLError, ValueError, KeyError) as exc:
         message = str(exc)
