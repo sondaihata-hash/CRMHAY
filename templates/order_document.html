@@ -48,7 +48,20 @@
     {% elif order.payment and qr_image and order.payment.payment_method == 'bank' %}
       <img src="{{ qr_image }}" class="border p-2" width="240" height="240" alt="QR ngân hàng">
       <p class="text-secondary mb-1">Quét mã để chuyển {{ '{:,.0f}'.format(order.payment.amount) }} đ vào tài khoản Sales</p>
-      <p class="small text-warning mb-0">Thanh toán thủ công; CRM chưa tự động xác nhận giao dịch ngân hàng.</p>
+      {% if order.payment.status == 'customer_reported' %}
+        <p class="text-warning fw-semibold">Khách hàng đã báo thanh toán. Chờ xác nhận tiền vào tài khoản.</p>
+        {% if current_user().role in ['admin', 'manager', 'dev'] %}
+          <form method="post" action="{{ url_for('confirm_order_payment', order_id=order.id) }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-success">Xác nhận đã nhận tiền</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="small text-warning mb-1">Thanh toán thủ công; CRM chưa tự động xác nhận giao dịch ngân hàng.</p>
+      {% endif %}
+      {% if customer_payment_url %}
+        <div class="mt-2"><a class="btn btn-outline-primary" href="{{ customer_payment_url }}" target="_blank" rel="noopener">Mở trang gửi khách</a></div>
+      {% endif %}
     {% elif order.payment and qr_image %}
       <img src="{{ qr_image }}" class="border p-2" width="240" height="240" alt="QR PayOS">
       <p class="text-secondary mb-1">Quét mã để thanh toán {{ '{:,.0f}'.format(order.payment.amount) }} đ</p>
