@@ -2414,7 +2414,7 @@ def fetch_managed_facebook_messages(
 
         facebook_messages = []
         message_batch = []
-        batch_size = 100
+        batch_size = 25
         known_conversations = set()
         if incremental:
             known_conversations = {
@@ -2472,6 +2472,13 @@ def fetch_managed_facebook_messages(
                     )
                     break
                 api_call_count += 1
+                if progress_callback:
+                    progress_callback(
+                        scanned_for_page,
+                        progress_total,
+                        f'Đang nhận dữ liệu Page {page_index + 1}/{len(pages_to_sync)} '
+                        f'(lượt API {api_call_count})',
+                    )
                 conversations = payload.get('data', [])
                 if not conversations:
                     break
@@ -2511,6 +2518,13 @@ def fetch_managed_facebook_messages(
                             )
                             break
                         api_call_count += 1
+                        if progress_callback:
+                            progress_callback(
+                                scanned_for_page,
+                                progress_total,
+                                f'Đang nhận tin nhắn Page {page_index + 1}/{len(pages_to_sync)} '
+                                f'(lượt API {api_call_count})',
+                            )
                         message_data = message_payload.get('data', [])
                         message_count += len(message_data)
                         remaining = MAX_MESSAGES_PER_CONVERSATION - len(messages)
