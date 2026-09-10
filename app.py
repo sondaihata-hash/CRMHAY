@@ -3407,7 +3407,7 @@ def index():
         Customer.id.in_(customer_query.with_entities(Customer.id)),
     ).all()
     for order in visible_orders:
-        sales_user = sales_user_for_phone(order.sales_phone, order.customer.organization_id)
+        sales_user = sales_user_for_phone(order.sales_phone, order.organization_id)
         if sales_user:
             sales_revenues[sales_user.id] = sales_revenues.get(sales_user.id, 0) + (order.total_amount or 0)
     sales_customer_stats = sorted(
@@ -5256,7 +5256,7 @@ def api_dashboard():
             Customer, Order.customer_id == Customer.id,
         ).filter(Customer.id.in_(cq.with_entities(Customer.id))).all()
         for order in visible_orders:
-            sales_user = sales_user_for_phone(order.sales_phone, order.customer.organization_id)
+            sales_user = sales_user_for_phone(order.sales_phone, order.organization_id)
             if sales_user:
                 sales_revenues[sales_user.id] = sales_revenues.get(sales_user.id, 0) + (order.total_amount or 0)
         sales_stats = [{
@@ -5684,6 +5684,7 @@ def api_modify_order(order_id):
             sum(item.quantity * item.unit_price for item in order.items)
             - order.discount_amount - (order.points_discount or 0) + order.vat_amount, 0,
         )
+    assign_customer_to_order_sales(order)
     db.session.commit()
     return {'order': serialize_order(order)}
 
