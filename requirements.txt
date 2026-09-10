@@ -9,3 +9,4 @@ reportlab==4.2.5
 waitress==3.0.2
 psutil==6.1.1
 openpyxl==3.1.5
+qrcode==8.2
