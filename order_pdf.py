@@ -40,14 +40,14 @@ def build_order_pdf(order, organization=None):
     pdf.drawString(120*mm, height-44*mm, f'Ngày: {order.created_at:%d/%m/%Y}')
     pdf.drawString(120*mm, height-50*mm, f'Số: {order.code}')
     y = height-65*mm
-    columns = [14, 25, 95, 115, 130, 160, 196]
-    headers = ['STT', 'Tên hàng', 'ĐVT', 'SL', 'Đơn giá', 'Thành tiền']
+    columns = [14, 25, 48, 105, 125, 145, 172]
+    headers = ['STT', 'Mã SP', 'Tên hàng', 'ĐVT', 'SL', 'Đơn giá', 'Thành tiền']
     pdf.line(14*mm, y, 196*mm, y)
     for i, header in enumerate(headers): pdf.drawString(columns[i]*mm, y-5*mm, header)
     y -= 9*mm; pdf.line(14*mm, y, 196*mm, y)
     for index, item in enumerate(order.items, 1):
         if y < 55*mm: break
-        values = [str(index), item.product_name[:35], item.unit or '', f'{item.quantity:g}', f'{item.unit_price:,.0f}', f'{item.quantity*item.unit_price:,.0f}']
+        values = [str(index), item.product_code or '-', item.product_name[:24], item.unit or '', f'{item.quantity:g}', f'{item.unit_price:,.0f}', f'{item.quantity*item.unit_price:,.0f}']
         for i, value in enumerate(values): pdf.drawString(columns[i]*mm, y-5*mm, value)
         y -= 8*mm; pdf.line(14*mm, y, 196*mm, y)
     pdf.setFont(font, 10)
