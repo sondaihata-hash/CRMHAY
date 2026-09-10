@@ -1,4 +1,6 @@
 import io
+import os
+import textwrap
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
@@ -14,11 +16,17 @@ def build_order_pdf(order, organization=None):
     stream = io.BytesIO()
     pdf = canvas.Canvas(stream, pagesize=A4)
     font = 'Helvetica'
-    try:
-        pdfmetrics.registerFont(TTFont('DejaVu', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-        font = 'DejaVu'
-    except Exception:
-        pass
+    for font_path in (
+        r'C:\Windows\Fonts\arial.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    ):
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont('CRMUnicode', font_path))
+                font = 'CRMUnicode'
+                break
+            except Exception:
+                continue
     width, height = A4
     pdf.setStrokeColorRGB(.25, .25, .25)
     pdf.rect(10*mm, 10*mm, width-20*mm, height-20*mm)
@@ -35,11 +43,16 @@ def build_order_pdf(order, organization=None):
     pdf.drawString(14*mm, height-44*mm, f'Tên khách hàng: {order.customer.name}')
     pdf.drawString(14*mm, height-50*mm, f'Địa chỉ: {order.delivery_address or "-"}')
     pdf.drawString(14*mm, height-56*mm, f'Điện thoại: {order.customer.phone or "-"}')
-    pdf.drawString(14*mm, height-61*mm, f'SĐT Sales: {order.sales_phone or "-"}')
-    pdf.drawString(120*mm, height-56*mm, f'STK Sales: {order.sales_bank_account or "-"}')
+    pdf.drawString(14*mm, height-61*mm, f'Email: {order.customer.email or "-"}')
+    pdf.drawString(120*mm, height-56*mm, f'SĐT Sales: {order.sales_phone or "-"}')
+    pdf.drawString(120*mm, height-61*mm, f'Mã NH: {order.sales_bank_code or "-"}')
     pdf.drawString(120*mm, height-44*mm, f'Ngày: {order.created_at:%d/%m/%Y}')
     pdf.drawString(120*mm, height-50*mm, f'Số: {order.code}')
-    y = height-65*mm
+    pdf.drawString(14*mm, height-66*mm, f'Trạng thái: {order.status or "-"}')
+    pdf.drawString(120*mm, height-66*mm, f'STK Sales: {order.sales_bank_account or "-"}')
+    pdf.drawString(14*mm, height-71*mm, f'Tên chủ TK: {order.sales_account_name or "-"}')
+    pdf.drawString(120*mm, height-71*mm, f'Thanh toán: {order.payment_details or "-"}')
+    y = height-78*mm
     columns = [14, 25, 48, 105, 125, 145, 172]
     headers = ['STT', 'Mã SP', 'Tên hàng', 'ĐVT', 'SL', 'Đơn giá', 'Thành tiền']
     pdf.line(14*mm, y, 196*mm, y)
@@ -47,7 +60,7 @@ def build_order_pdf(order, organization=None):
     y -= 9*mm; pdf.line(14*mm, y, 196*mm, y)
     for index, item in enumerate(order.items, 1):
         if y < 55*mm: break
-        values = [str(index), item.product_code or '-', item.product_name[:24], item.unit or '', f'{item.quantity:g}', f'{item.unit_price:,.0f}', f'{item.quantity*item.unit_price:,.0f}']
+        values = [str(index), item.product_code or '-', item.product_name, item.unit or '', f'{item.quantity:g}', f'{item.unit_price:,.0f}', f'{item.quantity*item.unit_price:,.0f}']
         for i, value in enumerate(values): pdf.drawString(columns[i]*mm, y-5*mm, value)
         y -= 8*mm; pdf.line(14*mm, y, 196*mm, y)
     pdf.setFont(font, 10)
@@ -55,6 +68,10 @@ def build_order_pdf(order, organization=None):
     pdf.drawRightString(196*mm, y-14*mm, f'Đổi điểm: {order.points_redeemed or 0} điểm x {(order.points_value or 1000):,.0f} đ (-{(order.points_discount or 0):,.0f} đ)')
     pdf.drawRightString(196*mm, y-20*mm, f'VAT: {order.vat_amount:,.0f} đ')
     pdf.setFont(font, 11); pdf.drawRightString(196*mm, y-27*mm, f'TỔNG THANH TOÁN: {order.total_amount:,.0f} đ')
+    pdf.setFont(font, 8)
+    note_lines = textwrap.wrap(f'Ghi chú: {order.note or "-"}', width=105)
+    for offset, line in enumerate(note_lines[:3]):
+        pdf.drawString(14*mm, y-(35 + offset * 4)*mm, line)
     pdf.setFont(font, 9); pdf.drawString(14*mm, 40*mm, 'Người lập'); pdf.drawCentredString(width/2, 40*mm, 'Kế toán trưởng'); pdf.drawRightString(196*mm, 40*mm, 'Khách hàng')
     payment = getattr(order, 'payment', None)
     if payment and payment.status != 'paid' and payment.qr_code:
