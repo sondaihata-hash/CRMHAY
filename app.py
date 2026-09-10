@@ -198,6 +198,7 @@ CONVERSATIONS_PER_REQUEST = 25
 MAX_MESSAGES_PER_CONVERSATION = 200
 STALE_SYNC_JOB_SECONDS = 15 * 60
 STALE_QUEUED_SYNC_JOB_SECONDS = 2 * 60
+SYNC_PROCESS_STARTED_AT = datetime.utcnow()
 DEFAULT_HOTLINE_NUMBERS = frozenset({
     '0707866676',
     '0794753133',
@@ -4350,9 +4351,16 @@ def _scheduled_business_sync_loop():
                                 if active_job.status == 'queued'
                                 else STALE_SYNC_JOB_SECONDS
                             )
+                            orphaned_by_restart = bool(
+                                active_job.started_at
+                                and active_job.started_at < SYNC_PROCESS_STARTED_AT
+                            )
                             if (
+                                orphaned_by_restart
+                                or (
                                 last_activity
                                 and (datetime.utcnow() - last_activity).total_seconds() > stale_after
+                                )
                             ):
                                 active_job.status = 'error'
                                 active_job.message = (
