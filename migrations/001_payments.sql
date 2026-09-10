@@ -23,3 +23,18 @@ CREATE TABLE IF NOT EXISTS payment (
   paid_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS order_payment (
+  id INTEGER PRIMARY KEY,
+  order_id INTEGER NOT NULL UNIQUE,
+  organization_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  order_code BIGINT NOT NULL UNIQUE,
+  amount INTEGER NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  checkout_url TEXT NULL,
+  qr_code TEXT NULL,
+  provider_payload TEXT NULL,
+  paid_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL
+);

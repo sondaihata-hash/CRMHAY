@@ -41,6 +41,24 @@
     <b>TỔNG THANH TOÁN: {{ '{:,.0f}'.format(order.total_amount) }} đ</b>
   </div>
   <p class="mt-3">Ghi chú: {{ order.note or '—' }}<br>Thông tin thanh toán: {{ order.payment_details or '—' }}</p>
+  <section class="mt-4 p-3 border rounded text-center">
+    <h5>Thanh toán QR</h5>
+    {% if order.payment and order.payment.status == 'paid' %}
+      <p class="text-success fw-semibold mb-0">Thanh toán thành công{% if order.payment.paid_at %} lúc {{ order.payment.paid_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}.</p>
+    {% elif order.payment and order.payment.qr_code %}
+      <canvas id="order-payment-qr" class="border p-2"></canvas>
+      <p class="text-secondary mb-1">Quét mã để thanh toán {{ '{:,.0f}'.format(order.payment.amount) }} đ</p>
+      <a href="{{ order.payment.checkout_url }}" target="_blank" rel="noopener">Mở trang thanh toán PayOS</a>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+      <script>QRCode.toCanvas(document.getElementById('order-payment-qr'), {{ order.payment.qr_code|tojson }}, { width: 220, margin: 2 });</script>
+    {% else %}
+      <p class="text-secondary">Chưa có mã QR thanh toán cho đơn này.</p>
+      <form method="post" action="{{ url_for('create_order_payment', order_id=order.id) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary">Tạo mã QR thanh toán</button>
+      </form>
+    {% endif %}
+  </section>
   <div class="row text-center mt-5"><div class="col-4">Người lập</div><div class="col-4">Kế toán trưởng</div><div class="col-4">Khách hàng</div></div>
 </div>
 {% endblock %}
