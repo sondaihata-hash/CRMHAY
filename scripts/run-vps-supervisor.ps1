@@ -23,6 +23,8 @@ if (-not $env:CRM_SECRET_KEY -or $env:CRM_SECRET_KEY.Length -lt 32) {
 
 $env:FLASK_ENV = 'production'
 $env:CRM_SUPERVISOR_PROCESS = 'true'
+$persistentAutoSync = [Environment]::GetEnvironmentVariable('CRM_AUTO_SYNC_ENABLED', 'User')
+$env:CRM_AUTO_SYNC_ENABLED = if ($persistentAutoSync) { $persistentAutoSync } else { 'true' }
 $env:PORT = $Port
 if (-not $env:CRM_USE_CELERY) {
     $env:CRM_USE_CELERY = 'false'
