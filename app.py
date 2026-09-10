@@ -4047,14 +4047,25 @@ def create_order_payment(order_id):
     order_payment.amount = amount
     db.session.add(order_payment)
     try:
-        checkout_url, qr_code, provider_result = _payos_create_order_link(order_payment)
-        order_payment.checkout_url = checkout_url
-        order_payment.qr_code = qr_code
-        order_payment.provider_payload = json.dumps(provider_result, ensure_ascii=False)
+        if is_default_admin():
+            checkout_url, qr_code, provider_result = _payos_create_order_link(order_payment)
+            order_payment.payment_method = 'payos'
+            order_payment.checkout_url = checkout_url
+            order_payment.qr_code = qr_code
+            order_payment.provider_payload = json.dumps(provider_result, ensure_ascii=False)
+        else:
+            qr_url = _bank_qr_url(order)
+            order_payment.payment_method = 'bank'
+            order_payment.checkout_url = None
+            order_payment.qr_code = qr_url
+            order_payment.provider_payload = json.dumps(
+                {'order_code': order.code, 'manual_confirmation': True},
+                ensure_ascii=False,
+            )
         db.session.commit()
     except RuntimeError as exc:
         db.session.rollback()
-        logger.exception('PayOS create order payment failed')
+        logger.exception('Create order payment QR failed')
         flash(f'Không thể tạo QR thanh toán: {exc}', 'danger')
     return redirect(url_for('order_document', order_id=order.id))
 
