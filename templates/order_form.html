@@ -42,7 +42,9 @@
     <div><label>Email:</label><input value="{{ customer.email or '' }}" readonly></div>
     <div><label>Trạng thái:</label><select name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option></select></div>
     <div><label>SĐT Sales:</label><input name="sales_phone" type="tel" placeholder="Số điện thoại của Sales"></div>
+    <div><label>Ngân hàng Sales:</label><input name="sales_bank_code" placeholder="Mã ngân hàng/BIN, ví dụ VCB"></div>
     <div><label>STK Sales:</label><input name="sales_bank_account" placeholder="Số tài khoản ngân hàng của Sales"></div>
+    <div><label>Tên chủ tài khoản:</label><input name="sales_account_name" placeholder="Tên in trên QR"></div>
     <div><label>Điểm hiện có:</label><input value="{{ customer.points or 0 }}" readonly></div>
     <div><label>Điểm dùng đổi:</label><input name="points_redeemed" type="number" min="0" max="{{ customer.points or 0 }}" value="0" oninput="updateTotals()"></div>
     <div><label>Giá trị 1 điểm (đ):</label><input name="points_value" type="number" min="1" step="100" value="1000" oninput="updateTotals()" placeholder="Sales tự quy định"></div>

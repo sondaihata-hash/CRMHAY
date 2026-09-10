@@ -3899,6 +3899,8 @@ def create_order(customer_id):
             delivery_address=request.form.get('delivery_address', '').strip(), payment_details=request.form.get('payment_details', '').strip(),
             sales_phone=request.form.get('sales_phone', '').strip(),
             sales_bank_account=request.form.get('sales_bank_account', '').strip(),
+            sales_bank_code=request.form.get('sales_bank_code', '').strip(),
+            sales_account_name=request.form.get('sales_account_name', '').strip(),
             points_redeemed=points_redeemed,
             points_value=points_value,
             points_discount=points_discount,
@@ -3960,6 +3962,8 @@ def edit_order(order_id):
         order.delivery_address = (request.form.get('delivery_address') or '').strip()
         order.sales_phone = (request.form.get('sales_phone') or '').strip()
         order.sales_bank_account = (request.form.get('sales_bank_account') or '').strip()
+        order.sales_bank_code = (request.form.get('sales_bank_code') or '').strip()
+        order.sales_account_name = (request.form.get('sales_account_name') or '').strip()
         try:
             order.points_value = float(request.form.get('points_value') or order.points_value or 1000)
             order.points_redeemed = max(int(request.form.get('points_redeemed') or 0), 0)
