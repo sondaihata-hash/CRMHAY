@@ -45,16 +45,14 @@
     <h5>Thanh toán QR</h5>
     {% if order.payment and order.payment.status == 'paid' %}
       <p class="text-success fw-semibold mb-0">Thanh toán thành công{% if order.payment.paid_at %} lúc {{ order.payment.paid_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}.</p>
-    {% elif order.payment and order.payment.qr_code and order.payment.payment_method == 'bank' %}
-      <img src="{{ order.payment.qr_code }}" class="border p-2" width="240" height="240" alt="QR ngân hàng">
+    {% elif order.payment and qr_image and order.payment.payment_method == 'bank' %}
+      <img src="{{ qr_image }}" class="border p-2" width="240" height="240" alt="QR ngân hàng">
       <p class="text-secondary mb-1">Quét mã để chuyển {{ '{:,.0f}'.format(order.payment.amount) }} đ vào tài khoản Sales</p>
       <p class="small text-warning mb-0">Thanh toán thủ công; CRM chưa tự động xác nhận giao dịch ngân hàng.</p>
-    {% elif order.payment and order.payment.qr_code %}
-      <canvas id="order-payment-qr" class="border p-2"></canvas>
+    {% elif order.payment and qr_image %}
+      <img src="{{ qr_image }}" class="border p-2" width="240" height="240" alt="QR PayOS">
       <p class="text-secondary mb-1">Quét mã để thanh toán {{ '{:,.0f}'.format(order.payment.amount) }} đ</p>
       <a href="{{ order.payment.checkout_url }}" target="_blank" rel="noopener">Mở trang thanh toán PayOS</a>
-      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-      <script>QRCode.toCanvas(document.getElementById('order-payment-qr'), {{ order.payment.qr_code|tojson }}, { width: 220, margin: 2 });</script>
     {% else %}
       <p class="text-secondary">Chưa có mã QR thanh toán cho đơn này.</p>
       <form method="post" action="{{ url_for('create_order_payment', order_id=order.id) }}">

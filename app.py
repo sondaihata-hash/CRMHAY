@@ -4124,8 +4124,15 @@ def order_document(order_id):
     if not order:
         return 'Không tìm thấy đơn hàng.', 404
     organization = db.session.get(Organization, current_user().organization_id)
+    qr_image = None
+    if order.payment and order.payment.qr_code:
+        if order.payment.payment_method == 'bank':
+            qr_image = order.payment.qr_code
+        else:
+            qr_image = _qr_data_uri(order.payment.qr_code)
     return render_template(
         'order_document.html', order=order, organization=organization,
+        qr_image=qr_image,
     )
 
 
