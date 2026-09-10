@@ -195,6 +195,7 @@ _sync_lock = threading.Lock()
 FACEBOOK_API_TIMEOUT = 30  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
 CONVERSATIONS_PER_REQUEST = 25
+MAX_MESSAGES_PER_CONVERSATION = 200
 DEFAULT_HOTLINE_NUMBERS = frozenset({
     '0707866676',
     '0794753133',
@@ -2495,7 +2496,8 @@ def fetch_managed_facebook_messages(
                         )
                     participants = conversation.get('participants', {}).get('data', [])
                     messages_payload = conversation.get('messages', {})
-                    messages = list(messages_payload.get('data', []))
+                    messages = list(messages_payload.get('data', []))[:MAX_MESSAGES_PER_CONVERSATION]
+                    message_count = len(messages_payload.get('data', []))
                     message_next_url = (messages_payload.get('paging') or {}).get('next')
                     while message_next_url and (
                             api_call_limit is None or api_call_count < api_call_limit):
@@ -2508,7 +2510,11 @@ def fetch_managed_facebook_messages(
                             )
                             break
                         api_call_count += 1
-                        messages.extend(message_payload.get('data', []))
+                        message_data = message_payload.get('data', [])
+                        message_count += len(message_data)
+                        remaining = MAX_MESSAGES_PER_CONVERSATION - len(messages)
+                        if remaining > 0:
+                            messages.extend(message_data[:remaining])
                         message_next_url = (message_payload.get('paging') or {}).get('next')
                     if message_next_url:
                         continue
@@ -2602,8 +2608,6 @@ def fetch_managed_facebook_messages(
                             pass
                     if not location and profile_location:
                         location = normalize_location_name(profile_location)
-
-                    message_count = len(messages)
 
                     customer_payload = {
                         'name': customer_name,
