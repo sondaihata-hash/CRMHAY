@@ -27,10 +27,10 @@
     </div>
   </div>
   <table class="table table-bordered mt-3">
-    <thead><tr><th>STT</th><th>Tên hàng</th><th>ĐVT</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
+    <thead><tr><th>STT</th><th>Mã sản phẩm</th><th>Tên hàng</th><th>ĐVT</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
     <tbody>
       {% for item in order.items %}
-      <tr><td>{{ loop.index }}</td><td>{{ item.product_name }}</td><td>{{ item.unit }}</td><td>{{ item.quantity }}</td><td>{{ '{:,.0f}'.format(item.unit_price) }}</td><td>{{ '{:,.0f}'.format(item.quantity * item.unit_price) }}</td></tr>
+      <tr><td>{{ loop.index }}</td><td>{{ item.product_code or '—' }}</td><td>{{ item.product_name }}</td><td>{{ item.unit }}</td><td>{{ item.quantity }}</td><td>{{ '{:,.0f}'.format(item.unit_price) }}</td><td>{{ '{:,.0f}'.format(item.quantity * item.unit_price) }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
