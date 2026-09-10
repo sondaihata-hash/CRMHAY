@@ -4191,7 +4191,8 @@ def order_document(order_id):
         qr_image=qr_image,
         customer_payment_url=(
             url_for('customer_order_payment', token=order.payment.public_token, _external=True)
-            if order.payment and order.payment.payment_method == 'bank'
+            if order.payment and order.payment.public_token
+            and order.payment.payment_method == 'bank'
             else None
         ),
     )
