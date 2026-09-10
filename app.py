@@ -4181,7 +4181,7 @@ def _run_facebook_sync(job_id=None):
             if job:
                 set_tenant_context(job.organization_id)
             if job:
-                        job.status = 'running'
+                job.status = 'running'
                 job.started_at = datetime.utcnow()
                 job.message = 'Đang đồng bộ Facebook...'
                 job.progress = 0
@@ -4434,7 +4434,7 @@ def sync_facebook_status():
     stale = (
         job.status in ('queued', 'running')
         and last_activity is not None
-        and (datetime.utcnow() - last_activity).total_seconds() > 120
+        and (datetime.utcnow() - last_activity).total_seconds() > STALE_SYNC_JOB_SECONDS
     )
     message = job.message or ''
     if stale:
