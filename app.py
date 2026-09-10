@@ -2508,8 +2508,11 @@ def fetch_managed_facebook_messages(
                     messages = list(messages_payload.get('data', []))[:MAX_MESSAGES_PER_CONVERSATION]
                     message_count = len(messages_payload.get('data', []))
                     message_next_url = (messages_payload.get('paging') or {}).get('next')
-                    while message_next_url and (
-                            api_call_limit is None or api_call_count < api_call_limit):
+                    while (
+                        message_next_url
+                        and len(messages) < MAX_MESSAGES_PER_CONVERSATION
+                        and (api_call_limit is None or api_call_count < api_call_limit)
+                    ):
                         try:
                             message_payload = fetch_facebook_json(message_next_url, page_token)
                         except (HTTPError, URLError, ValueError, KeyError, TimeoutError, OSError) as exc:
@@ -2532,8 +2535,6 @@ def fetch_managed_facebook_messages(
                         if remaining > 0:
                             messages.extend(message_data[:remaining])
                         message_next_url = (message_payload.get('paging') or {}).get('next')
-                    if message_next_url:
-                        continue
                     if not messages:
                         continue
                     latest_message = messages[0]
@@ -2557,11 +2558,11 @@ def fetch_managed_facebook_messages(
                         customer_id = sender.get('id') or (participants[0].get('id') if participants else '')
 
                     all_texts = []
-                    for msg in customer_messages:
+                    for msg in customer_messages[:50]:
                         txt = msg.get('message') or msg.get('story') or ''
                         if txt:
-                            all_texts.append(txt)
-                    combined_text = '\n'.join(all_texts)
+                            all_texts.append(txt[:1000])
+                    combined_text = '\n'.join(all_texts)[:20000]
 
                     phone_numbers = extract_customer_phone_numbers(messages, page_id)
                     # Keep phone-less existing conversations in the rescan result
