@@ -5595,7 +5595,8 @@ def production_order_message(order):
         'Sản phẩm:',
     ]
     lines.extend(
-        f'- {item.product_name} | ĐVT: {item.unit or "—"} | SL: {item.quantity:g}'
+        f'- Mã SP: {item.product_code or "—"} | {item.product_name} '
+        f'| ĐVT: {item.unit or "—"} | SL: {item.quantity:g}'
         for item in order.items
     )
     if order.note:
