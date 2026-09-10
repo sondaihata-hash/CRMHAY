@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS order_payment (
   organization_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
   order_code BIGINT NOT NULL UNIQUE,
+  public_token VARCHAR(64) NOT NULL UNIQUE,
   amount INTEGER NOT NULL,
   payment_method VARCHAR(20) NOT NULL DEFAULT 'payos',
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
