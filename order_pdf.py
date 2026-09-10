@@ -69,6 +69,8 @@ def build_order_pdf(order, organization=None):
     pdf.drawRightString(196*mm, y-20*mm, f'VAT: {order.vat_amount:,.0f} đ')
     pdf.setFont(font, 11); pdf.drawRightString(196*mm, y-27*mm, f'TỔNG THANH TOÁN: {order.total_amount:,.0f} đ')
     pdf.setFont(font, 8)
+    payment_status = getattr(getattr(order, 'payment', None), 'status', None) or 'Chưa tạo thanh toán'
+    pdf.drawString(14*mm, y-31*mm, f'Trạng thái thanh toán: {payment_status}')
     note_lines = textwrap.wrap(f'Ghi chú: {order.note or "-"}', width=105)
     for offset, line in enumerate(note_lines[:3]):
         pdf.drawString(14*mm, y-(35 + offset * 4)*mm, line)
