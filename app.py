@@ -3919,6 +3919,13 @@ def create_order(customer_id):
         Order.sales_bank_account.isnot(None),
         Order.sales_bank_account != '',
     ).order_by(Order.created_at.desc()).first()
+    bank_suggestions = Order.query.filter(
+        Order.organization_id == current_user().organization_id,
+        Order.sales_bank_code.isnot(None),
+        Order.sales_bank_code != '',
+    ).with_entities(
+        Order.sales_bank_code, Order.sales_bank_account, Order.sales_account_name,
+    ).distinct().order_by(Order.sales_bank_code).limit(20).all()
     product_suggestions = []
     seen_products = set()
     previous_items = OrderItem.query.join(Order).filter(
@@ -3941,6 +3948,7 @@ def create_order(customer_id):
         organization=organization,
         now=datetime.utcnow,
         recent_order=recent_order,
+        bank_suggestions=bank_suggestions,
         product_suggestions=product_suggestions,
     )
 

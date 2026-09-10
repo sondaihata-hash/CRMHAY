@@ -42,7 +42,7 @@
     <div><label>Email:</label><input value="{{ customer.email or '' }}" readonly></div>
     <div><label>Trạng thái:</label><select name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option></select></div>
     <div><label>SĐT Sales:</label><input name="sales_phone" type="tel" value="{{ recent_order.sales_phone if recent_order else '' }}" placeholder="Số điện thoại của Sales"></div>
-    <div><label>Ngân hàng Sales:</label><input name="sales_bank_code" list="bank-suggestions" value="{{ recent_order.sales_bank_code if recent_order else '' }}" placeholder="Mã ngân hàng/BIN, ví dụ VCB"><datalist id="bank-suggestions">{% if recent_order and recent_order.sales_bank_code %}<option value="{{ recent_order.sales_bank_code }}">{% endif %}</datalist></div>
+    <div><label>Ngân hàng Sales:</label><input name="sales_bank_code" list="bank-suggestions" value="{{ recent_order.sales_bank_code if recent_order else '' }}" placeholder="Mã ngân hàng/BIN, ví dụ VCB"><datalist id="bank-suggestions">{% for bank in bank_suggestions %}<option value="{{ bank.sales_bank_code }}">{{ bank.sales_bank_account }}{% if bank.sales_account_name %} · {{ bank.sales_account_name }}{% endif %}</option>{% endfor %}</datalist></div>
     <div><label>STK Sales:</label><input name="sales_bank_account" value="{{ recent_order.sales_bank_account if recent_order else '' }}" placeholder="Số tài khoản ngân hàng của Sales"></div>
     <div><label>Tên chủ tài khoản (không bắt buộc):</label><input name="sales_account_name" value="{{ recent_order.sales_account_name if recent_order else '' }}" placeholder="Tên in trên QR"></div>
     <div><label>Điểm hiện có:</label><input value="{{ customer.points or 0 }}" readonly></div>
