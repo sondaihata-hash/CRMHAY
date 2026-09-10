@@ -5605,6 +5605,10 @@ if __name__ == '__main__':
     app.run(debug=True)
 else:
     init_db()
-    if is_production and os.environ.get('CRM_SUPERVISOR_PROCESS') == 'true':
+    if (
+        is_production
+        and os.environ.get('CRM_SUPERVISOR_PROCESS') == 'true'
+        and os.environ.get('CRM_AUTO_SYNC_ENABLED', 'true').lower() == 'true'
+    ):
         threading.Thread(target=_scheduled_business_sync_loop, daemon=True).start()
         threading.Thread(target=_developer_monitor_loop, daemon=True).start()
