@@ -5610,6 +5610,7 @@ def api_create_order():
     )
     db.session.add(order)
     order.items.extend(items)
+    assign_customer_to_order_sales(order)
     db.session.commit()
     update_customer_points(c.id)
     return {'order': serialize_order(order)}, 201
