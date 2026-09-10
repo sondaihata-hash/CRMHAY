@@ -3988,6 +3988,50 @@ def send_order_to_production(order_id):
     )
 
 
+@app.route('/orders/<int:order_id>/payment', methods=['POST'])
+@login_required
+def create_order_payment(order_id):
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first_or_404()
+    if order.payment and order.payment.status == 'paid':
+        flash('Đơn hàng này đã thanh toán thành công.', 'success')
+        return redirect(url_for('order_document', order_id=order.id))
+    if order.payment and order.payment.checkout_url and order.payment.qr_code:
+        return redirect(url_for('order_document', order_id=order.id))
+    amount = int(round(max(order.total_amount or 0, 0)))
+    if amount <= 0:
+        flash('Tổng tiền đơn hàng phải lớn hơn 0 để tạo QR thanh toán.', 'danger')
+        return redirect(url_for('order_document', order_id=order.id))
+    organization_id = order.organization_id or current_user().organization_id
+    if not organization_id:
+        return 'Đơn hàng chưa thuộc workspace hợp lệ.', 400
+    order_payment = order.payment or OrderPayment(
+        order=order,
+        organization_id=organization_id,
+        user_id=current_user().id,
+        order_code=int(datetime.utcnow().timestamp() * 1000) % 900000000 + 100000000,
+        amount=amount,
+    )
+    order_payment.amount = amount
+    db.session.add(order_payment)
+    try:
+        checkout_url, qr_code, provider_result = _payos_create_order_link(order_payment)
+        order_payment.checkout_url = checkout_url
+        order_payment.qr_code = qr_code
+        order_payment.provider_payload = json.dumps(provider_result, ensure_ascii=False)
+        db.session.commit()
+    except RuntimeError as exc:
+        db.session.rollback()
+        logger.exception('PayOS create order payment failed')
+        flash(f'Không thể tạo QR thanh toán: {exc}', 'danger')
+    return redirect(url_for('order_document', order_id=order.id))
+
+
 @app.route('/orders/<int:order_id>')
 def order_document(order_id):
     order = Order.query.join(Customer).filter(
@@ -3997,7 +4041,9 @@ def order_document(order_id):
     if not order:
         return 'Không tìm thấy đơn hàng.', 404
     organization = db.session.get(Organization, current_user().organization_id)
-    return render_template('order_document.html', order=order, organization=organization)
+    return render_template(
+        'order_document.html', order=order, organization=organization,
+    )
 
 
 @app.route('/orders/<int:order_id>/export.pdf')
