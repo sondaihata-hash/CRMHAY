@@ -3892,6 +3892,7 @@ def create_order(customer_id):
         total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) - points_discount + max(vat_amount, 0), 0)
         order = Order(
             customer_id=customer.id,
+            organization_id=current_user().organization_id,
             code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{customer.id}",
             total_amount=total_amount,
             status=request.form.get('status') or 'Mới',
@@ -3913,11 +3914,34 @@ def create_order(customer_id):
         flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
         return redirect(url_for('order_document', order_id=order.id))
     organization = db.session.get(Organization, current_user().organization_id)
+    recent_order = Order.query.filter(
+        Order.organization_id == current_user().organization_id,
+        Order.sales_bank_account.isnot(None),
+        Order.sales_bank_account != '',
+    ).order_by(Order.created_at.desc()).first()
+    product_suggestions = []
+    seen_products = set()
+    previous_items = OrderItem.query.join(Order).filter(
+        Order.organization_id == current_user().organization_id,
+    ).order_by(Order.created_at.desc()).limit(300).all()
+    for item in previous_items:
+        key = (item.product_code or '', item.product_name.strip().lower())
+        if key in seen_products:
+            continue
+        seen_products.add(key)
+        product_suggestions.append({
+            'code': item.product_code or '',
+            'name': item.product_name,
+            'unit': item.unit or 'Cái',
+            'price': item.unit_price or 0,
+        })
     return render_template(
         'order_form.html',
         customer=customer,
         organization=organization,
         now=datetime.utcnow,
+        recent_order=recent_order,
+        product_suggestions=product_suggestions,
     )
 
 
