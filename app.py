@@ -3775,14 +3775,6 @@ def sales_user_for_phone(phone, organization_id):
     digits = re.sub(r'\D', '', phone or '')
     if not digits or not organization_id:
         return None
-
-
-def assign_customer_to_order_sales(order):
-        sales_user = sales_user_for_phone(order.sales_phone, order.organization_id)
-        if not sales_user:
-            return None
-        order.customer.assigned_user_id = sales_user.id
-        return sales_user
     users = User.query.filter(
         User.organization_id == organization_id,
         User.role.in_(('sales', 'employee', 'manager')),
@@ -3792,6 +3784,14 @@ def assign_customer_to_order_sales(order):
         if re.sub(r'\D', '', user.username or '') == digits:
             return user
     return None
+
+
+def assign_customer_to_order_sales(order):
+    sales_user = sales_user_for_phone(order.sales_phone, order.organization_id)
+    if not sales_user:
+        return None
+    order.customer.assigned_user_id = sales_user.id
+    return sales_user
 
 
 def recalculate_all_points():
