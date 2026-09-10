@@ -2668,6 +2668,7 @@ def fetch_managed_facebook_messages(
             if message_callback and message_batch:
                 message_callback(message_batch)
                 message_batch.clear()
+            del conversations
             del payload
             gc.collect()
 
@@ -4207,14 +4208,20 @@ def _run_facebook_sync(job_id=None):
             t0 = time.time()
             logger.info("START background Facebook sync")
             last_progress_write = [0]
+            last_heartbeat_write = [0.0]
 
             def update_progress(processed, total, message):
                 if not job:
                     return
                 now = time.time()
-                if processed < total and processed - last_progress_write[0] < 10 and now - t0 < 5:
+                if (
+                    processed < total
+                    and processed - last_progress_write[0] < 10
+                    and now - last_heartbeat_write[0] < 30
+                ):
                     return
                 last_progress_write[0] = processed
+                last_heartbeat_write[0] = now
                 job.processed = processed
                 job.total = total
                 job.progress = min(99, int(processed * 100 / total)) if total else 1
