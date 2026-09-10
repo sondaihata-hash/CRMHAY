@@ -363,6 +363,10 @@ class Order(db.Model):
     production_sent_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     customer = db.relationship('Customer', backref=db.backref('orders', lazy=True))
+    payment = db.relationship(
+        'OrderPayment', backref=db.backref('order', uselist=False),
+        uselist=False, cascade='all, delete-orphan',
+    )
 
 
 class OrderItem(db.Model):
@@ -375,6 +379,25 @@ class OrderItem(db.Model):
     quantity = db.Column(db.Float, nullable=False, default=1)
     unit_price = db.Column(db.Float, nullable=False, default=0)
     order = db.relationship('Order', backref=db.backref('items', lazy=True, cascade='all, delete-orphan'))
+
+
+class OrderPayment(db.Model):
+    __tablename__ = 'order_payment'
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False, unique=True, index=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    order_code = db.Column(db.BigInteger, unique=True, nullable=False, index=True)
+    amount = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending', index=True)
+    checkout_url = db.Column(db.Text, nullable=True)
+    qr_code = db.Column(db.Text, nullable=True)
+    provider_payload = db.Column(db.Text, nullable=True)
+    paid_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    organization = db.relationship('Organization')
+    user = db.relationship('User')
 
 
 class SalesGroup(db.Model):
