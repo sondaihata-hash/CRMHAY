@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS payment (
   subscription_id INTEGER NOT NULL,
   plan VARCHAR(40) NOT NULL,
   amount INTEGER NOT NULL,
+  payment_method VARCHAR(20) NOT NULL DEFAULT 'payos',
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
   checkout_url TEXT NULL,
   provider_payload TEXT NULL,

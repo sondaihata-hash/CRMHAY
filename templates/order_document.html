@@ -45,6 +45,10 @@
     <h5>Thanh toán QR</h5>
     {% if order.payment and order.payment.status == 'paid' %}
       <p class="text-success fw-semibold mb-0">Thanh toán thành công{% if order.payment.paid_at %} lúc {{ order.payment.paid_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}.</p>
+    {% elif order.payment and order.payment.qr_code and order.payment.payment_method == 'bank' %}
+      <img src="{{ order.payment.qr_code }}" class="border p-2" width="240" height="240" alt="QR ngân hàng">
+      <p class="text-secondary mb-1">Quét mã để chuyển {{ '{:,.0f}'.format(order.payment.amount) }} đ vào tài khoản Sales</p>
+      <p class="small text-warning mb-0">Thanh toán thủ công; CRM chưa tự động xác nhận giao dịch ngân hàng.</p>
     {% elif order.payment and order.payment.qr_code %}
       <canvas id="order-payment-qr" class="border p-2"></canvas>
       <p class="text-secondary mb-1">Quét mã để thanh toán {{ '{:,.0f}'.format(order.payment.amount) }} đ</p>
