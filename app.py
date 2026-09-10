@@ -4130,9 +4130,13 @@ def create_order_payment(order_id):
 @app.route('/payment/order/<token>', methods=['GET', 'POST'])
 def customer_order_payment(token):
     payment = OrderPayment.query.filter_by(public_token=token).first_or_404()
+    qr_image = (
+        payment.qr_code if payment.payment_method == 'bank'
+        else _qr_data_uri(payment.qr_code) if payment.qr_code else None
+    )
     if request.method == 'POST':
         if payment.status == 'paid':
-            return render_template('customer_payment.html', payment=payment, submitted=True)
+            return render_template('customer_payment.html', payment=payment, qr_image=qr_image, submitted=True)
         if payment.payment_method != 'bank':
             return {'ok': False, 'message': 'Thanh toán PayOS được xác nhận tự động.'}, 400
         payment.status = 'customer_reported'
@@ -4141,8 +4145,8 @@ def customer_order_payment(token):
             'previous_payload': payment.provider_payload,
         }, ensure_ascii=False)
         db.session.commit()
-        return render_template('customer_payment.html', payment=payment, submitted=True)
-    return render_template('customer_payment.html', payment=payment, submitted=False)
+        return render_template('customer_payment.html', payment=payment, qr_image=qr_image, submitted=True)
+    return render_template('customer_payment.html', payment=payment, qr_image=qr_image, submitted=False)
 
 
 @app.route('/orders/<int:order_id>/payment/confirm', methods=['POST'])

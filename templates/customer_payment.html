@@ -13,7 +13,7 @@
         <p class="text-warning fw-semibold">Đã ghi nhận thông báo của bạn.</p>
         <p class="text-secondary">Sales sẽ kiểm tra giao dịch và xác nhận đơn hàng.</p>
       {% else %}
-        <img src="{{ payment.order.payment.qr_code if payment.payment_method == 'bank' else payment.order.payment.qr_code }}" class="img-fluid border p-2 mb-3" style="max-width:280px" alt="Mã QR thanh toán">
+        {% if qr_image %}<img src="{{ qr_image }}" class="img-fluid border p-2 mb-3" style="max-width:280px" alt="Mã QR thanh toán">{% endif %}
         <p class="text-secondary">Quét mã QR bằng ứng dụng ngân hàng, sau đó bấm nút bên dưới.</p>
         <form method="post">
           <button class="btn btn-primary btn-lg">Tôi đã thanh toán</button>
