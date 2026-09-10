@@ -3402,15 +3402,14 @@ def index():
             func.count(Customer.id),
         ).group_by(Customer.assigned_user_id).all()
     )
-    sales_revenues = dict(
-        Order.query.join(Customer, Order.customer_id == Customer.id).filter(
-            Customer.id.in_(customer_query.with_entities(Customer.id)),
-            Customer.assigned_user_id.isnot(None),
-        ).with_entities(
-            Customer.assigned_user_id,
-            func.coalesce(func.sum(Order.total_amount), 0),
-        ).group_by(Customer.assigned_user_id).all()
-    )
+    sales_revenues = {}
+    visible_orders = Order.query.join(Customer, Order.customer_id == Customer.id).filter(
+        Customer.id.in_(customer_query.with_entities(Customer.id)),
+    ).all()
+    for order in visible_orders:
+        sales_user = sales_user_for_phone(order.sales_phone, order.customer.organization_id)
+        if sales_user:
+            sales_revenues[sales_user.id] = sales_revenues.get(sales_user.id, 0) + (order.total_amount or 0)
     sales_customer_stats = sorted(
         [
             {
@@ -5238,14 +5237,14 @@ def api_dashboard():
         sales_customer_counts = dict(cq.filter(
             Customer.assigned_user_id.isnot(None),
         ).with_entities(Customer.assigned_user_id, func.count(Customer.id)).group_by(Customer.assigned_user_id).all())
-        sales_revenues = dict(Order.query.join(
+        sales_revenues = {}
+        visible_orders = Order.query.join(
             Customer, Order.customer_id == Customer.id,
-        ).filter(
-            Customer.id.in_(cq.with_entities(Customer.id)),
-            Customer.assigned_user_id.isnot(None),
-        ).with_entities(
-            Customer.assigned_user_id, func.coalesce(func.sum(Order.total_amount), 0),
-        ).group_by(Customer.assigned_user_id).all())
+        ).filter(Customer.id.in_(cq.with_entities(Customer.id))).all()
+        for order in visible_orders:
+            sales_user = sales_user_for_phone(order.sales_phone, order.customer.organization_id)
+            if sales_user:
+                sales_revenues[sales_user.id] = sales_revenues.get(sales_user.id, 0) + (order.total_amount or 0)
         sales_stats = [{
             'id': sales_user.id,
             'name': sales_user.username,
