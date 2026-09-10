@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-12 col-md-6">
+    <section class="panel p-4 text-center">
+      <p class="kpi-label">THANH TOÁN ĐƠN HÀNG</p>
+      <h1 class="page-title fs-3">{{ payment.order.code }}</h1>
+      <p class="text-secondary">Số tiền cần thanh toán</p>
+      <h2>{{ '{:,.0f}'.format(payment.amount) }} đ</h2>
+      {% if payment.status == 'paid' %}
+        <p class="text-success fw-semibold">Đơn hàng đã được xác nhận thanh toán.</p>
+      {% elif submitted or payment.status == 'customer_reported' %}
+        <p class="text-warning fw-semibold">Đã ghi nhận thông báo của bạn.</p>
+        <p class="text-secondary">Sales sẽ kiểm tra giao dịch và xác nhận đơn hàng.</p>
+      {% else %}
+        <img src="{{ payment.order.payment.qr_code if payment.payment_method == 'bank' else payment.order.payment.qr_code }}" class="img-fluid border p-2 mb-3" style="max-width:280px" alt="Mã QR thanh toán">
+        <p class="text-secondary">Quét mã QR bằng ứng dụng ngân hàng, sau đó bấm nút bên dưới.</p>
+        <form method="post">
+          <button class="btn btn-primary btn-lg">Tôi đã thanh toán</button>
+        </form>
+      {% endif %}
+      <p class="small text-secondary mt-3">Mã đơn: {{ payment.order.code }}</p>
+    </section>
+  </div>
+</div>
+{% endblock %}
