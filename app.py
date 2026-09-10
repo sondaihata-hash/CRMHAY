@@ -3775,6 +3775,14 @@ def sales_user_for_phone(phone, organization_id):
     digits = re.sub(r'\D', '', phone or '')
     if not digits or not organization_id:
         return None
+
+
+def assign_customer_to_order_sales(order):
+        sales_user = sales_user_for_phone(order.sales_phone, order.organization_id)
+        if not sales_user:
+            return None
+        order.customer.assigned_user_id = sales_user.id
+        return sales_user
     users = User.query.filter(
         User.organization_id == organization_id,
         User.role.in_(('sales', 'employee', 'manager')),
@@ -3942,9 +3950,12 @@ def create_order(customer_id):
         )
         db.session.add(order)
         order.items.extend(items)
+        sales_user = assign_customer_to_order_sales(order)
         db.session.commit()
         update_customer_points(customer.id)
         flash(f'Đã tạo đơn {order.code} cho {customer.name}.', 'success')
+        if order.sales_phone and not sales_user:
+            flash('Không tìm thấy tài khoản Sales khớp với số điện thoại trên đơn; khách vẫn giữ người phụ trách hiện tại.', 'warning')
         return redirect(url_for('order_document', order_id=order.id))
     organization = db.session.get(Organization, current_user().organization_id)
     recent_order = Order.query.filter(
@@ -4062,8 +4073,11 @@ def edit_order(order_id):
             + (order.vat_amount or 0),
             0,
         )
+        sales_user = assign_customer_to_order_sales(order)
         db.session.commit()
         flash(f'Đã cập nhật đơn {order.code}.', 'success')
+        if order.sales_phone and not sales_user:
+            flash('Không tìm thấy tài khoản Sales khớp với số điện thoại trên đơn; khách vẫn giữ người phụ trách hiện tại.', 'warning')
         return redirect(url_for('order_document', order_id=order.id))
     return render_template('order_edit.html', order=order)
 
