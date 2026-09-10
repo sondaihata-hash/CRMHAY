@@ -5487,6 +5487,7 @@ def api_create_order():
     total = max(sum(i.quantity * i.unit_price for i in items) - discount - points_discount + vat, 0)
     order = Order(
         customer_id=c.id,
+        organization_id=user.organization_id,
         code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{c.id}",
         total_amount=total, status=data.get('status') or 'Mới',
         note=(data.get('note') or '').strip(),
@@ -5494,6 +5495,8 @@ def api_create_order():
         payment_details=(data.get('payment_details') or '').strip(),
         sales_phone=(data.get('sales_phone') or '').strip(),
         sales_bank_account=(data.get('sales_bank_account') or '').strip(),
+        sales_bank_code=(data.get('sales_bank_code') or '').strip(),
+        sales_account_name=(data.get('sales_account_name') or '').strip(),
         points_redeemed=points_redeemed,
         points_value=points_value,
         points_discount=points_discount,
