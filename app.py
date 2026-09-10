@@ -196,6 +196,7 @@ FACEBOOK_API_TIMEOUT = 30  # seconds per HTTP request
 API_RATE_DELAY = 0.25  # seconds between Facebook API calls
 CONVERSATIONS_PER_REQUEST = 25
 MAX_MESSAGES_PER_CONVERSATION = 200
+STALE_SYNC_JOB_SECONDS = 15 * 60
 DEFAULT_HOTLINE_NUMBERS = frozenset({
     '0707866676',
     '0794753133',
@@ -4323,7 +4324,7 @@ def _scheduled_business_sync_loop():
                             )
                             if (
                                 last_activity
-                                and (datetime.utcnow() - last_activity).total_seconds() > 120
+                                and (datetime.utcnow() - last_activity).total_seconds() > STALE_SYNC_JOB_SECONDS
                             ):
                                 active_job.status = 'error'
                                 active_job.message = (
