@@ -4181,7 +4181,7 @@ def _run_facebook_sync(job_id=None):
             if job:
                 set_tenant_context(job.organization_id)
             if job:
-                job.status = 'running'
+                        job.status = 'running'
                 job.started_at = datetime.utcnow()
                 job.message = 'Đang đồng bộ Facebook...'
                 job.progress = 0
