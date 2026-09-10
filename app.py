@@ -626,6 +626,14 @@ def ensure_subscription_payment_columns():
     order_payment_columns = {
         column['name'] for column in inspect(db.engine).get_columns('order_payment')
     }
+    if 'public_token' not in order_payment_columns:
+        db.session.execute(text(
+            "ALTER TABLE order_payment ADD COLUMN public_token VARCHAR(64)"
+        ))
+        db.session.execute(text(
+            "UPDATE order_payment SET public_token = lower(hex(randomblob(32))) "
+            "WHERE public_token IS NULL"
+        ))
     if 'payment_method' not in order_payment_columns:
         db.session.execute(text(
             "ALTER TABLE order_payment ADD COLUMN payment_method "
