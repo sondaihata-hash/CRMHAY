@@ -759,7 +759,7 @@ def assignable_sales_user(user_id):
     actor = current_user()
     query = User.query.filter(
         User.id == user_id,
-        User.role.in_(('sales', 'employee', 'manager')),
+        User.role.in_(('sales', 'employee')),
         User.is_active.is_(True),
     )
     if actor.role == 'manager':
