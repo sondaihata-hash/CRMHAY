@@ -4096,8 +4096,11 @@ def create_order_payment(order_id):
         organization_id=organization_id,
         user_id=current_user().id,
         order_code=int(datetime.utcnow().timestamp() * 1000) % 900000000 + 100000000,
+        public_token=secrets.token_urlsafe(32),
         amount=amount,
     )
+    if not order_payment.public_token:
+        order_payment.public_token = secrets.token_urlsafe(32)
     order_payment.amount = amount
     db.session.add(order_payment)
     try:
@@ -4124,6 +4127,45 @@ def create_order_payment(order_id):
     return redirect(url_for('order_document', order_id=order.id))
 
 
+@app.route('/payment/order/<token>', methods=['GET', 'POST'])
+def customer_order_payment(token):
+    payment = OrderPayment.query.filter_by(public_token=token).first_or_404()
+    if request.method == 'POST':
+        if payment.status == 'paid':
+            return render_template('customer_payment.html', payment=payment, submitted=True)
+        if payment.payment_method != 'bank':
+            return {'ok': False, 'message': 'Thanh toán PayOS được xác nhận tự động.'}, 400
+        payment.status = 'customer_reported'
+        payment.provider_payload = json.dumps({
+            'customer_reported_at': datetime.utcnow().isoformat(),
+            'previous_payload': payment.provider_payload,
+        }, ensure_ascii=False)
+        db.session.commit()
+        return render_template('customer_payment.html', payment=payment, submitted=True)
+    return render_template('customer_payment.html', payment=payment, submitted=False)
+
+
+@app.route('/orders/<int:order_id>/payment/confirm', methods=['POST'])
+@login_required
+def confirm_order_payment(order_id):
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    order = Order.query.join(Customer).filter(
+        Order.id == order_id,
+        Customer.id.in_(visible_customer_query().with_entities(Customer.id)),
+    ).first_or_404()
+    if current_user().role not in {'admin', 'manager', 'dev'}:
+        return 'Chỉ Admin, Quản lý hoặc Developer mới được xác nhận đã nhận tiền.', 403
+    if not order.payment or order.payment.payment_method != 'bank':
+        return 'Đơn này không dùng thanh toán ngân hàng thủ công.', 400
+    order.payment.status = 'paid'
+    order.payment.paid_at = datetime.utcnow()
+    db.session.commit()
+    flash(f'Đã xác nhận thanh toán đơn {order.code}.', 'success')
+    return redirect(url_for('order_document', order_id=order.id))
+
+
 @app.route('/orders/<int:order_id>')
 def order_document(order_id):
     order = Order.query.join(Customer).filter(
@@ -4142,6 +4184,11 @@ def order_document(order_id):
     return render_template(
         'order_document.html', order=order, organization=organization,
         qr_image=qr_image,
+        customer_payment_url=(
+            url_for('customer_order_payment', token=order.payment.public_token, _external=True)
+            if order.payment and order.payment.payment_method == 'bank'
+            else None
+        ),
     )
 
 
