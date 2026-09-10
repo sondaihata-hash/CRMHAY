@@ -46,7 +46,7 @@ import tempfile
 import shutil
 import gc
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import time
 import threading
@@ -356,6 +356,8 @@ class Order(db.Model):
     payment_details = db.Column(db.String(400), nullable=True)
     sales_phone = db.Column(db.String(50), nullable=True)
     sales_bank_account = db.Column(db.String(200), nullable=True)
+    sales_bank_code = db.Column(db.String(30), nullable=True)
+    sales_account_name = db.Column(db.String(200), nullable=True)
     points_awarded = db.Column(db.Integer, nullable=False, default=0)
     points_redeemed = db.Column(db.Integer, nullable=False, default=0)
     points_value = db.Column(db.Float, nullable=False, default=1000)
@@ -390,6 +392,7 @@ class OrderPayment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     order_code = db.Column(db.BigInteger, unique=True, nullable=False, index=True)
     amount = db.Column(db.Integer, nullable=False)
+    payment_method = db.Column(db.String(20), nullable=False, default='payos')
     status = db.Column(db.String(20), nullable=False, default='pending', index=True)
     checkout_url = db.Column(db.Text, nullable=True)
     qr_code = db.Column(db.Text, nullable=True)
@@ -991,6 +994,22 @@ def _payos_create_order_link(order_payment):
     if not data.get('checkoutUrl') or not data.get('qrCode'):
         raise RuntimeError('PayOS không trả về đủ liên kết hoặc dữ liệu QR.')
     return data['checkoutUrl'], data['qrCode'], result
+
+
+def _bank_qr_url(order):
+    bank_code = (order.sales_bank_code or '').strip()
+    account = (order.sales_bank_account or '').strip().replace(' ', '')
+    if not bank_code or not account:
+        raise RuntimeError('Cần nhập mã ngân hàng và số tài khoản Sales để tạo QR.')
+    query = urlencode({
+        'amount': int(round(order.total_amount)),
+        'addInfo': order.code,
+        'accountName': (order.sales_account_name or '').strip(),
+    })
+    return (
+        f'https://img.vietqr.io/image/{quote(bank_code)}-{quote(account)}-compact2.png'
+        f'?{query}'
+    )
 
 
 def _payos_upgrade_link(organization, user, target_plan):
