@@ -61,7 +61,8 @@ try {
     }
 
     $listPath = Join-Path $temp 'concat.txt'
-    $scenePaths | ForEach-Object { "file '$($_.Replace('\','/'))'" } | Set-Content -Path $listPath -Encoding utf8
+    $concatLines = $scenePaths | ForEach-Object { "file '$($_.Replace('\','/'))'" }
+    [System.IO.File]::WriteAllLines($listPath, $concatLines, [System.Text.Encoding]::ASCII)
     & $ffmpeg -y -f concat -safe 0 -i $listPath -c copy $OutputPath
     if ($LASTEXITCODE -ne 0) {
         throw 'Khong the ghep video marketing.'
