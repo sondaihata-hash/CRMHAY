@@ -73,7 +73,7 @@ Hãy dùng thử CRM HAY ngay hôm nay tại crmhay.cloud.
     $silent = Join-Path $temp 'silent.mp4'
     & $ffmpeg -y -f concat -safe 0 -i $list -c copy $silent
     if ($LASTEXITCODE -ne 0) { throw 'Khong ghep duoc cac canh.' }
-    & $ffmpeg -y -i $silent -i $voice -filter_complex "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[a]" -map 0:v:0 -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest $OutputPath
+    & $ffmpeg -y -i $silent -i $voice -filter_complex "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[a]" -map 0:v:0 -map "[a]" -c:v copy -c:a aac -ar 48000 -ac 2 -b:a 160k -shortest $OutputPath
     if ($LASTEXITCODE -ne 0) { throw 'Khong ghep duoc giong doc vao video.' }
     Write-Host "Da tao video: $OutputPath"
 }
