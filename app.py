@@ -757,13 +757,14 @@ def get_visible_customer(customer_id):
 
 def assignable_sales_user(user_id):
     actor = current_user()
+    allowed_roles = ('sales', 'employee', 'manager') if actor.role in {'admin', 'dev'} else ('sales', 'employee')
     query = User.query.filter(
         User.id == user_id,
-        User.role.in_(('sales', 'employee')),
+        User.role.in_(allowed_roles),
         User.is_active.is_(True),
     )
     if actor.role == 'manager':
-        query = query.filter(User.role.in_(('sales', 'employee')), User.manager_id == actor.id)
+        query = query.filter(User.manager_id == actor.id)
     return query.first()
 
 
