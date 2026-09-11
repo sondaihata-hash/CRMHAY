@@ -20,17 +20,17 @@ try {
         @{
             Name = 'scene1.mp4'
             Color = '073b4c'
-            Lines = @('CRM HAY', 'Quản lý khách hàng', 'và đơn hàng tập trung')
+            Lines = @('CRM HAY', 'Quan ly khach hang', 'va don hang tap trung')
         },
         @{
             Name = 'scene2.mp4'
             Color = '1261a0'
-            Lines = @('Không bỏ sót khách hàng', 'Theo dõi Sales rõ ràng', 'Biết doanh thu thuộc về ai')
+            Lines = @('Khong bo sot khach hang', 'Theo doi Sales ro rang', 'Biet doanh thu thuoc ve ai')
         },
         @{
             Name = 'scene3.mp4'
             Color = '087f5b'
-            Lines = @('Dùng thử CRM HAY ngay', 'Từ 149.500đ/tháng', 'crmhay.cloud')
+            Lines = @('Dung thu CRM HAY ngay', 'Tu 149.500d/thang', 'crmhay.cloud')
         }
     )
 
