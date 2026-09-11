@@ -12,25 +12,26 @@ if (-not $OutputPath) { $OutputPath = Join-Path $repoRoot 'downloads\crmhay-face
 
 $temp = Join-Path $env:TEMP ('crmhay-vietnamese-video-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temp -Force | Out-Null
+$U = { param($value) [regex]::Unescape($value) }
 try {
-    $voiceText = @'
-Bạn đang mất khách vì tin nhắn bị trôi và đơn hàng bị bỏ sót?
-CRM HAY giúp bạn quản lý khách hàng, Sales và đơn hàng trên một màn hình.
-Theo dõi lịch sử chăm sóc, phân công khách hàng và biết doanh thu thuộc về ai.
-Tạo đơn hàng, thanh toán QR và gửi thông tin sản xuất nhanh chóng.
-Hãy dùng thử CRM HAY ngay hôm nay tại crmhay.cloud.
-Gói Basic chỉ từ một trăm bốn mươi chín nghìn năm trăm đồng mỗi tháng.
-'@
+    $voiceText = @(
+        (&$U 'B\u1ea1n \u0111ang m\u1ea5t kh\u00e1ch v\u00ec tin nh\u1eafn b\u1ecb tr\u00f4i v\u00e0 \u0111\u01a1n h\u00e0ng b\u1ecb b\u1ecf s\u00f3t?'),
+        (&$U 'CRM HAY gi\u00fap b\u1ea1n qu\u1ea3n l\u00fd kh\u00e1ch h\u00e0ng, Sales v\u00e0 \u0111\u01a1n h\u00e0ng tr\u00ean m\u1ed9t m\u00e0n h\u00ecnh.'),
+        (&$U 'Theo d\u00f5i l\u1ecbch s\u1eed ch\u0103m s\u00f3c, ph\u00e2n c\u00f4ng kh\u00e1ch h\u00e0ng v\u00e0 bi\u1ebft doanh thu thu\u1ed9c v\u1ec1 ai.'),
+        (&$U 'T\u1ea1o \u0111\u01a1n h\u00e0ng, thanh to\u00e1n QR v\u00e0 g\u1eedi th\u00f4ng tin s\u1ea3n xu\u1ea5t nhanh ch\u00f3ng.'),
+        (&$U 'H\u00e3y d\u00f9ng th\u1eed CRM HAY ngay h\u00f4m nay t\u1ea1i crmhay.cloud.'),
+        (&$U 'G\u00f3i Basic ch\u1ec9 t\u1eeb m\u1ed9t tr\u0103m b\u1ed1n m\u01b0\u01a1i ch\u00edn ngh\u00ecn n\u0103m tr\u0103m \u0111\u1ed3ng m\u1ed7i th\u00e1ng.')
+    ) -join "`n"
     $voicePath = Join-Path $temp 'voice.mp3'
     & $edgeTts --voice vi-VN-HoaiMyNeural --text $voiceText --write-media $voicePath
     if ($LASTEXITCODE -ne 0) { throw 'Khong the tao giong doc tieng Viet.' }
 
     $sceneData = @(
-        @{ Color='082f49'; Title='CRM HAY'; Subtitle='Quản lý khách hàng thông minh'; Detail='Không bỏ sót cơ hội bán hàng' },
-        @{ Color='164e63'; Title='KHÁCH HÀNG'; Subtitle='Hồ sơ và lịch sử chăm sóc'; Detail='Tập trung dữ liệu khách hàng trên một màn hình' },
-        @{ Color='1e3a8a'; Title='ĐƠN HÀNG'; Subtitle='Tạo đơn, thanh toán QR'; Detail='Theo dõi trạng thái và gửi sản xuất nhanh chóng' },
-        @{ Color='14532d'; Title='DOANH THU SALES'; Subtitle='Phân quyền và báo cáo rõ ràng'; Detail='Biết chính xác doanh thu thuộc về ai' },
-        @{ Color='7c2d12'; Title='BẮT ĐẦU NGAY'; Subtitle='Dùng thử CRM HAY'; Detail='crmhay.cloud  |  Từ 149.500đ/tháng' }
+        @{ Color='082f49'; Title='CRM HAY'; Subtitle=(&$U 'Qu\u1ea3n l\u00fd kh\u00e1ch h\u00e0ng th\u00f4ng minh'); Detail=(&$U 'Kh\u00f4ng b\u1ecf s\u00f3t c\u01a1 h\u1ed9i b\u00e1n h\u00e0ng') },
+        @{ Color='164e63'; Title=(&$U 'KH\u00c1CH H\u00c0NG'); Subtitle=(&$U 'H\u1ed3 s\u01a1 v\u00e0 l\u1ecbch s\u1eed ch\u0103m s\u00f3c'); Detail=(&$U 'T\u1eadp trung d\u1eef li\u1ec7u kh\u00e1ch h\u00e0ng tr\u00ean m\u1ed9t m\u00e0n h\u00ecnh') },
+        @{ Color='1e3a8a'; Title=(&$U '\u0110\u01a0N H\u00c0NG'); Subtitle=(&$U 'T\u1ea1o \u0111\u01a1n, thanh to\u00e1n QR'); Detail=(&$U 'Theo d\u00f5i tr\u1ea1ng th\u00e1i v\u00e0 g\u1eedi s\u1ea3n xu\u1ea5t nhanh ch\u00f3ng') },
+        @{ Color='14532d'; Title='DOANH THU SALES'; Subtitle=(&$U 'Ph\u00e2n quy\u1ec1n v\u00e0 b\u00e1o c\u00e1o r\u00f5 r\u00e0ng'); Detail=(&$U 'Bi\u1ebft ch\u00ednh x\u00e1c doanh thu thu\u1ed9c v\u1ec1 ai') },
+        @{ Color='7c2d12'; Title=(&$U 'B\u1eaeT \u0110\u1ea6U NGAY'); Subtitle=(&$U 'D\u00f9ng th\u1eed CRM HAY'); Detail=(&$U 'crmhay.cloud  |  T\u1eeb 149.500\u0111/th\u00e1ng') }
     )
     $scenePaths = @()
     $filterPath = {
