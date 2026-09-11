@@ -43,10 +43,14 @@ try {
             $textPaths += $textPath
         }
         $output = Join-Path $temp $scene.Name
+        $filterPath = {
+            param($path)
+            return $path.Replace('\', '/').Replace(':', '\:')
+        }
         $filter = @(
-            "drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='$($textPaths[0].Replace('\','/'))':fontcolor=white:fontsize=104:x=(w-text_w)/2:y=470",
-            "drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='$($textPaths[1].Replace('\','/'))':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=720",
-            "drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='$($textPaths[2].Replace('\','/'))':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=840",
+            "drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='$(&$filterPath $textPaths[0])':fontcolor=white:fontsize=104:x=(w-text_w)/2:y=470",
+            "drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='$(&$filterPath $textPaths[1])':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=720",
+            "drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='$(&$filterPath $textPaths[2])':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=840",
             "fade=t=in:st=0:d=0.5,fade=t=out:st=5.5:d=0.5"
         ) -join ','
         & $ffmpeg -y -f lavfi -i "color=c=$($scene.Color):s=1080x1920:r=30:d=6" -vf $filter -an -c:v libx264 -preset medium -crf 22 -pix_fmt yuv420p $output
