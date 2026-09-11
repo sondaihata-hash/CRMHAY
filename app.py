@@ -5505,7 +5505,7 @@ def api_assign_customer(c_id):
     data = request.get_json(silent=True) or {}
     user_id = data.get('assigned_user_id')
     user = db.session.get(User, user_id) if user_id else None
-    if user_id and (not user or user.role not in {'sales', 'employee'} or not user.is_active):
+    if user_id and (not user or user.role not in {'sales', 'employee', 'manager'} or not user.is_active):
         return {'error': 'Sales được chọn không hợp lệ hoặc đã bị khóa.'}, 400
     customer.assigned_user_id = user.id if user else None
     db.session.commit()
