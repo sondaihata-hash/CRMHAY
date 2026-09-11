@@ -3710,8 +3710,9 @@ def customer_detail(c_id):
     groups = SalesGroup.query.order_by(SalesGroup.name).all()
     handoffs = SalesHandoff.query.filter_by(customer_id=c.id).order_by(SalesHandoff.created_at.desc()).limit(5).all()
     activities = CustomerActivity.query.filter_by(customer_id=c.id).order_by(CustomerActivity.created_at.desc()).all()
+    assignable_roles = ('sales', 'employee', 'manager') if current_user().role in {'admin', 'dev'} else ('sales', 'employee')
     sales_user_query = User.query.filter(
-        User.role.in_(('sales', 'employee')),
+        User.role.in_(assignable_roles),
         User.is_active.is_(True),
     )
     if current_user().role == 'manager':
@@ -5490,7 +5491,7 @@ def api_add_customer():
 def api_admin_users():
     if api_current_user().role != 'admin':
         return {'error': 'Chỉ Admin mới có quyền xem danh sách nhân viên.'}, 403
-    users = User.query.filter(User.role.in_(('sales', 'employee')), User.is_active.is_(True)).order_by(User.username.asc()).all()
+    users = User.query.filter(User.role.in_(('sales', 'employee', 'manager')), User.is_active.is_(True)).order_by(User.username.asc()).all()
     return {'users': [{'id': user.id, 'username': user.username, 'role': user.role, 'role_label': USER_ROLES.get(user.role, user.role)} for user in users]}
 
 
