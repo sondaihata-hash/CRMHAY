@@ -5018,8 +5018,10 @@ def api_login_required(view):
         token_obj = ApiToken.query.filter_by(token_hash=hash_api_token(token_str)).first()
         if not token_obj:
             token_obj = ApiToken.query.filter_by(token=token_str).first()
-        if not token_obj or not token_obj.user.is_active:
-            return {'error': 'Token không hợp lệ hoặc tài khoản bị khóa.'}, 401
+        if not token_obj:
+            return {'error': 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.'}, 401
+        if not token_obj.user.is_active:
+            return {'error': 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.'}, 403
         request._api_user = token_obj.user
         set_tenant_context(None if token_obj.user.is_platform_admin else token_obj.user.organization_id)
         return view(*args, **kwargs)
