@@ -16,6 +16,7 @@ if (-not (Test-Path $screenshot)) {
 
 $temp = Join-Path $env:TEMP ('crmhay-feature-video-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temp -Force | Out-Null
+$U = { param($value) [regex]::Unescape($value) }
 try {
     $voiceText = Join-Path $temp 'voice.txt'
     [IO.File]::WriteAllText($voiceText, @'
@@ -40,12 +41,17 @@ Hãy dùng thử CRM HAY ngay hôm nay tại crmhay.cloud.
         $crops += $crop
     }
 
-    $titles = @('Tổng quan CRM', 'Tập trung khách hàng', 'Đơn hàng và doanh thu', 'Bắt đầu với CRM HAY')
+    $titles = @(
+        (&$U 'T\u1ed5ng quan CRM'),
+        (&$U 'T\u1eadp trung kh\u00e1ch h\u00e0ng'),
+        (&$U '\u0110\u01a1n h\u00e0ng v\u00e0 doanh thu'),
+        (&$U 'B\u1eaft \u0111\u1ea7u v\u1edbi CRM HAY')
+    )
     $subtitles = @(
-        'Theo dõi mọi cơ hội bán hàng',
-        'Lịch sử chăm sóc trên một màn hình',
-        'Sales, thanh toán và báo cáo rõ ràng',
-        'crmhay.cloud | Dùng thử ngay'
+        (&$U 'Theo d\u00f5i m\u1ecdi c\u01a1 h\u1ed9i b\u00e1n h\u00e0ng'),
+        (&$U 'L\u1ecbch s\u1eed ch\u0103m s\u00f3c tr\u00ean m\u1ed9t m\u00e0n h\u00ecnh'),
+        (&$U 'Sales, thanh to\u00e1n v\u00e0 b\u00e1o c\u00e1o r\u00f5 r\u00e0ng'),
+        (&$U 'crmhay.cloud | D\u00f9ng th\u1eed ngay')
     )
     $scenes = @()
     for ($i = 0; $i -lt $crops.Count; $i++) {
