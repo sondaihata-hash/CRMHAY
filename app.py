@@ -3502,12 +3502,19 @@ def complete_reminder(reminder_id):
 def customers():
     q = request.args.get('q', '')
     sort = request.args.get('sort', 'newest')
-    if sort not in {'date', 'newest', 'page'}:
+    if sort not in {'date', 'newest', 'page', 'location'}:
         sort = 'newest'
     selected_page_name = request.args.get('page_name', '').strip()
     assignment_filter = request.args.get('assignment', 'all').strip().lower()
     if assignment_filter not in {'all', 'assigned', 'unassigned'}:
         assignment_filter = 'all'
+    call_filter = request.args.get('call_status', 'all').strip().lower()
+    if call_filter not in {'all', 'called', 'uncalled'}:
+        call_filter = 'all'
+    caller_user_id = request.args.get('caller_user_id', type=int)
+    if current_user().role not in {'admin', 'dev', 'manager'}:
+        call_filter = 'all'
+        caller_user_id = None
     sync_job_id = request.args.get('sync_job', '')
     try:
         page = max(1, int(request.args.get('page', 1)))
@@ -3539,6 +3546,20 @@ def customers():
         base_query = base_query.filter(Customer.assigned_user_id.isnot(None))
     elif assignment_filter == 'unassigned':
         base_query = base_query.filter(Customer.assigned_user_id.is_(None))
+    call_exists = db.exists().where(
+        CustomerActivity.customer_id == Customer.id,
+        CustomerActivity.activity_type == 'call',
+    )
+    if call_filter == 'called':
+        base_query = base_query.filter(call_exists)
+    elif call_filter == 'uncalled':
+        base_query = base_query.filter(~call_exists)
+    if caller_user_id:
+        base_query = base_query.filter(db.exists().where(
+            CustomerActivity.customer_id == Customer.id,
+            CustomerActivity.activity_type == 'call',
+            CustomerActivity.user_id == caller_user_id,
+        ))
     ordered_query = base_query.order_by(*customer_sort_order(sort))
     total_count = ordered_query.count()
     total_pages = max(1, (total_count + per_page - 1) // per_page)
@@ -3603,13 +3624,24 @@ def customers():
         'customers.html', customers=items, customer_stats=customer_stats,
         total_count=total_count, page=page, total_pages=total_pages,
         q=q, sync_job_id=sync_job_id, sort=sort, selected_page_name=selected_page_name,
-        assignment_filter=assignment_filter,
+        assignment_filter=assignment_filter, call_filter=call_filter,
+        caller_user_id=caller_user_id,
         page_names=page_names,
         sales_groups=SalesGroup.query.order_by(SalesGroup.name).all(),
         sales_users=User.query.filter(
             User.role.in_(('sales', 'employee', 'manager') if current_user().role in {'admin', 'dev'} else ('sales', 'employee')),
             User.is_active.is_(True),
             *([User.manager_id == current_user().id] if current_user().role == 'manager' else []),
+        ).order_by(User.username).all(),
+        call_users=User.query.filter(
+            User.role.in_(('sales', 'employee', 'manager')),
+            User.is_active.is_(True),
+            *([User.organization_id == current_user().organization_id]
+              if current_user().organization_id is not None else []),
+            *([db.or_(
+                User.id == current_user().id,
+                User.manager_id == current_user().id,
+            )] if current_user().role == 'manager' else []),
         ).order_by(User.username).all(),
         can_export=plan_allows('export'),
         current_plan=organization_plan(),

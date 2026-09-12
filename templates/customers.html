@@ -117,6 +117,17 @@
             <option value="assigned" {% if assignment_filter == 'assigned' %}selected{% endif %}>Đã có Sales</option>
             <option value="unassigned" {% if assignment_filter == 'unassigned' %}selected{% endif %}>Chưa có Sales</option>
           </select>
+          <select class="form-select form-select-sm" name="call_status" onchange="this.form.submit()" aria-label="Lọc trạng thái gọi">
+            <option value="all" {% if call_filter == 'all' %}selected{% endif %}>Tất cả trạng thái gọi</option>
+            <option value="called" {% if call_filter == 'called' %}selected{% endif %}>Đã gọi</option>
+            <option value="uncalled" {% if call_filter == 'uncalled' %}selected{% endif %}>Chưa gọi</option>
+          </select>
+          <select class="form-select form-select-sm" name="caller_user_id" onchange="this.form.submit()" aria-label="Lọc người đã gọi">
+            <option value="">Tất cả người gọi</option>
+            {% for user in call_users %}
+            <option value="{{ user.id }}" {% if caller_user_id == user.id %}selected{% endif %}>Đã gọi bởi: {{ user.username }}</option>
+            {% endfor %}
+          </select>
           {% endif %}
           {% if sort == 'page' %}
           <select class="form-select form-select-sm" name="page_name" onchange="this.form.submit()" aria-label="Chọn Page">
@@ -294,19 +305,19 @@
         </span>
         <div class="btn-group" role="group">
           {% if page > 1 %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, page=page - 1) }}">← Trước</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, call_status=call_filter, caller_user_id=caller_user_id, page=page - 1) }}">← Trước</a>
           {% endif %}
           {% for page_number in range(1, total_pages + 1) %}
             {% if page_number == page %}
             <span class="btn btn-sm btn-primary">{{ page_number }}</span>
             {% elif page_number <= 3 or page_number > total_pages - 2 or (page_number >= page - 1 and page_number <= page + 1) %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, page=page_number) }}">{{ page_number }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, call_status=call_filter, caller_user_id=caller_user_id, page=page_number) }}">{{ page_number }}</a>
             {% elif page_number == 4 or page_number == total_pages - 2 %}
             <span class="btn btn-sm btn-outline-secondary disabled">…</span>
             {% endif %}
           {% endfor %}
           {% if page < total_pages %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, page=page + 1) }}">Sau →</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers', q=q, sort=sort, page_name=selected_page_name, assignment=assignment_filter, call_status=call_filter, caller_user_id=caller_user_id, page=page + 1) }}">Sau →</a>
           {% endif %}
         </div>
       </div>
