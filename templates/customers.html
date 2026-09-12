@@ -50,6 +50,8 @@
       <div class="col-md-12">
         <input class="form-control" name="q" placeholder="Tìm theo tên khách hàng, số điện thoại hoặc Facebook ID" value="{{ q }}">
         <input type="hidden" name="assignment" value="{{ assignment_filter }}">
+        <input type="hidden" name="call_status" value="{{ call_filter }}">
+        <input type="hidden" name="caller_user_id" value="{{ caller_user_id or '' }}">
         <input type="hidden" name="sort" value="{{ sort }}">
       </div>
     </form>
