@@ -111,7 +111,6 @@
             <option value="page" {% if sort == 'page' %}selected{% endif %}>Theo Page</option>
             <option value="location" {% if sort == 'location' %}selected{% endif %}>Theo nơi ở</option>
           </select>
-          <input type="hidden" name="assignment" value="{{ assignment_filter }}">
           {% if current_user and current_user().role in ['admin', 'dev', 'manager'] %}
           <select class="form-select form-select-sm" name="assignment" onchange="this.form.submit()" aria-label="Lọc trạng thái Sales">
             <option value="all" {% if assignment_filter == 'all' %}selected{% endif %}>Tất cả trạng thái Sales</option>
