@@ -1,6 +1,6 @@
 import uuid
 
-from app import Customer, Organization, User, app, db
+from app import Customer, CustomerActivity, Organization, User, app, db
 from auth_helpers import csrf_token, login_admin
 from werkzeug.security import generate_password_hash
 
@@ -334,6 +334,82 @@ def test_admin_customer_list_filters_assignment_status_and_shows_sales():
             db.session.delete(db.session.get(Customer, assigned_id))
             db.session.delete(db.session.get(Customer, unassigned_id))
             db.session.delete(db.session.get(User, sales_id))
+            db.session.commit()
+
+
+def test_admin_customer_list_filters_call_status_and_caller():
+    client = login_admin(app.test_client())
+    with app.app_context():
+        admin = User.query.filter_by(username='test_admin').one()
+        first_sales = User(
+            username=f'caller_one_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            organization_id=admin.organization_id,
+        )
+        second_sales = User(
+            username=f'caller_two_{uuid.uuid4().hex}',
+            password_hash=generate_password_hash('SalesPass123!'),
+            role='sales',
+            organization_id=admin.organization_id,
+        )
+        first_customer = Customer(
+            name=f'Called by first {uuid.uuid4().hex}',
+            organization_id=admin.organization_id,
+        )
+        second_customer = Customer(
+            name=f'Called by second {uuid.uuid4().hex}',
+            organization_id=admin.organization_id,
+        )
+        uncalled_customer = Customer(
+            name=f'Never called {uuid.uuid4().hex}',
+            organization_id=admin.organization_id,
+        )
+        db.session.add_all([first_sales, second_sales, first_customer, second_customer, uncalled_customer])
+        db.session.flush()
+        db.session.add_all([
+            CustomerActivity(
+                customer_id=first_customer.id, user_id=first_sales.id,
+                activity_type='call', channel='phone', status='completed',
+            ),
+            CustomerActivity(
+                customer_id=second_customer.id, user_id=second_sales.id,
+                activity_type='call', channel='phone', status='completed',
+            ),
+        ])
+        db.session.commit()
+        first_sales_id = first_sales.id
+        first_customer_id = first_customer.id
+        second_customer_id = second_customer.id
+        uncalled_customer_id = uncalled_customer.id
+        second_sales_id = second_sales.id
+
+    try:
+        called_html = client.get('/customers?call_status=called').get_data(as_text=True)
+        assert f'Called by first' in called_html
+        assert f'Called by second' in called_html
+        assert f'Never called' not in called_html
+
+        uncalled_html = client.get('/customers?call_status=uncalled').get_data(as_text=True)
+        assert f'Never called' in uncalled_html
+        assert f'Called by first' not in uncalled_html
+
+        caller_html = client.get(
+            f'/customers?call_status=called&caller_user_id={first_sales_id}',
+        ).get_data(as_text=True)
+        assert f'Called by first' in caller_html
+        assert f'Called by second' not in caller_html
+    finally:
+        with app.app_context():
+            CustomerActivity.query.filter(
+                CustomerActivity.customer_id.in_(
+                    [first_customer_id, second_customer_id, uncalled_customer_id],
+                ),
+            ).delete(synchronize_session=False)
+            for customer_id in (first_customer_id, second_customer_id, uncalled_customer_id):
+                db.session.delete(db.session.get(Customer, customer_id))
+            for user_id in (first_sales_id, second_sales_id):
+                db.session.delete(db.session.get(User, user_id))
             db.session.commit()
 
 
