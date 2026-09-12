@@ -53,6 +53,7 @@ foreach ($name in @(
 
 $logDirectory = Join-Path $env:TEMP 'crmh-supervisor'
 $logPath = Join-Path $logDirectory 'vps-supervisor.log'
+$crashLogPath = Join-Path $logDirectory 'crm-crash.log'
 $stdoutPath = Join-Path $logDirectory 'crm.stdout.log'
 $stderrPath = Join-Path $logDirectory 'crm.stderr.log'
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
@@ -101,7 +102,7 @@ try {
             if ($process) {
                 Write-Warning "$(Get-Date -Format s) CRM stopped with exit code $($process.ExitCode); restarting."
                 if (Test-Path $stderrPath) {
-                    Get-Content $stderrPath -Tail 40 | ForEach-Object { Add-Content -Path $logPath -Value "CRM STDERR: $_" }
+                    Get-Content $stderrPath -Tail 40 | ForEach-Object { Add-Content -Path $crashLogPath -Value "$(Get-Date -Format s) CRM STDERR: $_" }
                 }
             }
             $process = Start-CrmProcess
