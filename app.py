@@ -357,6 +357,7 @@ class Order(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
     code = db.Column(db.String(40), nullable=False, unique=True)
     total_amount = db.Column(db.Float, nullable=False, default=0)
+    customer_type = db.Column(db.String(20), nullable=False, default='personal')
     status = db.Column(db.String(30), nullable=False, default='Mới')
     note = db.Column(db.Text, nullable=True)
     delivery_address = db.Column(db.String(400), nullable=True)
@@ -3907,7 +3908,7 @@ def handoff_customer_to_zalo(c_id):
 
 def ensure_order_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
-    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'discount_rate': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'sales_bank_code': 'VARCHAR(30)', 'sales_account_name': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_value': 'FLOAT DEFAULT 1000', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
+    new_columns = {'delivery_address': 'TEXT', 'customer_type': "VARCHAR(20) DEFAULT 'personal'", 'discount_amount': 'FLOAT DEFAULT 0', 'discount_rate': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'sales_bank_code': 'VARCHAR(30)', 'sales_account_name': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_value': 'FLOAT DEFAULT 1000', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
