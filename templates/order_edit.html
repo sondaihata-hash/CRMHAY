@@ -16,7 +16,7 @@ function updateEditTotals() {
   }, 0);
   const points = (Number(document.querySelector('[name=points_redeemed]').value) || 0) *
     (Number(document.querySelector('[name=points_value]').value) || 0);
-  const amount = Math.max(merchandise - points, 0);
+  const amount = Math.max(merchandise - {{ order.discount_amount or 0 }} - points, 0);
   if (document.querySelector('[name=vat_auto]').checked) document.getElementById('vatAmount').value = Math.round(amount * rate / 100);
 }
 document.getElementById('vatRate').addEventListener('input', updateEditTotals);
