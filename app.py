@@ -354,6 +354,7 @@ class Order(db.Model):
     note = db.Column(db.Text, nullable=True)
     delivery_address = db.Column(db.String(400), nullable=True)
     discount_amount = db.Column(db.Float, nullable=False, default=0)
+    discount_rate = db.Column(db.Float, nullable=False, default=0)
     vat_amount = db.Column(db.Float, nullable=False, default=0)
     payment_details = db.Column(db.String(400), nullable=True)
     sales_phone = db.Column(db.String(50), nullable=True)
@@ -3881,7 +3882,7 @@ def handoff_customer_to_zalo(c_id):
 
 def ensure_order_columns():
     columns = {column['name'] for column in inspect(db.engine).get_columns('order')}
-    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'sales_bank_code': 'VARCHAR(30)', 'sales_account_name': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_value': 'FLOAT DEFAULT 1000', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
+    new_columns = {'delivery_address': 'TEXT', 'discount_amount': 'FLOAT DEFAULT 0', 'discount_rate': 'FLOAT DEFAULT 0', 'vat_amount': 'FLOAT DEFAULT 0', 'payment_details': 'TEXT', 'sales_phone': 'VARCHAR(50)', 'sales_bank_account': 'VARCHAR(200)', 'sales_bank_code': 'VARCHAR(30)', 'sales_account_name': 'VARCHAR(200)', 'points_awarded': 'INTEGER DEFAULT 0', 'points_redeemed': 'INTEGER DEFAULT 0', 'points_value': 'FLOAT DEFAULT 1000', 'points_discount': 'FLOAT DEFAULT 0', 'production_sent_at': 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'}
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
             db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}'))
@@ -4035,7 +4036,8 @@ def create_order(customer_id):
     customer = get_visible_customer(customer_id)
     if request.method == 'POST':
         try:
-            discount_amount = float(request.form.get('discount_amount') or 0)
+            discount_rate = max(float(request.form.get('discount_rate') or 0), 0)
+            discount_amount = max(float(request.form.get('discount_amount') or 0), 0)
             vat_amount = float(request.form.get('vat_amount') or 0)
             vat_rate = max(float(request.form.get('vat_rate') or 0), 0)
             points_redeemed = int(request.form.get('points_redeemed') or 0)
@@ -4064,7 +4066,10 @@ def create_order(customer_id):
             flash('Hãy nhập ít nhất một sản phẩm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
         points_discount = points_redeemed * points_value
-        taxable_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) - points_discount, 0)
+        merchandise_amount = sum(item.quantity * item.unit_price for item in items)
+        if request.form.get('discount_auto') == '1':
+            discount_amount = merchandise_amount * min(discount_rate, 100) / 100
+        taxable_amount = max(merchandise_amount - discount_amount - points_discount, 0)
         if request.form.get('vat_auto') == '1':
             vat_amount = taxable_amount * vat_rate / 100
         total_amount = max(taxable_amount + max(vat_amount, 0), 0)
@@ -4083,7 +4088,8 @@ def create_order(customer_id):
             points_redeemed=points_redeemed,
             points_value=points_value,
             points_discount=points_discount,
-            discount_amount=max(discount_amount, 0), vat_amount=max(vat_amount, 0),
+            discount_amount=discount_amount, discount_rate=min(discount_rate, 100),
+            vat_amount=max(vat_amount, 0),
         )
         db.session.add(order)
         order.items.extend(items)
