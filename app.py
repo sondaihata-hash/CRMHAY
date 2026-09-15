@@ -2304,6 +2304,70 @@ def get_facebook_token():
     return None
 
 
+FACEBOOK_OAUTH_SCOPES = (
+    'pages_show_list,pages_manage_metadata,pages_messaging,pages_read_engagement'
+)
+
+
+def facebook_oauth_configured():
+    return bool(
+        os.environ.get('FACEBOOK_APP_ID', '').strip()
+        and os.environ.get('FACEBOOK_APP_SECRET', '').strip()
+    )
+
+
+def facebook_oauth_redirect_uri():
+    configured_uri = os.environ.get('FACEBOOK_OAUTH_REDIRECT_URI', '').strip()
+    return configured_uri or url_for('facebook_oauth_callback', _external=True)
+
+
+def exchange_facebook_oauth_code(code):
+    app_id = os.environ.get('FACEBOOK_APP_ID', '').strip()
+    app_secret = os.environ.get('FACEBOOK_APP_SECRET', '').strip()
+    if not app_id or not app_secret:
+        raise ValueError('CRM chưa được cấu hình FACEBOOK_APP_ID và FACEBOOK_APP_SECRET.')
+    params = urlencode({
+        'client_id': app_id,
+        'redirect_uri': facebook_oauth_redirect_uri(),
+        'client_secret': app_secret,
+        'code': code,
+    })
+    try:
+        with urlopen(
+            Request(
+                f'https://graph.facebook.com/v19.0/oauth/access_token?{params}',
+                headers={'User-Agent': 'CRM-HAY/1.0'},
+            ),
+            timeout=FACEBOOK_API_TIMEOUT,
+        ) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
+        logger.error('Facebook OAuth code exchange failed: %s', exc)
+        raise ValueError('Meta không cấp được access token. Hãy thử kết nối lại.') from exc
+    token = payload.get('access_token')
+    if not token:
+        raise ValueError('Meta không trả về access token hợp lệ.')
+    return token
+
+
+def save_facebook_system_token(token, description=None):
+    setting_query = Setting.query.filter_by(key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN')
+    organization_id = current_user().organization_id
+    if organization_id is not None:
+        setting_query = setting_query.filter(Setting.organization_id == organization_id)
+    setting = setting_query.first()
+    if setting:
+        setting.value = token
+        setting.description = description or setting.description
+    else:
+        db.session.add(Setting(
+            organization_id=organization_id,
+            key='FACEBOOK_SYSTEM_USER_ACCESS_TOKEN',
+            value=token,
+            description=description or 'Facebook OAuth access token dùng để đồng bộ inbox.',
+        ))
+
+
 def get_facebook_sync_limits(max_pages=None, max_conversations_per_page=None):
     configured_conversation_limit = max_conversations_per_page
     if configured_conversation_limit is None:
