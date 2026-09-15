@@ -3367,24 +3367,46 @@ def index():
         'month': customer_period_stat(customer_with_phone_query, month_start, next_month_start, month_start - timedelta(days=32), month_start),
         'year': customer_period_stat(customer_with_phone_query, year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
     }
+    growth_granularity = request.args.get('growth_by', 'month').strip().lower()
+    if growth_granularity not in {'day', 'week', 'month'}:
+        growth_granularity = 'month'
+    default_growth_start = (month_start - timedelta(days=335)).replace(day=1)
+    growth_start_text = request.args.get('growth_start', default_growth_start.strftime('%Y-%m-%d'))
+    growth_end_text = request.args.get('growth_end', now.strftime('%Y-%m-%d'))
+    try:
+        growth_start_date = datetime.strptime(growth_start_text, '%Y-%m-%d').date()
+        growth_end_date = datetime.strptime(growth_end_text, '%Y-%m-%d').date()
+    except ValueError:
+        growth_start_date = default_growth_start.date()
+        growth_end_date = now.date()
+    if growth_end_date < growth_start_date:
+        growth_start_date, growth_end_date = growth_end_date, growth_start_date
+    growth_start = datetime.combine(growth_start_date, datetime.min.time())
+    growth_end = datetime.combine(growth_end_date + timedelta(days=1), datetime.min.time())
     growth_periods = []
-    period_start = (month_start - timedelta(days=335)).replace(day=1)
-    for offset in range(12):
-        period_year = period_start.year + (period_start.month - 1 + offset) // 12
-        period_month = (period_start.month - 1 + offset) % 12 + 1
-        current_start = datetime(period_year, period_month, 1)
-        next_start = (
-            datetime(period_year + 1, 1, 1)
-            if period_month == 12
-            else datetime(period_year, period_month + 1, 1)
-        )
+    cursor = growth_start
+    if growth_granularity == 'day':
+        step = lambda value: value + timedelta(days=1)
+        label_format = '%d/%m'
+    elif growth_granularity == 'week':
+        cursor -= timedelta(days=cursor.weekday())
+        step = lambda value: value + timedelta(days=7)
+        label_format = 'Tuần %d/%m'
+    else:
+        cursor = cursor.replace(day=1)
+        step = lambda value: (value + timedelta(days=32)).replace(day=1)
+        label_format = '%m/%Y'
+    while cursor < growth_end:
+        next_cursor = step(cursor)
+        period_end = min(next_cursor, growth_end)
         growth_periods.append({
-            'label': current_start.strftime('%m/%Y'),
+            'label': cursor.strftime(label_format),
             'count': customer_query.filter(
-                Customer.created_at >= current_start,
-                Customer.created_at < next_start,
+                Customer.created_at >= cursor,
+                Customer.created_at < period_end,
             ).count(),
         })
+        cursor = next_cursor
     growth_max = max((period['count'] for period in growth_periods), default=0)
     day_of_month_counts = [0] * 31
     weekday_names = ('Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7')
@@ -3495,6 +3517,9 @@ def index():
         customer_period_stats=customer_period_stats,
         customer_growth_chart=growth_periods,
         customer_growth_max=growth_max,
+        growth_granularity=growth_granularity,
+        growth_start_text=growth_start_date.strftime('%Y-%m-%d'),
+        growth_end_text=growth_end_date.strftime('%Y-%m-%d'),
         customer_day_chart=customer_day_chart,
         customer_day_max=customer_day_max,
         customer_day_min=customer_day_min,
