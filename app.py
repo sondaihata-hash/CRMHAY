@@ -4061,6 +4061,15 @@ def orders():
 def create_order(customer_id):
     customer = get_visible_customer(customer_id)
     if request.method == 'POST':
+        customer_type = request.form.get('customer_type') if request.form.get('customer_type') in {'personal', 'business'} else 'personal'
+        if customer_type == 'business':
+            customer.company_name = (request.form.get('company_name') or '').strip()
+            customer.company_address = (request.form.get('company_address') or '').strip()
+            customer.tax_code = (request.form.get('tax_code') or '').strip()
+            customer.bank_account = (request.form.get('bank_account') or '').strip()
+            customer.bank_name = (request.form.get('bank_name') or '').strip()
+            customer.representative_name = (request.form.get('representative_name') or '').strip()
+            customer.representative_position = (request.form.get('representative_position') or '').strip()
         try:
             discount_rate = max(float(request.form.get('discount_rate') or 0), 0)
             discount_amount = max(float(request.form.get('discount_amount') or 0), 0)
@@ -4103,6 +4112,7 @@ def create_order(customer_id):
             customer_id=customer.id,
             organization_id=current_user().organization_id,
             code=f"DH{datetime.utcnow():%Y%m%d%H%M%S}{customer.id}",
+            customer_type=customer_type,
             total_amount=total_amount,
             status=request.form.get('status') or 'Mới',
             note=request.form.get('note', '').strip(),
@@ -5324,6 +5334,7 @@ def serialize_customer(c):
 def serialize_order(o):
     return {
         'id': o.id, 'code': o.code, 'total_amount': o.total_amount,
+        'customer_type': o.customer_type or 'personal',
         'status': o.status, 'note': o.note,
         'delivery_address': o.delivery_address,
         'sales_phone': o.sales_phone,
