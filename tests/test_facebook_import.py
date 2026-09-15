@@ -85,8 +85,11 @@ def test_dashboard_route_exposes_crm_summary():
         response = login_admin(app.test_client()).get('/')
 
         assert response.status_code == 200
-        assert 'Dashboard Test' in response.get_data(as_text=True)
-        assert '1,250,000' in response.get_data(as_text=True)
+        dashboard_html = response.get_data(as_text=True)
+        assert 'Dashboard Test' in dashboard_html
+        assert '1,250,000' in dashboard_html
+        assert 'Khách hàng mới theo tháng' in dashboard_html
+        assert 'customer-growth-chart' in dashboard_html
 
         db.session.delete(order)
         db.session.delete(customer)
