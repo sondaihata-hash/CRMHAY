@@ -4796,6 +4796,61 @@ def save_facebook_token():
     return redirect(url_for('settings'))
 
 
+@app.route('/settings/facebook-oauth')
+@admin_required
+def facebook_oauth_start():
+    if not facebook_oauth_configured():
+        flash('Chưa cấu hình FACEBOOK_APP_ID và FACEBOOK_APP_SECRET trên máy chủ.', 'danger')
+        return redirect(url_for('settings'))
+    state = secrets.token_urlsafe(32)
+    session['facebook_oauth_state'] = state
+    session['facebook_oauth_next'] = url_for('settings')
+    params = urlencode({
+        'client_id': os.environ['FACEBOOK_APP_ID'].strip(),
+        'redirect_uri': facebook_oauth_redirect_uri(),
+        'state': state,
+        'scope': FACEBOOK_OAUTH_SCOPES,
+        'response_type': 'code',
+    })
+    return redirect(f'https://www.facebook.com/v19.0/dialog/oauth?{params}')
+
+
+@app.route('/settings/facebook-oauth/callback')
+@admin_required
+def facebook_oauth_callback():
+    expected_state = session.pop('facebook_oauth_state', None)
+    next_url = session.pop('facebook_oauth_next', url_for('settings'))
+    received_state = request.args.get('state', '')
+    if not expected_state or not received_state or not hmac.compare_digest(expected_state, received_state):
+        flash('Phiên kết nối Facebook không hợp lệ hoặc đã hết hạn. Hãy thử lại.', 'danger')
+        return redirect(next_url)
+    if request.args.get('error'):
+        reason = request.args.get('error_description') or request.args.get('error')
+        flash(f'Kết nối Facebook bị hủy: {reason}', 'warning')
+        return redirect(next_url)
+    code = request.args.get('code', '').strip()
+    if not code:
+        flash('Meta không trả về mã xác thực.', 'danger')
+        return redirect(next_url)
+    try:
+        token = exchange_facebook_oauth_code(code)
+        pages = resolve_facebook_pages(token)
+        if not pages:
+            raise ValueError('Tài khoản Meta không quản lý Page nào hoặc chưa cấp quyền cho Page.')
+        save_facebook_system_token(
+            token,
+            'Facebook OAuth access token dùng để đồng bộ inbox và quản lý Page.',
+        )
+        db.session.commit()
+    except (ValueError, HTTPError, URLError) as exc:
+        db.session.rollback()
+        logger.warning('Facebook OAuth connection failed: %s', exc)
+        flash(str(exc), 'danger')
+        return redirect(next_url)
+    flash(f'Đã kết nối Facebook OAuth với {len(pages)} Page.', 'success')
+    return redirect(next_url)
+
+
 @app.route('/settings/add', methods=['POST'])
 def add_setting():
     key = request.form.get('key')
