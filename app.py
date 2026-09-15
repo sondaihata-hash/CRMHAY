@@ -4010,6 +4010,7 @@ def create_order(customer_id):
         try:
             discount_amount = float(request.form.get('discount_amount') or 0)
             vat_amount = float(request.form.get('vat_amount') or 0)
+            vat_rate = max(float(request.form.get('vat_rate') or 0), 0)
             points_redeemed = int(request.form.get('points_redeemed') or 0)
             points_value = float(request.form.get('points_value') or 1000)
         except ValueError:
@@ -4036,7 +4037,10 @@ def create_order(customer_id):
             flash('Hãy nhập ít nhất một sản phẩm.', 'danger')
             return redirect(url_for('create_order', customer_id=customer.id))
         points_discount = points_redeemed * points_value
-        total_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) - points_discount + max(vat_amount, 0), 0)
+        taxable_amount = max(sum(item.quantity * item.unit_price for item in items) - max(discount_amount, 0) - points_discount, 0)
+        if request.form.get('vat_auto') == '1':
+            vat_amount = taxable_amount * vat_rate / 100
+        total_amount = max(taxable_amount + max(vat_amount, 0), 0)
         order = Order(
             customer_id=customer.id,
             organization_id=current_user().organization_id,
@@ -4149,8 +4153,10 @@ def edit_order(order_id):
         try:
             order.points_value = float(request.form.get('points_value') or order.points_value or 1000)
             order.points_redeemed = max(int(request.form.get('points_redeemed') or 0), 0)
+            vat_amount = max(float(request.form.get('vat_amount') or 0), 0)
+            vat_rate = max(float(request.form.get('vat_rate') or 0), 0)
         except ValueError:
-            flash('Giá trị điểm và số điểm đổi phải là số hợp lệ.', 'danger')
+            flash('Giá trị điểm, VAT và số điểm đổi phải là số hợp lệ.', 'danger')
             return redirect(url_for('edit_order', order_id=order.id))
         if order.points_value <= 0:
             flash('Giá trị quy đổi 1 điểm phải lớn hơn 0.', 'danger')
@@ -4172,20 +4178,28 @@ def edit_order(order_id):
                     unit=unit.strip(), quantity=max(float(qty or 0), 0),
                     unit_price=max(float(price or 0), 0),
                 ))
-        order.total_amount = max(
+        taxable_amount = max(
             sum(item.quantity * item.unit_price for item in order.items)
             - (order.discount_amount or 0)
-            - (order.points_discount or 0)
-            + (order.vat_amount or 0),
+            - (order.points_discount or 0),
             0,
         )
+        order.vat_amount = taxable_amount * vat_rate / 100 if request.form.get('vat_auto') == '1' else vat_amount
+        order.total_amount = max(taxable_amount + order.vat_amount, 0)
         sales_user = assign_customer_to_order_sales(order)
         db.session.commit()
         flash(f'Đã cập nhật đơn {order.code}.', 'success')
         if order.sales_phone and not sales_user:
             flash('Không tìm thấy tài khoản Sales khớp với số điện thoại trên đơn; khách vẫn giữ người phụ trách hiện tại.', 'warning')
         return redirect(url_for('order_document', order_id=order.id))
-    return render_template('order_edit.html', order=order)
+    taxable_amount = max(
+        sum(item.quantity * item.unit_price for item in order.items)
+        - (order.discount_amount or 0)
+        - (order.points_discount or 0),
+        0,
+    )
+    vat_rate = (order.vat_amount or 0) / taxable_amount * 100 if taxable_amount else 0
+    return render_template('order_edit.html', order=order, vat_rate=vat_rate)
 
 
 @app.route('/orders/<int:order_id>/production', methods=['POST'])
