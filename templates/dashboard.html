@@ -50,6 +50,26 @@
       {% endfor %}
     </div>
   </section>
+  <section class="panel p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+      <div>
+        <div class="kpi-label">Tăng trưởng khách hàng</div>
+        <h2 class="section-title mb-0">Khách hàng mới theo tháng</h2>
+      </div>
+      <span class="text-secondary small">12 tháng gần nhất · tính theo ngày tạo khách</span>
+    </div>
+    <div class="customer-growth-chart" role="img" aria-label="Biểu đồ cột khách hàng mới theo tháng">
+      {% for period in customer_growth_chart %}
+        <div class="customer-growth-column">
+          <div class="customer-growth-value">{{ period.count }}</div>
+          <div class="customer-growth-bar-wrap">
+            <div class="customer-growth-bar" style="height: {{ ((period.count / customer_growth_max * 100) if customer_growth_max else 0)|round(0) }}%;" title="{{ period.label }}: {{ period.count }} khách"></div>
+          </div>
+          <div class="customer-growth-label">{{ period.label }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
   {% if current_user().role in ['admin', 'dev'] %}

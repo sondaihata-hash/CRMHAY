@@ -3367,6 +3367,25 @@ def index():
         'month': customer_period_stat(customer_with_phone_query, month_start, next_month_start, month_start - timedelta(days=32), month_start),
         'year': customer_period_stat(customer_with_phone_query, year_start, datetime(now.year + 1, 1, 1), datetime(now.year - 1, 1, 1), year_start),
     }
+    growth_periods = []
+    period_start = (month_start - timedelta(days=335)).replace(day=1)
+    for offset in range(12):
+        period_year = period_start.year + (period_start.month - 1 + offset) // 12
+        period_month = (period_start.month - 1 + offset) % 12 + 1
+        current_start = datetime(period_year, period_month, 1)
+        next_start = (
+            datetime(period_year + 1, 1, 1)
+            if period_month == 12
+            else datetime(period_year, period_month + 1, 1)
+        )
+        growth_periods.append({
+            'label': current_start.strftime('%m/%Y'),
+            'count': customer_query.filter(
+                Customer.created_at >= current_start,
+                Customer.created_at < next_start,
+            ).count(),
+        })
+    growth_max = max((period['count'] for period in growth_periods), default=0)
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
     phone_count = customer_query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
@@ -3454,6 +3473,8 @@ def index():
         recent_customers=recent_customers, recent_orders=recent_orders,
         reminder_count=reminder_count, pending_reminders=pending_reminders,
         customer_period_stats=customer_period_stats,
+        customer_growth_chart=growth_periods,
+        customer_growth_max=growth_max,
         location_summary=location_summary,
         location_unknown_count=location_unknown_count,
         sales_customer_stats=sales_customer_stats,
