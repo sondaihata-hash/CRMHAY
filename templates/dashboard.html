@@ -70,6 +70,54 @@
       {% endfor %}
     </div>
   </section>
+  <div class="row g-4 mb-4">
+    <div class="col-xl-7">
+      <section class="panel p-4 h-100">
+        <div class="kpi-label">Phân tích ngày trong tháng</div>
+        <h2 class="section-title mb-1">Ngày nào thường có khách nhiều nhất?</h2>
+        <p class="small text-secondary">Cộng dồn theo ngày 1–31 của toàn bộ dữ liệu khách hàng.</p>
+        <div class="customer-pattern-chart customer-day-chart" role="img" aria-label="Khách hàng mới theo ngày trong tháng">
+          {% for item in customer_day_chart %}
+            <div class="customer-pattern-column {% if item.count == customer_day_max and customer_day_max > 0 %}is-high{% elif item.count == customer_day_min %}is-low{% endif %}">
+              <div class="customer-pattern-value">{{ item.count }}</div>
+              <div class="customer-pattern-bar-wrap"><div class="customer-pattern-bar" style="height: {{ ((item.count / customer_day_max * 100) if customer_day_max else 0)|round(0) }}%;" title="Ngày {{ item.label }}: {{ item.count }} khách"></div></div>
+              <div class="customer-pattern-label">{{ item.label }}</div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="small mt-3">
+          <span class="text-success fw-semibold">Nhiều nhất:</span>
+          {% for item in customer_day_chart if item.count == customer_day_max and customer_day_max > 0 %}ngày {{ item.label }}{% if not loop.last %}, {% endif %}{% else %}chưa có dữ liệu{% endfor %}
+          <span class="text-secondary"> · </span>
+          <span class="text-danger fw-semibold">Ít nhất:</span>
+          {% for item in customer_day_chart if item.count == customer_day_min %}ngày {{ item.label }}{% if not loop.last %}, {% endif %}{% else %}chưa có dữ liệu{% endfor %}
+        </div>
+      </section>
+    </div>
+    <div class="col-xl-5">
+      <section class="panel p-4 h-100">
+        <div class="kpi-label">Phân tích theo tuần</div>
+        <h2 class="section-title mb-1">Thứ mấy có khách nhiều nhất?</h2>
+        <p class="small text-secondary">Cộng dồn số khách theo thứ trong tuần.</p>
+        <div class="customer-weekday-list" role="img" aria-label="Khách hàng mới theo thứ trong tuần">
+          {% for item in customer_weekday_chart %}
+            <div class="customer-weekday-row {% if item.count == customer_weekday_max and customer_weekday_max > 0 %}is-high{% elif item.count == customer_weekday_min %}is-low{% endif %}">
+              <span class="customer-weekday-name">{{ item.label }}</span>
+              <div class="customer-weekday-track"><span style="width: {{ ((item.count / customer_weekday_max * 100) if customer_weekday_max else 0)|round(0) }}%;"></span></div>
+              <strong>{{ item.count }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="small mt-3">
+          <span class="text-success fw-semibold">Nhiều nhất:</span>
+          {% for item in customer_weekday_chart if item.count == customer_weekday_max and customer_weekday_max > 0 %}{{ item.label }}{% if not loop.last %}, {% endif %}{% else %}chưa có dữ liệu{% endfor %}
+          <span class="text-secondary"> · </span>
+          <span class="text-danger fw-semibold">Ít nhất:</span>
+          {% for item in customer_weekday_chart if item.count == customer_weekday_min %}{{ item.label }}{% if not loop.last %}, {% endif %}{% else %}chưa có dữ liệu{% endfor %}
+        </div>
+      </section>
+    </div>
+  </div>
   {% endif %}
 
   {% if current_user().role in ['admin', 'dev'] %}

@@ -3386,6 +3386,26 @@ def index():
             ).count(),
         })
     growth_max = max((period['count'] for period in growth_periods), default=0)
+    day_of_month_counts = [0] * 31
+    weekday_names = ('Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7')
+    weekday_counts = [0] * len(weekday_names)
+    for (created_at,) in customer_query.with_entities(Customer.created_at).all():
+        if not created_at:
+            continue
+        day_of_month_counts[created_at.day - 1] += 1
+        weekday_counts[(created_at.weekday() + 1) % 7] += 1
+    customer_day_chart = [
+        {'label': str(day), 'count': day_of_month_counts[day - 1]}
+        for day in range(1, 32)
+    ]
+    customer_weekday_chart = [
+        {'label': label, 'count': count}
+        for label, count in zip(weekday_names, weekday_counts)
+    ]
+    customer_day_max = max((item['count'] for item in customer_day_chart), default=0)
+    customer_day_min = min((item['count'] for item in customer_day_chart), default=0)
+    customer_weekday_max = max((item['count'] for item in customer_weekday_chart), default=0)
+    customer_weekday_min = min((item['count'] for item in customer_weekday_chart), default=0)
     order_query = Order.query.join(Customer).filter(Customer.id.in_(customer_query.with_entities(Customer.id)))
     customer_count = customer_query.count()
     phone_count = customer_query.filter(Customer.phone.isnot(None), Customer.phone != '').count()
@@ -3475,6 +3495,12 @@ def index():
         customer_period_stats=customer_period_stats,
         customer_growth_chart=growth_periods,
         customer_growth_max=growth_max,
+        customer_day_chart=customer_day_chart,
+        customer_day_max=customer_day_max,
+        customer_day_min=customer_day_min,
+        customer_weekday_chart=customer_weekday_chart,
+        customer_weekday_max=customer_weekday_max,
+        customer_weekday_min=customer_weekday_min,
         location_summary=location_summary,
         location_unknown_count=location_unknown_count,
         sales_customer_stats=sales_customer_stats,
