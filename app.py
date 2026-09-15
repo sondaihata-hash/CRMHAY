@@ -4061,11 +4061,28 @@ def orders():
     return render_template('orders.html', orders=order_items, statuses=statuses, status=status, q=q)
 
 
+@app.route('/orders/create', methods=['GET', 'POST'])
 @app.route('/orders/create/<int:customer_id>', methods=['GET', 'POST'])
-def create_order(customer_id):
-    customer = get_visible_customer(customer_id)
+def create_order(customer_id=None):
+    customer = get_visible_customer(customer_id) if customer_id else Customer(
+        name='', organization_id=current_user().organization_id,
+    )
     if request.method == 'POST':
         customer_type = request.form.get('customer_type') if request.form.get('customer_type') in {'personal', 'business'} else 'personal'
+        if not customer_id:
+            customer.name = (request.form.get('customer_name') or '').strip()
+            customer.phone = sanitize_customer_phone(request.form.get('phone'))
+            customer.email = (request.form.get('email') or '').strip()
+            customer.location = (request.form.get('delivery_address') or '').strip()
+            if not customer.name and customer_type == 'business':
+                customer.name = (request.form.get('company_name') or '').strip()
+            if not customer.name:
+                flash('Vui lòng nhập tên khách hàng hoặc tên doanh nghiệp.', 'danger')
+                return redirect(url_for('create_order', type=customer_type))
+            customer.phone_added_at = datetime.utcnow() if customer.phone else None
+            customer.source = 'manual'
+            db.session.add(customer)
+            db.session.flush()
         if customer_type == 'business':
             customer.company_name = (request.form.get('company_name') or '').strip()
             customer.company_address = (request.form.get('company_address') or '').strip()
