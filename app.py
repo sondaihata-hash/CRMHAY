@@ -540,6 +540,13 @@ def ensure_customer_columns():
         'tags': 'TEXT',
         'points': 'INTEGER DEFAULT 0',
         'assigned_user_id': 'INTEGER',
+        'company_name': 'VARCHAR(300)',
+        'company_address': 'VARCHAR(400)',
+        'tax_code': 'VARCHAR(50)',
+        'bank_account': 'VARCHAR(100)',
+        'bank_name': 'VARCHAR(300)',
+        'representative_name': 'VARCHAR(200)',
+        'representative_position': 'VARCHAR(200)',
     }
     for column_name, column_type in new_columns.items():
         if column_name not in columns:
