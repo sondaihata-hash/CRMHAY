@@ -52,7 +52,20 @@ def build_order_pdf(order, organization=None):
     pdf.drawString(120*mm, height-66*mm, f'STK Sales: {order.sales_bank_account or "-"}')
     pdf.drawString(14*mm, height-71*mm, f'Tên chủ TK: {order.sales_account_name or "-"}')
     pdf.drawString(120*mm, height-71*mm, f'Thanh toán: {order.payment_details or "-"}')
+    if getattr(order, 'customer_type', 'personal') == 'business':
+        business_lines = [
+            f'DOANH NGHIỆP: {order.customer.company_name or order.customer.name}',
+            f'MST: {order.customer.tax_code or "-"} | Địa chỉ: {order.customer.company_address or "-"}',
+            f'TK: {order.customer.bank_account or "-"} | NH: {order.customer.bank_name or "-"}',
+            f'Đại diện: {order.customer.representative_name or "-"} | Chức vụ: {order.customer.representative_position or "-"}',
+        ]
+        y_business = height - 76*mm
+        for line in business_lines:
+            pdf.drawString(14*mm, y_business, line)
+            y_business -= 4*mm
     y = height-78*mm
+    if getattr(order, 'customer_type', 'personal') == 'business':
+        y = height-96*mm
     columns = [14, 25, 48, 105, 125, 145, 172]
     headers = ['STT', 'Mã SP', 'Tên hàng', 'ĐVT', 'SL', 'Đơn giá', 'Thành tiền']
     pdf.line(14*mm, y, 196*mm, y)

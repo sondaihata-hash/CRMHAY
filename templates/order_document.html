@@ -35,6 +35,15 @@
     </tbody>
   </table>
   <div class="text-end">
+    {% if order.customer_type == 'business' %}
+    <div class="text-start border rounded p-2 mb-2"><strong>THÔNG TIN DOANH NGHIỆP</strong><br>
+      Tên: {{ order.customer.company_name or order.customer.name }}<br>
+      Địa chỉ: {{ order.customer.company_address or '—' }}<br>
+      MST: {{ order.customer.tax_code or '—' }} · Tài khoản: {{ order.customer.bank_account or '—' }}<br>
+      Ngân hàng: {{ order.customer.bank_name or '—' }}<br>
+      Đại diện: {{ order.customer.representative_name or '—' }} · Chức vụ: {{ order.customer.representative_position or '—' }}
+    </div>
+    {% endif %}
     Chiết khấu{% if order.discount_rate %} ({{ '{:,.2f}'.format(order.discount_rate).rstrip('0').rstrip('.') }}%){% endif %}: {{ '{:,.0f}'.format(order.discount_amount) }} đ<br>
     Đổi điểm: {{ order.points_redeemed or 0 }} điểm × {{ '{:,.0f}'.format(order.points_value or 1000) }} đ (-{{ '{:,.0f}'.format(order.points_discount or 0) }} đ)<br>
     VAT{% if vat_rate %} ({{ '{:,.2f}'.format(vat_rate).rstrip('0').rstrip('.') }}%){% endif %}: {{ '{:,.0f}'.format(order.vat_amount) }} đ<br>
