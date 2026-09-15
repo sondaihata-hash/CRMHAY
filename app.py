@@ -1032,6 +1032,33 @@ def _bank_qr_url(order):
     )
 
 
+def _refresh_order_payment(order):
+    """Regenerate an unpaid order QR after the order total changes."""
+    payment = order.payment
+    if not payment or payment.status == 'paid':
+        return
+    amount = int(round(max(order.total_amount or 0, 0)))
+    payment.amount = amount
+    if amount <= 0:
+        payment.checkout_url = None
+        payment.qr_code = None
+        payment.provider_payload = None
+        return
+    if payment.payment_method == 'bank':
+        payment.checkout_url = None
+        payment.qr_code = _bank_qr_url(order)
+        payment.provider_payload = json.dumps(
+            {'order_code': order.code, 'manual_confirmation': True},
+            ensure_ascii=False,
+        )
+        return
+    payment.order_code = int(datetime.utcnow().timestamp() * 1000) % 900000000 + 100000000
+    checkout_url, qr_code, provider_result = _payos_create_order_link(payment)
+    payment.checkout_url = checkout_url
+    payment.qr_code = qr_code
+    payment.provider_payload = json.dumps(provider_result, ensure_ascii=False)
+
+
 def _qr_data_uri(value):
     image = qrcode.make(value)
     output = io.BytesIO()
