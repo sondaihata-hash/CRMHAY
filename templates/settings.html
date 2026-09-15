@@ -51,7 +51,7 @@
     <div class="d-flex flex-wrap gap-2 mb-3">
       <a class="btn primary-btn" href="{{ url_for('facebook_oauth_start') }}">Kết nối bằng Facebook/Meta</a>
       {% if facebook_oauth_configured %}
-        <span class="small text-secondary align-self-center">Yêu cầu cấu hình OAuth trên máy chủ.</span>
+        <span class="small text-success align-self-center">Facebook OAuth đã sẵn sàng.</span>
       {% endif %}
     </div>
     <form action="/settings/facebook-token" method="post" class="row g-3 align-items-end">
