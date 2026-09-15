@@ -43,7 +43,7 @@
     <div><label>Loại tiền:</label><input value="VND" readonly></div>
     <div>
       <label>Loại đơn:</label>
-      <input type="hidden" name="customer_type" id="customerType" value="personal">
+      <input type="hidden" name="customer_type" id="customerType" value="{{ initial_customer_type }}">
       <div class="btn-group ms-2" role="group" aria-label="Loại đơn">
         <button type="button" class="btn btn-sm btn-primary order-type-button active" id="personalOrderButton" onclick="setCustomerType('personal')">Tạo đơn cá nhân</button>
         <button type="button" class="btn btn-sm btn-outline-primary order-type-button" id="businessOrderButton" onclick="setCustomerType('business')">Tạo đơn doanh nghiệp</button>

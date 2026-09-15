@@ -3615,6 +3615,9 @@ def complete_reminder(reminder_id):
 @app.route('/customers')
 @login_required
 def customers():
+    order_type = request.args.get('order_type', 'personal')
+    if order_type not in {'personal', 'business'}:
+        order_type = 'personal'
     q = request.args.get('q', '')
     sort = request.args.get('sort', 'newest')
     if sort not in {'date', 'newest', 'page', 'location'}:
@@ -3760,6 +3763,7 @@ def customers():
         ).order_by(User.username).all(),
         can_export=plan_allows('export'),
         current_plan=organization_plan(),
+        order_type=order_type,
     )
 
 
@@ -4165,6 +4169,9 @@ def create_order(customer_id):
             'unit': item.unit or 'Cái',
             'price': item.unit_price or 0,
         })
+    initial_customer_type = request.args.get('type', 'personal')
+    if initial_customer_type not in {'personal', 'business'}:
+        initial_customer_type = 'personal'
     return render_template(
         'order_form.html',
         customer=customer,
@@ -4173,6 +4180,7 @@ def create_order(customer_id):
         recent_order=recent_order,
         bank_suggestions=bank_suggestions,
         product_suggestions=product_suggestions,
+        initial_customer_type=initial_customer_type,
     )
 
 

@@ -278,7 +278,7 @@
             </td>
             <td>
               <div class="d-flex gap-2">
-                <a class="btn btn-sm btn-success action-btn" href="/orders/create/{{ c.id }}">Tạo đơn</a>
+                <a class="btn btn-sm btn-success action-btn" href="{{ url_for('create_order', customer_id=c.id, type=order_type) }}">Tạo đơn {{ 'doanh nghiệp' if order_type == 'business' else 'cá nhân' }}</a>
                 <button class="btn btn-sm btn-outline-success action-btn customer-zalo-button" type="button" data-customer-id="{{ c.id }}" data-customer-name="{{ c.name }}">Gửi Zalo</button>
                 {% if c.phone %}
                 <button class="btn btn-sm btn-warning action-btn customer-call-button" type="button" data-customer-id="{{ c.id }}">Gọi</button>
