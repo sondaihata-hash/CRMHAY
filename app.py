@@ -4184,6 +4184,8 @@ def edit_order(order_id):
         order.sales_bank_code = (request.form.get('sales_bank_code') or '').strip()
         order.sales_account_name = (request.form.get('sales_account_name') or '').strip()
         try:
+            discount_rate = max(float(request.form.get('discount_rate') or 0), 0)
+            discount_amount = max(float(request.form.get('discount_amount') or 0), 0)
             order.points_value = float(request.form.get('points_value') or order.points_value or 1000)
             order.points_redeemed = max(int(request.form.get('points_redeemed') or 0), 0)
             vat_amount = max(float(request.form.get('vat_amount') or 0), 0)
@@ -4211,9 +4213,14 @@ def edit_order(order_id):
                     unit=unit.strip(), quantity=max(float(qty or 0), 0),
                     unit_price=max(float(price or 0), 0),
                 ))
+        merchandise_amount = sum(item.quantity * item.unit_price for item in order.items)
+        if request.form.get('discount_auto') == '1':
+            discount_amount = merchandise_amount * min(discount_rate, 100) / 100
+        order.discount_rate = min(discount_rate, 100)
+        order.discount_amount = discount_amount
         taxable_amount = max(
-            sum(item.quantity * item.unit_price for item in order.items)
-            - (order.discount_amount or 0)
+            merchandise_amount
+            - discount_amount
             - (order.points_discount or 0),
             0,
         )
@@ -5284,7 +5291,8 @@ def serialize_order(o):
         'delivery_address': o.delivery_address,
         'sales_phone': o.sales_phone,
         'sales_bank_account': o.sales_bank_account,
-        'discount_amount': o.discount_amount, 'vat_amount': o.vat_amount,
+        'discount_amount': o.discount_amount, 'discount_rate': o.discount_rate or 0,
+        'vat_amount': o.vat_amount,
         'payment_details': o.payment_details,
         'points_awarded': o.points_awarded or 0,
         'points_redeemed': o.points_redeemed or 0,
@@ -5762,6 +5770,7 @@ def api_create_order():
         except (ValueError, TypeError):
             return {'error': 'Số lượng / đơn giá không hợp lệ.'}, 400
         items.append(item)
+    discount_rate = max(float(data.get('discount_rate') or 0), 0)
     discount = max(float(data.get('discount_amount') or 0), 0)
     vat = max(float(data.get('vat_amount') or 0), 0)
     points_redeemed = max(int(data.get('points_redeemed') or 0), 0)
@@ -5771,7 +5780,10 @@ def api_create_order():
     if points_redeemed > (c.points or 0):
         return {'error': f'Khách chỉ còn {c.points or 0} điểm.'}, 400
     points_discount = points_redeemed * points_value
-    total = max(sum(i.quantity * i.unit_price for i in items) - discount - points_discount + vat, 0)
+    merchandise_amount = sum(i.quantity * i.unit_price for i in items)
+    if data.get('discount_auto'):
+        discount = merchandise_amount * min(discount_rate, 100) / 100
+    total = max(merchandise_amount - discount - points_discount + vat, 0)
     order = Order(
         customer_id=c.id,
         organization_id=user.organization_id,
@@ -5787,7 +5799,8 @@ def api_create_order():
         points_redeemed=points_redeemed,
         points_value=points_value,
         points_discount=points_discount,
-        discount_amount=discount, vat_amount=vat,
+        discount_amount=discount, discount_rate=min(discount_rate, 100),
+        vat_amount=vat,
     )
     db.session.add(order)
     order.items.extend(items)
@@ -5859,7 +5872,11 @@ def api_modify_order(order_id):
                 ))
             except (TypeError, ValueError):
                 return {'error': 'Số lượng / đơn giá không hợp lệ.'}, 400
+        order.discount_rate = max(float(data.get('discount_rate') or 0), 0)
         order.discount_amount = max(float(data.get('discount_amount') or 0), 0)
+        if data.get('discount_auto'):
+            order.discount_amount = sum(item.quantity * item.unit_price for item in order.items) * min(order.discount_rate, 100) / 100
+        order.discount_rate = min(order.discount_rate, 100)
         order.vat_amount = max(float(data.get('vat_amount') or 0), 0)
         order.total_amount = max(
             sum(item.quantity * item.unit_price for item in order.items)
