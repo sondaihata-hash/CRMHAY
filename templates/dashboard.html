@@ -311,6 +311,90 @@
       transform: rotate(-35deg);
       transform-origin: top center;
     }
+    .customer-pattern-chart {
+      display: grid;
+      align-items: end;
+      gap: .18rem;
+      min-height: 190px;
+      padding-top: .5rem;
+    }
+    .customer-day-chart {
+      grid-template-columns: repeat(31, minmax(12px, 1fr));
+    }
+    .customer-pattern-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 175px;
+      min-width: 0;
+    }
+    .customer-pattern-value {
+      min-height: 1rem;
+      color: var(--muted);
+      font-size: .62rem;
+      font-weight: 700;
+    }
+    .customer-pattern-bar-wrap {
+      display: flex;
+      align-items: end;
+      flex: 1;
+      width: 100%;
+      border-bottom: 1px solid var(--line);
+    }
+    .customer-pattern-bar {
+      width: 80%;
+      min-height: 0;
+      margin: 0 auto;
+      border-radius: .25rem .25rem 0 0;
+      background: #94a3b8;
+    }
+    .customer-pattern-column.is-high .customer-pattern-bar {
+      background: var(--success);
+    }
+    .customer-pattern-column.is-low .customer-pattern-bar {
+      background: var(--danger);
+    }
+    .customer-pattern-label {
+      margin-top: .3rem;
+      color: var(--muted);
+      font-size: .62rem;
+    }
+    .customer-weekday-list {
+      display: grid;
+      gap: .75rem;
+      margin-top: 1.35rem;
+    }
+    .customer-weekday-row {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr 3rem;
+      align-items: center;
+      gap: .6rem;
+      font-size: .85rem;
+    }
+    .customer-weekday-name {
+      color: var(--text);
+    }
+    .customer-weekday-track {
+      height: .7rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--line);
+    }
+    .customer-weekday-track span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: #94a3b8;
+    }
+    .customer-weekday-row.is-high .customer-weekday-track span {
+      background: var(--success);
+    }
+    .customer-weekday-row.is-low .customer-weekday-track span {
+      background: var(--danger);
+    }
+    .customer-weekday-row strong {
+      text-align: right;
+    }
     @media (max-width: 768px) {
       .customer-growth-chart {
         gap: .2rem;
@@ -319,6 +403,10 @@
       }
       .customer-growth-column {
         min-width: 42px;
+      }
+      .customer-day-chart {
+        min-width: 520px;
+        overflow-x: auto;
       }
     }
   </style>
