@@ -11,9 +11,17 @@
 <script>
 function updateEditTotals() {
   const rate = Number(document.getElementById('vatRate').value) || 0;
-  const amount = {{ taxable_amount }};
+  const merchandise = [...document.querySelectorAll('[name=quantity]')].reduce((total, input, index) => {
+    return total + (Number(input.value) || 0) * (Number(document.querySelectorAll('[name=unit_price]')[index].value) || 0);
+  }, 0);
+  const points = (Number(document.querySelector('[name=points_redeemed]').value) || 0) *
+    (Number(document.querySelector('[name=points_value]').value) || 0);
+  const amount = Math.max(merchandise - points, 0);
   if (document.querySelector('[name=vat_auto]').checked) document.getElementById('vatAmount').value = Math.round(amount * rate / 100);
 }
 document.getElementById('vatRate').addEventListener('input', updateEditTotals);
+document.querySelectorAll('[name=quantity], [name=unit_price], [name=points_redeemed], [name=points_value]').forEach((input) => {
+  input.addEventListener('input', updateEditTotals);
+});
 </script>
 {% endblock %}
