@@ -27,6 +27,34 @@
           <label class="form-label fw-semibold">Phone</label>
           <input class="form-control" name="phone" value="{{ c.phone if c else '' }}">
         </div>
+        <div class="col-md-12">
+          <label class="form-label fw-semibold">Tên công ty</label>
+          <input class="form-control" name="company_name" value="{{ c.company_name if c else '' }}" placeholder="Tên pháp lý trên hóa đơn">
+        </div>
+        <div class="col-md-12">
+          <label class="form-label fw-semibold">Địa chỉ công ty</label>
+          <input class="form-control" name="company_address" value="{{ c.company_address if c else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Mã số thuế</label>
+          <input class="form-control" name="tax_code" value="{{ c.tax_code if c else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Số tài khoản</label>
+          <input class="form-control" name="bank_account" value="{{ c.bank_account if c else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Ngân hàng</label>
+          <input class="form-control" name="bank_name" value="{{ c.bank_name if c else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Người đại diện</label>
+          <input class="form-control" name="representative_name" value="{{ c.representative_name if c else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Chức vụ</label>
+          <input class="form-control" name="representative_position" value="{{ c.representative_position if c else '' }}">
+        </div>
         <div class="col-md-6">
           <label class="form-label fw-semibold">Vị trí</label>
           <input class="form-control" name="location" value="{{ c.location if c else '' }}">
