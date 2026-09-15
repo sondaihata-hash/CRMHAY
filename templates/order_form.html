@@ -35,11 +35,11 @@
   <div class="order-heading"><p><b>{{ organization.name if organization else 'CRM HAY' }}</b></p><p>- {{ organization.company_address if organization and organization.company_address else 'Chưa cập nhật địa chỉ công ty' }}.</p><p>- Email: {{ organization.company_email if organization and organization.company_email else '—' }} · Tel: {{ organization.company_phone if organization and organization.company_phone else '—' }}</p></div>
   <div class="order-title">ĐƠN ĐẶT HÀNG</div>
   <div class="order-meta">
-    <div><label>Tên khách hàng:</label><input name="customer_name_display" value="{{ customer.name }}" readonly></div>
+    <div><label>Tên khách hàng:</label>{% if customer.id %}<input name="customer_name_display" value="{{ customer.name }}" readonly>{% else %}<input name="customer_name" value="{{ customer.name or '' }}" required placeholder="Nhập tên khách hàng/doanh nghiệp">{% endif %}</div>
     <div><label>Ngày:</label><input value="{{ now().strftime('%d/%m/%Y') if now is defined else '' }}" placeholder="Tự động khi tạo" readonly></div>
     <div><label>Địa chỉ:</label><input name="delivery_address" value="{{ customer.location or '' }}"></div>
     <div><label>Số ĐĐH:</label><input placeholder="Tự động tạo" readonly></div>
-    <div><label>Điện thoại:</label><input value="{{ customer.phone or '' }}" readonly></div>
+    <div><label>Điện thoại:</label>{% if customer.id %}<input value="{{ customer.phone or '' }}" readonly>{% else %}<input name="phone" value="{{ customer.phone or '' }}" placeholder="Số điện thoại">{% endif %}</div>
     <div><label>Loại tiền:</label><input value="VND" readonly></div>
     <div>
       <label>Loại đơn:</label>
@@ -49,7 +49,7 @@
         <button type="button" class="btn btn-sm btn-outline-primary order-type-button" id="businessOrderButton" onclick="setCustomerType('business')">Tạo đơn doanh nghiệp</button>
       </div>
     </div>
-    <div><label>Email:</label><input value="{{ customer.email or '' }}" readonly></div>
+    <div><label>Email:</label>{% if customer.id %}<input value="{{ customer.email or '' }}" readonly>{% else %}<input name="email" type="email" value="{{ customer.email or '' }}" placeholder="Email">{% endif %}</div>
     <div><label>Trạng thái:</label><select name="status"><option>Mới</option><option>Đang xử lý</option><option>Hoàn tất</option></select></div>
     <div><label>SĐT Sales:</label><input name="sales_phone" type="tel" value="{{ recent_order.sales_phone if recent_order else '' }}" placeholder="Số điện thoại của Sales"></div>
     <div><label>Ngân hàng Sales:</label><input name="sales_bank_code" list="bank-suggestions" value="{{ recent_order.sales_bank_code if recent_order else '' }}" placeholder="Mã ngân hàng/BIN, ví dụ VCB"><datalist id="bank-suggestions">{% for bank in bank_suggestions %}<option value="{{ bank.sales_bank_code }}">{{ bank.sales_bank_account }}{% if bank.sales_account_name %} · {{ bank.sales_account_name }}{% endif %}</option>{% endfor %}</datalist></div>
