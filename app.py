@@ -4214,6 +4214,12 @@ def edit_order(order_id):
         order.vat_amount = taxable_amount * vat_rate / 100 if request.form.get('vat_auto') == '1' else vat_amount
         order.total_amount = max(taxable_amount + order.vat_amount, 0)
         sales_user = assign_customer_to_order_sales(order)
+        try:
+            _refresh_order_payment(order)
+        except RuntimeError as exc:
+            db.session.rollback()
+            flash(f'Không thể cập nhật mã QR theo tổng tiền mới: {exc}', 'danger')
+            return redirect(url_for('edit_order', order_id=order.id))
         db.session.commit()
         flash(f'Đã cập nhật đơn {order.code}.', 'success')
         if order.sales_phone and not sales_user:
@@ -4263,7 +4269,13 @@ def create_order_payment(order_id):
     if order.payment and order.payment.status == 'paid':
         flash('Đơn hàng này đã thanh toán thành công.', 'success')
         return redirect(url_for('order_document', order_id=order.id))
-    if order.payment and order.payment.checkout_url and order.payment.qr_code:
+    if (
+        order.payment
+        and order.payment.status != 'paid'
+        and order.payment.amount == int(round(max(order.total_amount or 0, 0)))
+        and order.payment.checkout_url
+        and order.payment.qr_code
+    ):
         return redirect(url_for('order_document', order_id=order.id))
     amount = int(round(max(order.total_amount or 0, 0)))
     if amount <= 0:
@@ -5846,6 +5858,11 @@ def api_modify_order(order_id):
             sum(item.quantity * item.unit_price for item in order.items)
             - order.discount_amount - (order.points_discount or 0) + order.vat_amount, 0,
         )
+    try:
+        _refresh_order_payment(order)
+    except RuntimeError as exc:
+        db.session.rollback()
+        return {'error': f'Không thể cập nhật mã QR theo tổng tiền mới: {exc}'}, 502
     assign_customer_to_order_sales(order)
     db.session.commit()
     return {'order': serialize_order(order)}
