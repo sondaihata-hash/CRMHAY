@@ -4298,6 +4298,7 @@ def create_order_payment(order_id):
     db.session.add(order_payment)
     try:
         if is_default_admin():
+            order_payment.order_code = int(datetime.utcnow().timestamp() * 1000) % 900000000 + 100000000
             checkout_url, qr_code, provider_result = _payos_create_order_link(order_payment)
             order_payment.payment_method = 'payos'
             order_payment.checkout_url = checkout_url
