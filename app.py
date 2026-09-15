@@ -4332,6 +4332,13 @@ def order_document(order_id):
     ).first()
     if not order:
         return 'Không tìm thấy đơn hàng.', 404
+    taxable_amount = max(
+        sum(item.quantity * item.unit_price for item in order.items)
+        - (order.discount_amount or 0)
+        - (order.points_discount or 0),
+        0,
+    )
+    vat_rate = (order.vat_amount or 0) / taxable_amount * 100 if taxable_amount else 0
     organization = db.session.get(Organization, current_user().organization_id)
     qr_image = None
     if order.payment and order.payment.qr_code:
@@ -4341,6 +4348,7 @@ def order_document(order_id):
             qr_image = _qr_data_uri(order.payment.qr_code)
     return render_template(
         'order_document.html', order=order, organization=organization,
+        vat_rate=vat_rate,
         qr_image=qr_image,
         customer_payment_url=(
             url_for('customer_order_payment', token=order.payment.public_token, _external=True)
