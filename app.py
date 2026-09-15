@@ -3817,6 +3817,13 @@ def add_customer():
         facebook_id = request.form.get('facebook_id')
         email = request.form.get('email')
         phone = sanitize_customer_phone(request.form.get('phone'))
+        company_name = request.form.get('company_name')
+        company_address = request.form.get('company_address')
+        tax_code = request.form.get('tax_code')
+        bank_account = request.form.get('bank_account')
+        bank_name = request.form.get('bank_name')
+        representative_name = request.form.get('representative_name')
+        representative_position = request.form.get('representative_position')
         notes = request.form.get('notes')
         location = request.form.get('location')
         tags = request.form.get('tags')
@@ -3824,6 +3831,10 @@ def add_customer():
             flash('Tên là bắt buộc', 'danger')
             return redirect(url_for('add_customer'))
         c = Customer(name=name, facebook_id=facebook_id, email=email, phone=phone,
+                     company_name=company_name, company_address=company_address,
+                     tax_code=tax_code, bank_account=bank_account, bank_name=bank_name,
+                     representative_name=representative_name,
+                     representative_position=representative_position,
                      phone_added_at=datetime.utcnow() if phone else None,
                      notes=notes, location=location, tags=tags,
                      assigned_user_id=current_user().id if current_user().role == 'sales' else None)
@@ -4446,6 +4457,13 @@ def edit_customer(c_id):
         c.name = request.form.get('name')
         c.facebook_id = request.form.get('facebook_id')
         c.email = request.form.get('email')
+        c.company_name = request.form.get('company_name')
+        c.company_address = request.form.get('company_address')
+        c.tax_code = request.form.get('tax_code')
+        c.bank_account = request.form.get('bank_account')
+        c.bank_name = request.form.get('bank_name')
+        c.representative_name = request.form.get('representative_name')
+        c.representative_position = request.form.get('representative_position')
         previous_phone = c.phone
         c.phone = sanitize_customer_phone(request.form.get('phone'))
         if not previous_phone and c.phone:
@@ -5285,6 +5303,10 @@ def serialize_customer(c):
         'last_name': c.last_name, 'facebook_id': c.facebook_id,
         'facebook_lead_id': c.facebook_lead_id,
         'email': c.email, 'phone': c.phone, 'notes': c.notes,
+        'company_name': c.company_name, 'company_address': c.company_address,
+        'tax_code': c.tax_code, 'bank_account': c.bank_account,
+        'bank_name': c.bank_name, 'representative_name': c.representative_name,
+        'representative_position': c.representative_position,
         'location': c.location, 'page_name': c.page_name,
         'tags': c.tags, 'source': c.source,
         'profile_pic': c.profile_pic,
@@ -5647,7 +5669,11 @@ def api_update_customer(c_id):
     if not c:
         return {'error': 'Không tìm thấy khách hàng.'}, 404
     data = request.get_json(silent=True) or {}
-    for field in ('name', 'phone', 'email', 'notes', 'location', 'tags', 'facebook_id'):
+    for field in (
+        'name', 'phone', 'email', 'notes', 'location', 'tags', 'facebook_id',
+        'company_name', 'company_address', 'tax_code', 'bank_account',
+        'bank_name', 'representative_name', 'representative_position',
+    ):
         if field in data:
             if field == 'phone':
                 previous_phone = c.phone
@@ -5674,6 +5700,13 @@ def api_add_customer():
         facebook_id=data.get('facebook_id'),
         email=data.get('email'),
         phone=data.get('phone'),
+        company_name=data.get('company_name'),
+        company_address=data.get('company_address'),
+        tax_code=data.get('tax_code'),
+        bank_account=data.get('bank_account'),
+        bank_name=data.get('bank_name'),
+        representative_name=data.get('representative_name'),
+        representative_position=data.get('representative_position'),
         phone_added_at=datetime.utcnow() if (data.get('phone') or '').strip() else None,
         notes=data.get('notes'),
         location=data.get('location'),
