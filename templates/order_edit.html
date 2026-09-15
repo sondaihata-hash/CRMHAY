@@ -11,7 +11,7 @@
 <script>
 function updateEditTotals() {
   const rate = Number(document.getElementById('vatRate').value) || 0;
-  const amount = {{ (sum(item.quantity * item.unit_price for item in order.items) - (order.discount_amount or 0) - (order.points_discount or 0))|max(0) }};
+  const amount = {{ taxable_amount }};
   if (document.querySelector('[name=vat_auto]').checked) document.getElementById('vatAmount').value = Math.round(amount * rate / 100);
 }
 document.getElementById('vatRate').addEventListener('input', updateEditTotals);

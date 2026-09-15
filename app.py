@@ -4199,7 +4199,12 @@ def edit_order(order_id):
         0,
     )
     vat_rate = (order.vat_amount or 0) / taxable_amount * 100 if taxable_amount else 0
-    return render_template('order_edit.html', order=order, vat_rate=vat_rate)
+    return render_template(
+        'order_edit.html',
+        order=order,
+        vat_rate=vat_rate,
+        taxable_amount=taxable_amount,
+    )
 
 
 @app.route('/orders/<int:order_id>/production', methods=['POST'])
