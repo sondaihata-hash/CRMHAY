@@ -400,6 +400,9 @@ provider; do not commit them to Git:
 - `CRM_SECRET_KEY`: a long random value, unique per environment.
 - `CRM_ADMIN_USERNAME` and `CRM_ADMIN_PASSWORD`: bootstrap credentials only.
 - `FACEBOOK_APP_SECRET`: required for signed Facebook webhook requests.
+- `FACEBOOK_APP_ID`: Meta app ID used by the Facebook OAuth Page connection flow.
+- `FACEBOOK_OAUTH_REDIRECT_URI`: exact HTTPS callback URL configured in Meta, normally
+  `https://crmhay.cloud/settings/facebook-oauth/callback`.
 - `FACEBOOK_WEBHOOK_VERIFY_TOKEN`: private Meta webhook verification value.
 - `ZALO_WEBHOOK_SECRET`: HMAC secret sent in the `X-Zalo-Signature` header.
 - `DATABASE_URL`: managed PostgreSQL with SSL enabled.
