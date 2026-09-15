@@ -218,4 +218,60 @@
     <div class="col-xl-7"><section class="panel table-card"><div class="customer-list-toolbar"><span>Khách hàng mới cập nhật</span><a href="/customers" class="text-decoration-none">Xem tất cả →</a></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Khách hàng</th><th>Liên hệ</th><th>Nguồn</th><th></th></tr></thead><tbody>{% for customer in recent_customers %}<tr><td><strong>{{ customer.name }}</strong><small class="d-block text-secondary">{{ customer.location or 'Chưa rõ khu vực' }}</small></td><td>{{ customer.phone or 'Chưa có số' }}</td><td><span class="badge-soft">{{ customer.source or 'CRM' }}</span></td><td class="text-end"><a href="/customers/{{ customer.id }}" class="btn btn-sm btn-outline-primary">Xem</a></td></tr>{% else %}<tr><td colspan="4" class="text-center py-4 text-secondary">Chưa có khách hàng.</td></tr>{% endfor %}</tbody></table></div></section></div>
     <div class="col-xl-5"><section class="panel p-4 h-100"><div class="d-flex justify-content-between align-items-start mb-3"><div><div class="kpi-label">Trạng thái đơn</div><h2 class="section-title">Pipeline bán hàng</h2></div><a href="/orders" class="text-decoration-none small">Chi tiết →</a></div>{% for item in status_summary %}<div class="pipeline-row"><span class="status-dot"></span><span class="flex-grow-1">{{ item[0] or 'Chưa xác định' }}</span><strong>{{ item[1] }}</strong></div>{% else %}<p class="text-secondary">Chưa có đơn hàng.</p>{% endfor %}</section></div>
   </div>
+  <style>
+    .customer-growth-chart {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(34px, 1fr));
+      gap: .65rem;
+      align-items: end;
+      min-height: 220px;
+      padding-top: .5rem;
+    }
+    .customer-growth-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0;
+      height: 210px;
+    }
+    .customer-growth-value {
+      min-height: 1.25rem;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 700;
+    }
+    .customer-growth-bar-wrap {
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      flex: 1;
+      width: 100%;
+      border-bottom: 1px solid var(--line);
+    }
+    .customer-growth-bar {
+      width: min(42px, 72%);
+      min-height: 0;
+      border-radius: .45rem .45rem 0 0;
+      background: linear-gradient(180deg, #14b8a6, #0f766e);
+      transition: height .25s ease;
+    }
+    .customer-growth-label {
+      margin-top: .45rem;
+      color: var(--muted);
+      font-size: .72rem;
+      white-space: nowrap;
+      transform: rotate(-35deg);
+      transform-origin: top center;
+    }
+    @media (max-width: 768px) {
+      .customer-growth-chart {
+        gap: .2rem;
+        overflow-x: auto;
+        padding-bottom: 1.5rem;
+      }
+      .customer-growth-column {
+        min-width: 42px;
+      }
+    }
+  </style>
 {% endblock %}
