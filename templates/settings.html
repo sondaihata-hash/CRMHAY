@@ -44,9 +44,16 @@
   <div class="panel p-3 p-md-4 mb-4">
     <h2 class="section-title mb-2">Kết nối Facebook</h2>
     <p class="text-secondary small mb-3">
-      Dán System User Token từ Meta Business vào đây. Token được lưu trong cơ sở dữ liệu
-      của CRM và sẽ được dùng khi bấm đồng bộ Facebook.
+      Kết nối bằng OAuth để Meta hiển thị đầy đủ bước cấp quyền và chọn Page. Token được lưu
+      trong cơ sở dữ liệu của CRM và dùng khi đồng bộ Facebook. Bạn vẫn có thể dán System User
+      Token thủ công nếu cần.
     </p>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="btn primary-btn" href="{{ url_for('facebook_oauth_start') }}">Kết nối bằng Facebook/Meta</a>
+      {% if facebook_oauth_configured %}
+        <span class="small text-secondary align-self-center">Yêu cầu cấu hình OAuth trên máy chủ.</span>
+      {% endif %}
+    </div>
     <form action="/settings/facebook-token" method="post" class="row g-3 align-items-end">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="col-md-9">

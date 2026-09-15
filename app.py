@@ -4742,6 +4742,7 @@ def settings():
         'settings.html',
         items=items,
         facebook_token_configured=bool(facebook_token),
+        facebook_oauth_configured=facebook_oauth_configured(),
         webhook_verify_token_configured=bool(webhook_verify_token),
         organization=organization,
     )
